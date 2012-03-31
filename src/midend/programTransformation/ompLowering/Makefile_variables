@@ -7,6 +7,7 @@ mptOmpLowering_lib_libraries=\
 	libxomp.a
 
 libxomp_a_SOURCES=\
+	$(mptOmpLoweringPath)/libnanox.c \
 	$(mptOmpLoweringPath)/xomp.c \
 	$(mptOmpLoweringPath)/run_me_callers.inc \
 	$(mptOmpLoweringPath)/run_me_defs.inc \
@@ -15,6 +16,10 @@ libxomp_a_SOURCES=\
 
 mptOmpLowering_includeHeaders=\
 	$(mptOmpLoweringPath)/omp_lowering.h \
+	$(mptOmpLoweringPath)/nanos-int.h \
+	$(mptOmpLoweringPath)/nanos_omp.h \
+	$(mptOmpLoweringPath)/nanos.h \
+	$(mptOmpLoweringPath)/libnanox.h \
 	$(mptOmpLoweringPath)/libgomp_g.h \
 	$(mptOmpLoweringPath)/libompc.h \
 	$(mptOmpLoweringPath)/libxomp.h \

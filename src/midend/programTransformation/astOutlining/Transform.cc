@@ -16,6 +16,8 @@
 #include "PreprocessingInfo.hh"
 #include "StmtRewrite.hh"
 #include "OmpAttribute.h" //regenerate pragma from omp attribute
+
+#include "rose_config.h"
 // =====================================================================
 
 using namespace std;
@@ -31,8 +33,17 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
 {
   SgClassDeclaration* result = NULL;
   // no need to generate the declaration if no variables are to be passed
-  if (syms.empty()) 
+  if (syms.empty())
+  {
+#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY   
+/*!
+ * GOMP and OMNI RTLs do not requiere of an structure when there is no parameter to be passed to the outlined function.
+ * On the contrary, NANOS methods always require an struct, so we build an structure with no member.
+ */
     return result;
+#endif
+  }
+    
 
   ROSE_ASSERT (s != NULL);
   ROSE_ASSERT (func_scope != NULL);
@@ -378,7 +389,6 @@ Outliner::outlineBlock (SgBasicBlock* s, const string& func_name_str)
  */
 std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::VarSymSet_t & syms, ASTtools::VarSymSet_t & pdsyms, SgClassDeclaration* struct_decl /* = NULL */)
 {
-
   int var_count = syms.size();
   int counter=0;
   string wrapper_name= generateFuncArgName(target); //"__out_argv";
@@ -426,7 +436,7 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
       SgInitializedName* i_name = (*i)->get_declaration();
       SgVariableSymbol * i_symbol = const_cast<SgVariableSymbol *>(*i);
       //SgType* i_type = i_symbol->get_type();
-       string member_name= i_name->get_name ().str ();
+      string member_name= i_name->get_name ().str ();
 //     cout<<"Debug: Outliner::generatePackingStatements() symbol to be packed:"<<member_name<<endl;  
       rhs = buildVarRefExp(i_symbol); 
       if (pdsyms.find(i_symbol) != pdsyms.end()) // pointer type
@@ -453,6 +463,7 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
     SageInterface::insertStatementBefore(target, expstmti);
     counter ++;
   }
+  
   return wrapper_name; 
 }
 

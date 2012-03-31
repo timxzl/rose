@@ -834,13 +834,13 @@ SgLocatedNode::addToAttachedPreprocessingInfo(
      PreprocessingInfo::RelativePositionType locationInList )
    {
   // DQ (11/23/2008): Is this comment still true?  Is there something to fix here?
-  // There are places in ROSE where the comments is added before the statement
+  // There are places in ROSE where the comment is added before the statement
   // though most commonly the comment is added after the statement.  So I think that
-  // this interface is required adn that it need not be fixed.
+  // this interface is required and that it need not be fixed.
 
   // DQ (9/19/2003)
   // This function takes a PreprocessingInfo::RelativePositionType type parameter which
-  // makes no since because it is used only to determine if the new comment/directive is
+  // makes no sense because it is used only to determine if the new comment/directive is
   // added to the front or back of the current list of comments/directives.  It does not 
   // change the value of the PreprocessingInfo::RelativePositionType field in the
   // PreprocessingInfo object that it takes for the other parameter (nor should it).

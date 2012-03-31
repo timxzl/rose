@@ -1,5 +1,5 @@
 /*  
- * A common layer for both gomp and omni runtime library
+ * A common layer for either gomp, omni and nanos runtime library
  *  Liao 1/20/2009
  *  */
 #ifndef LIB_XOMP_H 
@@ -36,6 +36,18 @@ extern void XOMP_terminate (int exitcode);
 // numThreadsSpecified: set to the expression of num_threads clause if the clause exists, or default is 0
 extern void XOMP_parallel_start (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified);
 extern void XOMP_parallel_end (void);
+
+// Methods for parallel when NANOX library. In addition to the parameters of the regular XOMP call for parallel:
+// arg_size: size of the data segment used as argument of 'func'
+// arg_align: alignment of the data segment used as argument of 'func'
+// empty_data: pointer to a data segment with the same type as 'data', but empty.
+//             'empty_data' is used to initialize the team, and 'data' is used to fill the empty struct after the team initialization
+// init_func: function that initialized 'empty_data' with the values of the members in 'data'
+// nanos_team: empty team that will execute the parallel region
+extern void XOMP_parallel_start_for_NANOX (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
+                                 long arg_size, long arg_align, void * (*get_empty_data) (void), void (* init_func) (void *, void *), void* nanos_team);
+// nanos_team: team that has to be finalized
+extern void XOMP_parallel_end_for_NANOX (void* nanos_team);
 
 /* Initialize sections and return the next section id (starting from 0) to be executed by the current thread */
 extern int XOMP_sections_init_next(int section_count); 

@@ -4628,6 +4628,7 @@ SgProject::parse()
           printf ("+++++++++++++++ Calling determineFileType() currentFileName = %s \n",currentFileName.c_str());
 #endif
           SgFile* newFile = determineFileType(argv, nextErrorCode, this);
+
           ROSE_ASSERT (newFile != NULL);
 #if 0
           printf ("+++++++++++++++ DONE: Calling determineFileType() currentFileName = %s \n",currentFileName.c_str());
@@ -5676,7 +5677,7 @@ SgFile::secondaryPassOverSourceFile()
 
   // GB (9/4/2009): Factored out the secondary pass. It is now done after
   // the whole project has been constructed and fixed up.
-
+     
      if (get_binary_only() == true)
         {
        // What used to be done here is now done above so that we can know the machine specific details
@@ -8520,16 +8521,25 @@ int SgProject::link ( const std::vector<std::string>& argv, std::string linkerNa
          linkingCommand.push_back("-lpthread");
 #else
   // GOMP has higher priority when both GOMP and OMNI are specified (wrongfully)
-  #ifdef OMNI_OPENMP_LIB_PATH
-           // a little redundant code to defer supporting 'ROSE_INSTALLATION_PATH' in cmake
-           string xomp_lib_path(ROSE_INSTALLATION_PATH);
-           ROSE_ASSERT (xomp_lib_path.size() != 0);
-           linkingCommand.push_back(xomp_lib_path+"/lib/libxomp.a");
 
+  // a little redundant code to defer supporting 'ROSE_INSTALLATION_PATH' in cmake
+  string xomp_lib_path(ROSE_INSTALLATION_PATH);
+  ROSE_ASSERT (xomp_lib_path.size() != 0);
+  linkingCommand.push_back(xomp_lib_path+"/lib/libxomp.a");
+  linkingCommand.push_back("-lpthread");
+
+  #ifdef OMNI_OPENMP_LIB_PATH
            string omni_lib_path(OMNI_OPENMP_LIB_PATH);
            ROSE_ASSERT (omni_lib_path.size() != 0);
            linkingCommand.push_back(omni_lib_path+"/libgompc.a");
-           linkingCommand.push_back("-lpthread");
+  #elif defined USE_ROSE_NANOX_OPENMP_LIBRARY
+  // FIXME We may want add this libraries statically
+           string nanox_lib_path(NANOX_OPENMP_LIB_PATH);
+           ROSE_ASSERT (nanox_lib_path.size() != 0);
+           linkingCommand.push_back("-L"+nanox_lib_path+"/debug");
+           linkingCommand.push_back("-lnanox-c");
+           linkingCommand.push_back("-lnanox-omp");
+           linkingCommand.push_back("-lnanox-ss");
   #else
      printf("Warning: OpenMP lowering is requested but no target runtime library is specified!\n");
   #endif

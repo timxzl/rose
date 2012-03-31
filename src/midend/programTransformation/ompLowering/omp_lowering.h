@@ -13,11 +13,12 @@
 namespace OmpSupport
 {
   //! The type of target runtime libraries (not yet in use)
-  // We support both Omni and GCC OpenMP runtime libraries
+  // We support Omni, GCC OpenMP and NANOS++ runtime libraries
   enum omp_rtl_enum 
   {
     e_gomp,
     e_omni,
+    e_nanos,
     e_last_rtl
   };
   extern unsigned int nCounter; // translation generated variable counter, used to avoid name collision
@@ -86,7 +87,9 @@ namespace OmpSupport
 
  //! A helper function to generate implicit or explicit task for either omp parallel or omp task
  // It calls the ROSE AST outliner internally. 
- SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars);
+ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, 
+          std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
+          SgClassDeclaration*& struct_decl, SgFunctionDeclaration* nanox_init_func = NULL);
  
   //! Translate OpenMP variables associated with an OpenMP pragma, such as private, firstprivate, lastprivate, reduction, etc. bb1 is the translation generated code block in which the variable handling statements will be inserted. Original loop upper bound is needed for implementing lastprivate (check if it is the last iteration) 
   void transOmpVariables(SgStatement * ompStmt, SgBasicBlock* bb1, SgExpression* orig_loop_upper = NULL);

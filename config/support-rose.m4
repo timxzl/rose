@@ -823,9 +823,14 @@ ROSE_SUPPORT_EDG_DEBUGGING
 # 
 ROSE_SUPPORT_OMNI_OPENMP
 
+
 # call supporting macro for GCC 4.4.x gomp OpenMP runtime library
 # AM_CONDITIONAL is already included into the macro
 ROSE_WITH_GOMP_OPENMP_LIBRARY
+
+# call supporting macro for NANOX OpenMP runtime library
+# AM_CONDITIONAL is already included into the macro
+ROSE_WITH_NANOX_OPENMP_LIBRARY
 
 # Call supporting macro for GCC OpenMP
 ROSE_SUPPORT_GCC_OMP
