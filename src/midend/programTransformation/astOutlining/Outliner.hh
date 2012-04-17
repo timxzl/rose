@@ -232,7 +232,20 @@ namespace Outliner
      //! Generate packing (wrapping) statements for the variables to be passed 
      //return the unique wrapper parameter for the outlined function
      //target is the outlining target
-    std::string generatePackingStatements(SgStatement* target, ASTtools::VarSymSet_t & syms,  ASTtools::VarSymSet_t & pdsyms, SgClassDeclaration* struct_decl = NULL);
+    std::string generatePackingStatements(SgStatement* target, ASTtools::VarSymSet_t & syms, ASTtools::VarSymSet_t & pdsyms, SgClassDeclaration* struct_decl = NULL);
+
+    /*!
+     * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed with a Nanos++ slicer
+     * containing the code of 's' and the corresponding Nanos statements to iterate over the slicer
+     */
+    SgFunctionDeclaration*
+    generateLoopFunction (SgBasicBlock* s,
+                          const std::string& func_name_str,
+                          const ASTtools::VarSymSet_t& syms,
+                          const ASTtools::VarSymSet_t& pdSyms,
+                          const ASTtools::VarSymSet_t& pSyms,
+                          SgClassDeclaration* struct_decl, /*optional struct type to wrap parameters*/
+                          SgScopeStatement* scope);
 
     /*!
      *  \brief Inserts an outlined-function declaration into global scope.

@@ -85,6 +85,13 @@ namespace OmpSupport
   //! Translate omp single 
   void transOmpSingle(SgNode* node);
 
+  //! A helper function to generate explicit task for omp loop
+  // It is only needed for Nanos runtime library
+  // It calls the ROSE AST outliner internally. 
+ SgFunctionDeclaration* generateOutlinedLoop(SgNode* node, std::string& wrapper_name, 
+          std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
+          SgClassDeclaration*& struct_decl, SgFunctionDeclaration* nanox_init_func = NULL);
+
  //! A helper function to generate implicit or explicit task for either omp parallel or omp task
  // It calls the ROSE AST outliner internally. 
  SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, 

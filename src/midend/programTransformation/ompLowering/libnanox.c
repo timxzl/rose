@@ -8,7 +8,7 @@ __attribute__((weak)) nanos_lock_t _nx_default_critical_lock = {NANOS_LOCK_FREE}
 // FIXME For c++ we just need "__attribute__((weak)) nanos_lock_t _nx_default_critical_lock;"
 
 void NANOX_parallel_start(void (*func) (void *), void *data, unsigned numThreads, long arg_size, long (*get_arg_align)(void), 
-                           void* (* get_empty_data)(void), void (* init_func) (void *, void *))
+                          void* empty_data, void (* init_func) (void *, void *))
 {
   nanos_err_t err;
 
@@ -67,7 +67,7 @@ void NANOX_parallel_start(void (*func) (void *), void *data, unsigned numThreads
 
     // Create the wd
     nanos_wd_t wd = 0;
-    void* empty_data = get_empty_data();
+//     void* empty_data = get_empty_data();
     err = nanos_create_wd_compact(&wd, &_const_def.base, &dyn_props, arg_size, (void**)&empty_data, 
                           nanos_current_wd(), (nanos_copy_data_t**) 0);
     if (err != NANOS_OK) 
@@ -95,7 +95,7 @@ void NANOX_parallel_start(void (*func) (void *), void *data, unsigned numThreads
 
 void NANOX_task(void (*func) (void *), void *data,
                 long arg_size, long (*get_arg_align) (void), bool if_clause, unsigned untied, 
-                void * (* get_empty_data) (void), void (*init_func) (void *, void *))
+                void* empty_data, void (*init_func) (void *, void *))
 {
   // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
   int num_copies = 0;
@@ -135,7 +135,6 @@ void NANOX_task(void (*func) (void *), void *data,
 
   // Create the wd
   nanos_wd_t wd = (nanos_wd_t) 0;
-  void* empty_data = get_empty_data();
   nanos_err_t err = nanos_create_wd_compact(&wd, &_const_def.base, &dyn_props, arg_size, (void**) &empty_data,
                         nanos_current_wd(), (nanos_copy_data_t **) 0);
   if (err != NANOS_OK) 
@@ -155,6 +154,83 @@ void NANOX_task(void (*func) (void *), void *data,
                                           (nanos_dependence_t *) 0, (nanos_copy_data_t *) 0, (void *) 0);
     if (err != NANOS_OK) 
       nanos_handle_error (err);
+  }
+}
+
+static nanos_ws_t ws_policy[3];
+void nanos_omp_initialize_worksharings(void *dummy)
+{
+  ws_policy[0] = nanos_find_worksharing("static_for");
+  ws_policy[1] = nanos_find_worksharing("dynamic_for");
+  ws_policy[2] = nanos_find_worksharing("guided_for");
+}
+__attribute__((weak, section("nanos_post_init")))
+nanos_init_desc_t __section__nanos_init_worksharing = {(nanos_omp_initialize_worksharings), ((void *)0)};
+
+void NANOX_loop(int start, int end, int incr, int chunk, int policy, 
+                void (*func) (void *), void *data, void * data_wsd /*data_wsd == &(data->wsd)*/, long arg_size, long (*get_arg_align)(void),
+                void* empty_data, void (*init_func) (void *, void *)/*, void* ws_policy*/)
+{
+  nanos_err_t err;
+
+  // Create the worksharing descriptor
+  _Bool single_guard;
+  nanos_ws_t* current_ws_policy = &ws_policy[policy];
+  nanos_ws_info_loop_t info_loop = { start, end, incr, chunk };
+
+  err = nanos_worksharing_create(data_wsd, *current_ws_policy, (nanos_ws_info_t*) &info_loop, &single_guard);
+  if (err != NANOS_OK)
+    nanos_handle_error(err);
+
+  if (single_guard)
+  {
+    int sup_threads;
+    err = nanos_team_get_num_supporting_threads(&sup_threads);
+    if (err != NANOS_OK)
+      nanos_handle_error(err);
+    
+    printf("The number of supporting threads is %d\n", sup_threads);
+    if (sup_threads)
+    {
+      // Get the supporting threads of the current team
+      (*((nanos_ws_desc_t**)data_wsd))->threads = (nanos_thread_t *) __builtin_alloca(sizeof(nanos_thread_t) * sup_threads);
+      err = nanos_team_get_supporting_threads(&(*((nanos_ws_desc_t**)data_wsd))->nths, (*((nanos_ws_desc_t**)data_wsd))->threads);
+      if (err != NANOS_OK)
+        nanos_handle_error(err);
+      nanos_wd_t wd = (nanos_wd_t) 0;
+      nanos_wd_props_t props;
+      __builtin_memset(&props, 0, sizeof (props));
+      props.mandatory_creation = 1;
+      props.tied = 1;
+      nanos_wd_dyn_props_t dyn_props = {0};
+
+      // Create the Device descriptor (at the moment, only SMP is supported)
+      // FIXME This is still using the old interface
+      int num_devices = 1;
+      nanos_smp_args_t _smp_args = {(void (*)(void *)) func};
+      nanos_device_t _current_devices[] = {{ nanos_smp_factory, &_smp_args }};
+
+      // Create the slicer
+      // Current version of Nanos only supports 'replicate' slicer
+      static nanos_slicer_t replicate = 0;
+      if (!replicate)
+          replicate = nanos_find_slicer("replicate");
+      if (replicate == 0)
+          fprintf(stderr, "Cannot find replicate slicer plugin\n");
+      long arg_align = (*get_arg_align)();
+      err = nanos_create_sliced_wd(&wd, num_devices, _current_devices, arg_size, arg_align, (void **) &empty_data, nanos_current_wd(), replicate, &props, &dyn_props, 0, (nanos_copy_data_t **) 0);
+      if (err != NANOS_OK)
+          nanos_handle_error(err);
+      (*init_func)(empty_data, data);
+
+      // Submit the work to the runtime system
+      err = nanos_submit(wd, 0, (nanos_dependence_t *) 0, (nanos_team_t) 0);
+      if (err != NANOS_OK)
+          nanos_handle_error(err);
+    }
+
+    func(data);
+    nanos_omp_barrier();
   }
 }
 

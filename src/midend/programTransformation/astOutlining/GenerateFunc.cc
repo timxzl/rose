@@ -1228,4 +1228,169 @@ Outliner::generateFunction ( SgBasicBlock* s,
   return func;
 }
 
+//! Create a function named 'func_name_str', with a parameter list from 'syms' that will be executed by a Nanos slicer
+// pdSyms specifies symbols which must use pointer dereferencing if replaced during outlining, 
+// psyms are the symbols for OpenMP private variables, or dead variables (not live-in, not live-out)
+SgFunctionDeclaration *
+    Outliner::generateLoopFunction ( SgBasicBlock* s,
+                                     const string& func_name_str,
+                                     const ASTtools::VarSymSet_t& syms,
+                                     const ASTtools::VarSymSet_t& pdSyms,
+                                     const ASTtools::VarSymSet_t& psyms,
+                                     SgClassDeclaration* struct_decl, 
+                                     SgScopeStatement* scope)
+{
+  ROSE_ASSERT (s && scope);
+  ROSE_ASSERT (isSgGlobal(scope));
+
+  // step 1: perform necessary liveness and side effect analysis, if requested.
+  // ---------------------------------------------------------
+  std::set< SgInitializedName *> liveIns, liveOuts;
+  // Collect read-only variables of the outlining target
+  std::set<SgInitializedName*> readOnlyVars;
+  if (Outliner::temp_variable||Outliner::enable_classic)
+  {
+    SgStatement* firstStmt = (s->get_statements())[0];
+    if (isSgForStatement(firstStmt)&& enable_liveness)
+    {
+      LivenessAnalysis * liv = SageInterface::call_liveness_analysis (SageInterface::getProject());
+      SageInterface::getLiveVariables(liv, isSgForStatement(firstStmt), liveIns, liveOuts);
+    }
+    SageInterface::collectReadOnlyVariables(s,readOnlyVars);
+    if (Outliner::enable_debug)
+    {
+      cout<<"Outliner::Transform::generateFunction() -----Found "<<readOnlyVars.size()<<" read only variables..:";
+      for (std::set<SgInitializedName*>::const_iterator iter = readOnlyVars.begin();
+           iter!=readOnlyVars.end(); iter++)
+        cout<<" "<<(*iter)->get_name().getString()<<" ";
+      cout<<endl;
+      cout<<"Outliner::Transform::generateFunction() -----Found "<<liveOuts.size()<<" live out variables..:";
+      for (std::set<SgInitializedName*>::const_iterator iter = liveOuts.begin();
+           iter!=liveOuts.end(); iter++)
+        cout<<" "<<(*iter)->get_name().getString()<<" ";
+      cout<<endl;
+    }
+  }
+  
+  //step 2. Create function skeleton, 'func'.
+  // -----------------------------------------
+  SgName func_name (func_name_str);
+  SgFunctionParameterList* parameterList = buildFunctionParameterList();
+  SgFunctionDeclaration* func = createFuncSkeleton (func_name, SgTypeVoid::createType(), parameterList, scope);
+  ROSE_ASSERT (func);
+
+  // Liao, 4/15/2009 , enforce C-bindings  for C++ outlined code
+  // enable C code to call this outlined function
+  // Only apply to C++ , pure C has trouble in recognizing extern "C"
+  // Another way is to attach the function with preprocessing info:
+  // #if __cplusplus 
+  // extern "C"
+  // #endif
+  // We don't choose it since the language linkage information is not explicit in AST
+  if ( SageInterface::is_Cxx_language() || is_mixed_C_and_Cxx_language() || is_mixed_Fortran_and_Cxx_language() || is_mixed_Fortran_and_C_and_Cxx_language() )
+  { // Make function 'extern "C"'
+    func->get_declarationModifier().get_storageModifier().setExtern();
+    func->set_linkage ("C");
+  }
+
+  // We have swapped steps 3 and 4 because in current step 4 we need a reference to the struct to be passed as argument
+  //step 3: variable handling, including: 
+  // -----------------------------------------
+  //   create parameters of the outlined functions
+  //   add statements to unwrap the parameters
+  //   add repacking statements if necessary
+  //   replace variables to access to parameters, directly or indirectly
+  variableHandling(syms, pdSyms, psyms, readOnlyVars, liveOuts, struct_decl, func);
+  ROSE_ASSERT (func != NULL);
+  func->set_type(buildFunctionType(func->get_type()->get_return_type(), buildFunctionParameterTypeList(func->get_parameterList())));
+  // Retest this...
+  SgBasicBlock* func_body = func->get_definition()->get_body();
+  ROSE_ASSERT(func_body->get_parent() == func->get_definition());
+  ROSE_ASSERT(scope->lookup_function_symbol(func->get_name()));
+
+  //step 4. Create the function body
+  // -----------------------------------------
+  /*! For an input 's' such as:
+   *    int i;
+   *    for (i = 0; i <= 9; i += 1) {
+   *        a[i] = (i * 2);
+   *    }
+   * The outlined function body 'func_body' will be:
+   *    int i;
+   *    nanos_ws_item_loop_t _nth_info;
+   *    nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
+   *    while (_nth_info.execute) {
+   *        for (i = _nth_info.lower; i <= _nth_info.upper; i += 1) {
+   *            a_0[i] = i * 2;
+   *        }
+   *        nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
+   *    }
+   *    nanos_omp_barrier();
+   */
+  
+  //! nanos_ws_item_loop_t _nth_info;
+  SgVariableDeclaration* nth_info = buildVariableDeclaration("_nth_info", buildOpaqueType("nanos_ws_item_loop_t", scope), NULL, func_body);
+  appendStatement(nth_info, func_body);
+  
+  //! nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
+  SgInitializedNamePtrList& argsList = parameterList->get_args();
+  ROSE_ASSERT(argsList.size() == 1);
+  // Get the name of the worksharing descriptor, 'wsd' in the example
+  SgDeclarationStatementPtrList st_members = struct_decl->get_definition()->get_members();
+  SgVariableDeclaration* wsd_member = isSgVariableDeclaration(*(st_members.begin()));
+  SgInitializedNamePtrList& wsd_member_name_list = wsd_member->get_variables();
+  SgInitializedName* wsd_name = *(wsd_member_name_list.begin());
+  SgExpression* wsd = buildArrowExp( buildCastExp(buildVarRefExp(*argsList.begin(), func_body), buildPointerType(struct_decl->get_type())),
+                                     buildVarRefExp(wsd_name, func_body));
+  SgExpression* nth = buildCastExp( buildAddressOfOp(buildVarRefExp("_nth_info", func_body)),
+                                    buildPointerType(buildOpaqueType("nanos_ws_item_t", scope)));  
+  SgExprListExp* next_item_params = buildExprListExp(wsd, nth);
+  SgStatement* get_next_item = buildFunctionCallStmt("nanos_worksharing_next_item", buildOpaqueType("nanos_err_t", func_body), next_item_params, func_body);
+  appendStatement(get_next_item, func_body);
+  
+  /*! while (_nth_info.execute) {
+   *      for (i = _nth_info.lower; i <= _nth_info.upper; i += 1) {
+   *          a_0[i] = i * 2;
+   *      }
+   *      nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
+   *  }
+   */
+  SgStatement* orig_body_stmt = SageInterface::copyStatement(s);
+  SgStatement* sliced_stmt = buildBasicBlock(orig_body_stmt, SageInterface::copyStatement(get_next_item));
+  appendStatement(sliced_stmt, func_body);
+  SageInterface::attachArbitraryText(sliced_stmt, "  while(_nth_info.execute)", PreprocessingInfo::before);
+  
+  appendStatement(buildFunctionCallStmt("XOMP_barrier", buildVoidType(), NULL, func_body), func_body);
+  
+  if (Outliner::useNewFile)
+    ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation(func_body);
+  
+  // step 5: loop index handling
+  // this step replaces the use of the original loop index by the local copies
+  // TODO!!!!
+    /*
+    typedef struct 
+    {
+    int lower;
+    int upper;
+    _Bool execute : 1;
+    _Bool last : 1;
+  } nanos_ws_item_loop_t;
+    */
+  //   SgClassDeclaration* item_loop_decl = buildStructDeclaration("nanos_ws_item_loop_t", func_body);
+  //   SgClassDefinition* item_loop_def = new SgClassDefinition();
+  //   SgVariableDeclaration* _lower = buildVariableDeclaration("lower", buildIntType(), NULL, func_body);
+  //   item_loop_def->append_member(_lower);
+  //   SgVariableDeclaration* _upper = buildVariableDeclaration("upper", buildIntType(), NULL, func_body);
+  //   item_loop_def->append_member(_upper);
+  //   SgVariableDeclaration* _execute = buildVariableDeclaration("execute", buildBoolType(), NULL, func_body);
+  //   item_loop_def->append_member(_execute);
+  //   SgVariableDeclaration* _last = buildVariableDeclaration("last", buildBoolType(), NULL, func_body);
+  //   item_loop_def->append_member(_last);
+  //   item_loop_decl->set_definition(item_loop_def);
+  //   appendStatement(item_loop_decl, func_body);
+  
+  return func;
+}
+
 // eof

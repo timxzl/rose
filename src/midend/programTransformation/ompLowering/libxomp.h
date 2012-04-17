@@ -39,15 +39,13 @@ extern void XOMP_parallel_end (void);
 
 // Methods for parallel when NANOX library. In addition to the parameters of the regular XOMP call for parallel:
 // arg_size: size of the data segment used as argument of 'func'
-// arg_align: alignment of the data segment used as argument of 'func'
+// get_arg_align: method that will compute the alignment of the data segment used as argument of 'func' at runtime
 // empty_data: pointer to a data segment with the same type as 'data', but empty.
 //             'empty_data' is used to initialize the team, and 'data' is used to fill the empty struct after the team initialization
 // init_func: function that initialized 'empty_data' with the values of the members in 'data'
-// nanos_team: empty team that will execute the parallel region
-extern void XOMP_parallel_start_for_NANOX (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
-                                 long arg_size, long arg_align, void * (*get_empty_data) (void), void (* init_func) (void *, void *), void* nanos_team);
+extern void XOMP_parallel_for_NANOX (void (*func) (void*), void* data, unsigned ifClauseValue, unsigned numThreadsSpecified,
+                                           long arg_size, long (*get_arg_align) (void), void* empty_data, void (*init_func) (void*, void*));
 // nanos_team: team that has to be finalized
-extern void XOMP_parallel_end_for_NANOX (void* nanos_team);
 
 /* Initialize sections and return the next section id (starting from 0) to be executed by the current thread */
 extern int XOMP_sections_init_next(int section_count); 
@@ -63,6 +61,8 @@ extern void XOMP_sections_end_nowait(void);
 
 extern void XOMP_task (void (*) (void *), void *, void (*) (void *, void *),
                        long, long, bool, unsigned);
+extern void XOMP_task_for_NANOX(void (*fn) (void *), void *data, long arg_size, long (*get_arg_align) (void), 
+                                bool if_clause, unsigned untied, void* empty_data, void (*init_func) (void*, void*));
 extern void XOMP_taskwait (void);
 
 // scheduler functions, union of runtime library functions
@@ -86,6 +86,10 @@ extern void XOMP_loop_ordered_dynamic_init(int lower, int upper, int stride, int
 extern void XOMP_loop_ordered_guided_init(int lower, int upper, int stride, int chunk_size);
 extern void XOMP_loop_ordered_runtime_init(int lower, int upper, int stride);
 
+// Specific method for Nanos++
+extern void XOMP_loop_for_NANOX (int start, int end, int incr, int chunk, int policy,
+                                 void (*func) (void *), void *data, void * data_wsd, long arg_size, long (*get_arg_align)(void), 
+                                 void * empty_data, void (* init_func) (void *, void *)/*, void * ws_policy*/);
 
 // if (start), 
 // mostly used because of gomp, omni will just call  XOMP_loop_xxx_next();
