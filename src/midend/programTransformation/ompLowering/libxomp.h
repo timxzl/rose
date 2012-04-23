@@ -37,14 +37,14 @@ extern void XOMP_terminate (int exitcode);
 extern void XOMP_parallel_start (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified);
 extern void XOMP_parallel_end (void);
 
-// Methods for parallel when NANOX library. In addition to the parameters of the regular XOMP call for parallel:
-// arg_size: size of the data segment used as argument of 'func'
-// get_arg_align: method that will compute the alignment of the data segment used as argument of 'func' at runtime
+// Method for parallel when NANOX library. In addition to the parameters of the regular XOMP call for parallel:
+// data_size: size of the data segment used as argument of 'func'
+// get_data_align: method that will compute the alignment of the data segment used as argument of 'func' at runtime
 // empty_data: pointer to a data segment with the same type as 'data', but empty.
 //             'empty_data' is used to initialize the team, and 'data' is used to fill the empty struct after the team initialization
 // init_func: function that initialized 'empty_data' with the values of the members in 'data'
 extern void XOMP_parallel_for_NANOX (void (*func) (void*), void* data, unsigned ifClauseValue, unsigned numThreadsSpecified,
-                                           long arg_size, long (*get_arg_align) (void), void* empty_data, void (*init_func) (void*, void*));
+                                     long data_size, long (*get_data_align) (void), void* empty_data, void (*init_func) (void*, void*));
 // nanos_team: team that has to be finalized
 
 /* Initialize sections and return the next section id (starting from 0) to be executed by the current thread */
@@ -59,9 +59,12 @@ extern void XOMP_sections_end(void);
 /* Called after the current thread is told that all sections are executed. It does not synchronizes all threads. */
 extern void XOMP_sections_end_nowait(void);
 
+// Method for sections when NANOX library.
+extern void XOMP_sections_for_NANOX(int num_sections, bool must_wait, ... );
+
 extern void XOMP_task (void (*) (void *), void *, void (*) (void *, void *),
                        long, long, bool, unsigned);
-extern void XOMP_task_for_NANOX(void (*fn) (void *), void *data, long arg_size, long (*get_arg_align) (void), 
+extern void XOMP_task_for_NANOX(void (*fn) (void *), void *data, long data_size, long (*get_data_align) (void), 
                                 bool if_clause, unsigned untied, void* empty_data, void (*init_func) (void*, void*));
 extern void XOMP_taskwait (void);
 
@@ -127,6 +130,7 @@ extern bool XOMP_master(void);
 
 extern void XOMP_atomic_start (void);
 extern void XOMP_atomic_end (void);
+extern void XOMP_atomic_for_NANOX (int, int, void *, void *);
 
 extern void XOMP_loop_end (void);
 extern void XOMP_loop_end_nowait (void);

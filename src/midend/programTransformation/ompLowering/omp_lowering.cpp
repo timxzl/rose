@@ -473,10 +473,10 @@ static void insert_libxompf_h(SgNode* startNode)
   } 
 }
 
-static SgExpression* build_nanox_empty_struct(SgStatement* omp_stmt, SgScopeStatement* sc, SgClassDeclaration* struct_decl)
+static SgExpression* build_nanox_empty_struct(SgStatement* omp_stmt, SgScopeStatement* sc, SgType* struct_type, std::string base_name)
 {
-  SgName empty_struct_name = "empty_struct";
-  SgVariableDeclaration* empty_struct_decl = buildVariableDeclaration(empty_struct_name, struct_decl->get_type(), NULL, sc);
+  SgName empty_struct_name = "empty_" + base_name;
+  SgVariableDeclaration* empty_struct_decl = buildVariableDeclaration(empty_struct_name, struct_type, NULL, sc);
   SageInterface::insertStatementBefore(omp_stmt, empty_struct_decl);
   return buildVarRefExp(empty_struct_name, sc);
 }
@@ -953,7 +953,7 @@ SgExpression* build_nanox_get_alignof(SgStatement* ancestor, std::string& wrappe
   }
   
   // Generate the outlined function
-  result = Outliner::generateLoopFunction(body_block, func_name, syms, pdSyms3, pSyms, struct_decl, g_scope);
+  result = Outliner::generateLoopFunction(body_block, body, func_name, syms, pdSyms3, pSyms, struct_decl, g_scope);
   
   Outliner::insert(result, g_scope, body_block);
   
@@ -968,6 +968,119 @@ SgExpression* build_nanox_get_alignof(SgStatement* ancestor, std::string& wrappe
     wrapper_name= Outliner::generatePackingStatements(target,syms,pdSyms3, struct_decl);
   ROSE_ASSERT (result != NULL);
   
+  // For Fortran outlined subroutines, 
+  // add INCLUDE 'omp_lib.h' in case OpenMP runtime routines are called within the outlined subroutines
+  if (SageInterface::is_Fortran_language() )
+  {
+    SgBasicBlock * body =  result->get_definition()->get_body();
+    ROSE_ASSERT (body != NULL);
+    SgFortranIncludeLine * inc_line = buildFortranIncludeLine("omp_lib.h");
+    prependStatement(inc_line, body);
+  }
+  return result;
+}
+
+//! A helper function to generate implicit or explicit task for either omp parallel or omp task
+// It calls the ROSE AST outliner internally. 
+SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections, std::string& wrapper_name, ASTtools::VarSymSet_t& syms, std::set<SgInitializedName*>& readOnlyVars, ASTtools::VarSymSet_t& pdSyms3, SgClassDeclaration*& struct_decl)
+{
+  ROSE_ASSERT(section != NULL);
+
+  // must be a sention and a sections respectively
+  SgOmpSectionStatement* target = isSgOmpSectionStatement(section);
+  SgOmpClauseBodyStatement* enclosing_target = isSgOmpClauseBodyStatement(sections);
+  ROSE_ASSERT (target != NULL || enclosing_target != NULL);
+
+  SgStatement * body =  target->get_body();
+  ROSE_ASSERT(body != NULL);
+  SgFunctionDeclaration* result= NULL;
+  //Initialize outliner 
+  if (SageInterface::is_Fortran_language())
+  {
+    //We pass one variable per parameter, at least for Fortran 77
+    Outliner::useParameterWrapper = false;
+//    Outliner::enable_classic = true; // use subroutine's parameters directly
+  }
+  else 
+  {
+    // C/C++ : always wrap parameters into a structure for outlining used during OpenMP translation
+    Outliner::useParameterWrapper = true; 
+    Outliner::useStructureWrapper = true;
+  }
+
+  //TODO there should be some semantics check for the regions to be outlined
+  //for example, multiple entries or exists are not allowed for OpenMP
+  //This is however of low priority since most vendor compilers have this already
+  SgBasicBlock* body_block = Outliner::preprocess(body);
+  
+  // Variable handling is done after Outliner::preprocess() to ensure a basic block for the body,
+  // but before calling the actual outlining 
+  // This simplifies the outlining since firstprivate, private variables are replaced 
+  //with their local copies before outliner is used 
+  transOmpVariables (enclosing_target, body_block);
+
+  ASTtools::VarSymSet_t pSyms, fpSyms,reductionSyms, pdSyms;
+
+  string func_name = Outliner::generateFuncName(target);
+  SgGlobal* g_scope = SageInterface::getGlobalScope(body_block);
+  ROSE_ASSERT(g_scope != NULL);
+
+  // This step is less useful for private, firstprivate, and reduction variables
+  // since they are already handled by transOmpVariables(). 
+  Outliner::collectVars(body_block, syms, pSyms);
+
+  //     SageInterface::collectReadOnlyVariables(body_block,readOnlyVars);
+  // We choose to be conservative about the variables needing pointer dereferencing first
+  // AllParameters - readOnlyVars  - private -firstprivate 
+  // Union ASTtools::collectPointerDereferencingVarSyms(body_block, pdSyms) 
+
+  // Assume all parameters need to be passed by reference/pointers first
+  std::copy(syms.begin(), syms.end(), std::inserter(pdSyms,pdSyms.begin()));
+
+  //exclude firstprivate variables: they are read only in fact
+  //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
+  SgInitializedNamePtrList fp_vars = collectClauseVariables (enclosing_target, V_SgOmpFirstprivateClause);
+  ASTtools::VarSymSet_t fp_syms, pdSyms2;
+  convertAndFilter (fp_vars, fp_syms);
+  set_difference (pdSyms.begin(), pdSyms.end(),
+                  fp_syms.begin(), fp_syms.end(),
+                  std::inserter(pdSyms2, pdSyms2.begin()));
+
+  // Similarly , exclude private variable, also read only
+  SgInitializedNamePtrList p_vars = collectClauseVariables (enclosing_target, V_SgOmpPrivateClause);
+  ASTtools::VarSymSet_t p_syms; //, pdSyms3;
+  convertAndFilter (p_vars, p_syms);
+  //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
+  set_difference (pdSyms2.begin(), pdSyms2.end(),
+                  p_syms.begin(), p_syms.end(),
+                  std::inserter(pdSyms3, pdSyms3.begin()));
+ 
+  // lastprivate and reduction variables cannot be excluded  since write access to their shared copies
+
+  // data structure used to wrap parameters
+  if (SageInterface::is_Fortran_language())
+    struct_decl = NULL; // We cannot use structure for Fortran
+  else  
+    struct_decl = Outliner::generateParameterStructureDeclaration (body_block, func_name, syms, pdSyms3, g_scope);
+  // ROSE_ASSERT (struct_decl != NULL); // can be NULL if no parameters to be passed
+  
+  //Generate the outlined function
+  result = Outliner::generateFunction(body_block, func_name, syms, pdSyms3, pSyms, struct_decl, g_scope);
+  Outliner::insert(result, g_scope, body_block);
+  
+  // A fix from Tristan Ravitch travitch@cs.wisc.edu to make outlined functions static to avoid name conflicts
+  if (result->get_definingDeclaration() != NULL)
+    SageInterface::setStatic(result->get_definingDeclaration());
+  if (result->get_firstNondefiningDeclaration() != NULL)
+    SageInterface::setStatic(result->get_firstNondefiningDeclaration());
+
+  // Generate packing statements
+  // must pass target , not body_block to get the right scope in which the declarations are inserted
+  if (!SageInterface::is_Fortran_language())
+    wrapper_name= Outliner::generatePackingStatements(enclosing_target, syms, pdSyms3, struct_decl);
+  ROSE_ASSERT (result != NULL);
+  
+  // 12/7/2010
   // For Fortran outlined subroutines, 
   // add INCLUDE 'omp_lib.h' in case OpenMP runtime routines are called within the outlined subroutines
   if (SageInterface::is_Fortran_language() )
@@ -1331,14 +1444,17 @@ SgExpression* build_nanox_get_alignof(SgStatement* ancestor, std::string& wrappe
         }
       }
       
+      // This indexes will be used by Nanos++ wrapper to access astatic array that finds the proper worksharing
+      // Auto and last are not in this array, so we just create numbers from 10 to specify these schedule types
       if (s_kind == SgOmpClause::e_omp_schedule_static)
         ws_index = buildIntVal(0);
       else if (s_kind == SgOmpClause::e_omp_schedule_dynamic)
         ws_index = buildIntVal(1);
       else if (s_kind == SgOmpClause::e_omp_schedule_guided)
         ws_index = buildIntVal(2);
+      else if (s_kind == SgOmpClause::e_omp_schedule_runtime)
+        ws_index = buildIntVal(10);
       else if (s_kind == SgOmpClause::e_omp_schedule_auto || 
-               s_kind == SgOmpClause::e_omp_schedule_runtime ||
                s_kind == SgOmpClause::e_omp_schedule_last)
       {
         ROSE_ABORT("Scheduling clause of type not supported with Nanos++ RTL\n");
@@ -1363,28 +1479,29 @@ SgExpression* build_nanox_get_alignof(SgStatement* ancestor, std::string& wrappe
     ASTtools::VarSymSet_t pdSyms3; // store all variables which should be passed by references
     std::set<SgInitializedName*> readOnlyVars;
     SgClassDeclaration* struct_decl;
+    
+    SgFunctionDefinition* englobing_function = getEnclosingFunctionDefinition(node, false);
+    SgNode* global_scoped_ancestor = (SgNode*) englobing_function;
+    while (!isSgGlobal(global_scoped_ancestor->get_parent())) 
+          // use get_parent() instead of get_scope() since a function definition node's scope is global while its parent is its function declaration
+    {
+      global_scoped_ancestor = global_scoped_ancestor->get_parent();
+    }
+    ROSE_ASSERT (isSgStatement(global_scoped_ancestor));
+    SgStatement* ancestor_st = isSgStatement(global_scoped_ancestor);
+    SgScopeStatement* ancestor_sc = ancestor_st->get_scope();
+    ROSE_ASSERT (ancestor_sc != NULL);
+    
     // this function will generate the outlined function and the struct to be passed as argument
     SgFunctionDeclaration* outlined_func = generateOutlinedLoop (node, wrapper_name, syms, readOnlyVars, pdSyms3, struct_decl);
     
-    // step 3. Generate the call to the XOMP routine that wraps Nanos call
+    // step 4.Generate the call to the XOMP routine that wraps Nanos call
     SgExprListExp* parameters  = NULL;
     if (SageInterface::is_Fortran_language())
     { // TODO
     }
     else 
     { // C/C++ case
-      SgFunctionDefinition* englobing_function = getEnclosingFunctionDefinition(node, false);
-      SgNode* global_scoped_ancestor = (SgNode*) englobing_function;
-      while (!isSgGlobal(global_scoped_ancestor->get_parent())) 
-          // use get_parent() instead of get_scope() since a function definition node's scope is global while its parent is its function declaration
-      {
-        global_scoped_ancestor = global_scoped_ancestor->get_parent();
-      }
-      ROSE_ASSERT (isSgStatement(global_scoped_ancestor));
-      SgStatement* ancestor_st = isSgStatement(global_scoped_ancestor);
-      SgScopeStatement* ancestor_sc = ancestor_st->get_scope();
-      ROSE_ASSERT (ancestor_sc != NULL);
-      
       // Generate the arguments to the function call
       SgFunctionRefExp* param_outlined_func = buildFunctionRefExp(outlined_func);
       SgExpression* data = buildVarRefExp(wrapper_name, p_scope);
@@ -1396,12 +1513,9 @@ SgExpression* build_nanox_get_alignof(SgStatement* ancestor, std::string& wrappe
       SgExpression* param_data_wsd = buildCastExp( buildAddressOfOp(buildDotExp(data, buildVarRefExp(wsd_name, p_scope))), buildPointerType(buildVoidType()));
       SgIntVal* param_arg_size = buildIntVal((syms.size() + 1) * sizeof(void*));
       SgExpression* param_arg_align = build_nanox_get_alignof(ancestor_st, wrapper_name, struct_decl);
-      SgExpression* empty_data = build_nanox_empty_struct(target, p_scope, struct_decl);
+      SgExpression* empty_data = build_nanox_empty_struct(target, p_scope, struct_decl->get_type(), wrapper_name);
       SgExpression* param_empty_data = buildCastExp(buildAddressOfOp(empty_data), buildPointerType(buildVoidType()));
-      SgExpression* param_empty_wsd = buildCastExp(buildDotExp(empty_data, buildVarRefExp(wsd_name, p_scope)), buildPointerType(buildVoidType()));
       SgExpression* param_init_func = build_nanox_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl);
-      SgVarRefExp* ws_policy_var = buildVarRefExp("ws_policy", p_scope);
-      SgExpression* param_ws_policy = buildAddressOfOp(buildPntrArrRefExp(ws_policy_var, ws_index));
       
       std::vector<SgExpression*> param_list;
       param_list.push_back(isSgIntVal(orig_lower));
@@ -1846,8 +1960,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       }
       
       // Empty struct with the same type as the struc containing the parameters to the outlined function
-      SgExpression* parameter_empty_st = buildCastExp(
-          buildAddressOfOp(build_nanox_empty_struct(target, p_scope, struct_decl)), buildPointerType(buildVoidType()));
+      SgExpression* parameter_empty_st = buildAddressOfOp(build_nanox_empty_struct(target, p_scope, struct_decl->get_type(), wrapper_name));
       
       // Function that initializes the empty struct
       SgExpression* parameter_init_func = build_nanox_init_arguments_struct_function(ancestor_st, wrapper_name,  struct_decl);
@@ -1983,8 +2096,6 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
     ROSE_ASSERT(scope != NULL );
     SgStatement * body = target->get_body();
     ROSE_ASSERT(body != NULL);
-
-    SgBasicBlock *  bb1 = buildBasicBlock();
    
     SgBasicBlock * sections_block = isSgBasicBlock(body);
     ROSE_ASSERT (sections_block != NULL);
@@ -1997,6 +2108,9 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       ROSE_ASSERT (isSgOmpSectionStatement(stmt));
     }
    
+#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+    SgBasicBlock *  bb1 = buildBasicBlock();
+    
     // int _section_1 = XOMP_sections_init_next (3);
     std::string sec_var_name;
     if (SageInterface::is_Fortran_language() )
@@ -2075,6 +2189,75 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
 
     appendStatement(end_call,bb1);
 //    removeStatement(target);
+    
+#else
+  // using Nanos++ OpenMP runtime library
+
+  SgFunctionDefinition* englobing_function = getEnclosingFunctionDefinition(node, false);
+  SgNode* global_scoped_ancestor = (SgNode*) englobing_function;
+  while (!isSgGlobal(global_scoped_ancestor->get_parent())) 
+        // use get_parent() instead of get_scope() since a function definition node's scope is global while its parent is its function declaration
+  {
+    global_scoped_ancestor = global_scoped_ancestor->get_parent();
+  }
+  ROSE_ASSERT (isSgStatement(global_scoped_ancestor));
+  SgStatement* ancestor_st = isSgStatement(global_scoped_ancestor);
+  SgScopeStatement* ancestor_sc = ancestor_st->get_scope();
+  ROSE_ASSERT (ancestor_sc != NULL);
+
+  // Outline each 'section' in an specific function creating the correspondent:
+  // - Empty data structure
+  // - Function to fill the empty structure members with the initialized structure members
+  // - Function to compute the alignment of the data structure
+  // Create the parameters of each of the previous data
+  std::vector<SgExpression*> param_list;
+  param_list.push_back(buildIntVal(section_count));
+  if (hasClause(target, V_SgOmpNowaitClause))
+    param_list.push_back(buildBoolValExp(0));
+  else
+    param_list.push_back(buildBoolValExp(1));
+  for (int i = 0; i < section_count; ++i)
+  {
+    // Generate an outlined function with the code to be executed by each thread
+    // save preprocessing info as early as possible, avoiding mess up from the outliner
+    AttachedPreprocessingInfoType save_buf1, save_buf2, save_buf_inside;
+    cutPreprocessingInfo(target, PreprocessingInfo::before, save_buf1);
+    cutPreprocessingInfo(target, PreprocessingInfo::after, save_buf2);
+    cutPreprocessingInfo(target, PreprocessingInfo::inside, save_buf_inside);
+    // generate the outlined function
+    std::string wrapper_name = "";
+    ASTtools::VarSymSet_t syms; // store all variables in the outlined task ???
+    ASTtools::VarSymSet_t pdSyms3; // store all variables which should be passed by references
+    std::set<SgInitializedName*> readOnlyVars;
+    SgClassDeclaration* struct_decl;
+        
+    // this function will generate the outlined function and the struct to be passed as argument
+    SgOmpSectionStatement* current_section = isSgOmpSectionStatement(section_list[i]);
+    SgFunctionDeclaration* outlined_section = generateOutlinedSection(current_section, target, wrapper_name, syms, readOnlyVars, pdSyms3, struct_decl);
+    param_list.push_back(buildFunctionRefExp(outlined_section));
+    SgVarRefExp * data_ref = buildVarRefExp(wrapper_name, scope);
+    param_list.push_back(buildAddressOfOp(data_ref));
+    param_list.push_back(buildSizeOfOp(data_ref->get_type()));
+    param_list.push_back(build_nanox_get_alignof(ancestor_st, wrapper_name, struct_decl));
+    param_list.push_back(buildAddressOfOp(build_nanox_empty_struct(target, scope, struct_decl->get_type(), wrapper_name)));
+    param_list.push_back(build_nanox_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl));
+  }
+   
+  // Replace the sections code by the call to the Nanos RTL Sections routine
+  /*extern void XOMP_sections_for_NANOX (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
+  long arg_size, long arg_align, void *empty_data, void (* init_func) (void *, void *), void* nanos_team);
+   * func: pointer to a function which will be run in parallel for each thread
+   * data: pointer to a data segment which will be used as the arguments of func
+   * arg_size: size of the data segment used as argument of 'func'
+   * arg_align: pointer to the function that computes the alignment of the data segment used as argument of 'func'
+   * empty_data: pointer to a data segment with the same type as 'data', but empty.
+   *            'empty_data' is used to initialize the team, and 'data' is used to fill the empty struct after the team initialization
+   * init_func: function that initialized 'empty_data' with the values of the members in 'data'
+   */
+  SgExprListExp* parameters = buildExprListExp(param_list);
+  SgExprStatement* s1 = buildFunctionCallStmt("XOMP_sections_for_NANOX", buildVoidType(), parameters, scope);
+  SageInterface::replaceStatement(target, s1 , true);
+#endif
   }
 
   // Two ways 
@@ -2096,6 +2279,113 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
     ROSE_ASSERT(body != NULL);
     
     replaceStatement(target, body, true);
+
+#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+    
+    SgExprStatement* atomic_stmt = isSgExprStatement(body); 
+    if (atomic_stmt == NULL)
+    {
+      std::string message = "ROSE implementation for Nanos++ RTL does not support a non-expression block as body of an OpenMP atomic construct\n Found: " +
+                            std::string(atomic_stmt->unparseToString()) + "\n"; 
+      ROSE_ABORT(message.c_str());
+    }
+    
+    SgExpression* atomic_expr = atomic_stmt->get_expression();
+    if ( (isSgUnaryOp(atomic_expr) && !isSgMinusMinusOp(atomic_expr) && !isSgPlusPlusOp(atomic_expr) ) || 
+         (isSgBinaryOp(atomic_expr) && ( isSgExponentiationAssignOp(atomic_expr) || isSgJavaUnsignedRshiftAssignOp(atomic_expr) || isSgModAssignOp(atomic_expr) )) ||
+         (!isSgUnaryOp(atomic_expr) && !isSgBinaryOp(atomic_expr)) )
+    {
+      std::string message = "ROSE implementation for Nanos++ RTL does not support the expression '" +         
+                            std::string(atomic_expr->unparseToString()) + "'\n";
+      ROSE_ABORT(message.c_str());
+    }
+
+    // Compute the type of the operation
+    int op_id;
+    if (isSgPlusAssignOp(atomic_expr))
+      op_id = 1;
+    else if (isSgMinusAssignOp(atomic_expr))
+      op_id = 2;
+    else if (isSgMultAssignOp(atomic_expr))
+      op_id = 3;
+    else if (isSgDivAssignOp(atomic_expr) || isSgIntegerDivideAssignOp(atomic_expr))
+      op_id = 4;
+    else if (isSgAndAssignOp(atomic_expr))
+      op_id = 5;
+    else if (isSgIorAssignOp(atomic_expr))
+      op_id = 6;  
+    else if (isSgXorAssignOp(atomic_expr))
+      op_id = 7;
+    else if (isSgLshiftAssignOp(atomic_expr))
+      op_id = 8;
+    else if (isSgRshiftAssignOp(atomic_expr))
+      op_id = 9;
+    else if (isSgPlusPlusOp(atomic_expr))
+      op_id = 10;
+    else if (isSgMinusMinusOp(atomic_expr))
+      op_id = 11;
+    else
+    {
+      std::string message = "Unsupported expression " + std::string(atomic_expr->unparseToString()) + " in an OpenMP atomic construct using Nanos++ RTL\n"; 
+      ROSE_ABORT(message.c_str());
+    }
+    SgExpression* param_op = buildIntVal(op_id);
+    
+    // Grab the variable and the operand
+    SgExpression* variable;
+    SgExpression* operand = NULL;
+    if (isSgUnaryOp(atomic_expr))
+    {
+      SgUnaryOp* unary_op = isSgUnaryOp(atomic_expr);
+      variable = unary_op->get_operand();
+      operand = buildIntVal(1);
+    }
+    else if (isSgCompoundAssignOp(atomic_expr))
+    {
+      SgBinaryOp* binary_op = isSgBinaryOp(atomic_expr);
+      variable = binary_op->get_lhs_operand_i();
+      operand = binary_op->get_rhs_operand_i();
+    }
+    else
+    {
+      ROSE_ABORT("Unsupported expression in an OpenMP atomic construct using Nanos++ RTL\n");
+    }
+    
+    // Compute the type of the variable
+    SgType* var_type = variable->get_type();
+    int var_t;
+    if (isSgTypeBool(var_type) || 
+        isSgTypeChar(var_type) || isSgTypeUnsignedChar(var_type) || isSgTypeSignedChar(var_type) || isSgTypeWchar(var_type) || 
+        isSgTypeShort(var_type) || isSgTypeUnsignedShort(var_type) || isSgTypeSignedShort(var_type) ||  
+        isSgTypeInt(var_type) || isSgTypeUnsignedInt(var_type) || isSgTypeSignedInt(var_type) || 
+        isSgTypeLong(var_type) || isSgTypeUnsignedLong(var_type) || isSgTypeSignedLong(var_type) || 
+        isSgTypeLongLong(var_type) || isSgTypeUnsignedLongLong(var_type) || isSgTypeSignedLongLong(var_type) || 
+        ( (is_C_language() || is_C99_language()) && isSgEnumType(var_type)) )
+      var_t = 0;
+    else if (isSgTypeFloat(var_type))
+      var_t = 1;
+    else if (isSgTypeDouble(var_type) || isSgTypeLongDouble(var_type))
+      var_t = 2;
+    else
+    {
+      std::string message = "Unsupported type " + std::string(var_type->unparseToString()) + " in an OpenMP atomic construct using Nanos++ RTL\n"; 
+      ROSE_ABORT(message.c_str());
+    }
+    
+    // Create a new variable with the value of the operand, if necessary (unary expressions do not need operand)
+    SgAssignInitializer* initializer = buildAssignInitializer(operand);
+    std::string var_op_name = generateUniqueName(atomic_expr, true);
+    SgVariableDeclaration* var_operand = buildVariableDeclaration(var_op_name, variable->get_type(), initializer, scope);
+    insertStatementBefore(body, var_operand);
+
+    SgExprListExp* params = buildExprListExp(param_op, buildIntVal(var_t), 
+                                             buildAddressOfOp(buildVarRefExp(variable->unparseToString(), scope)), 
+                                             buildAddressOfOp(buildVarRefExp(var_op_name, scope)));
+    SgExprStatement* func_call_stmt = buildFunctionCallStmt("XOMP_atomic_for_NANOX", buildVoidType(), params, scope);
+    SageInterface::replaceStatement(body, func_call_stmt , true);
+    
+#else
+
 #ifdef ENABLE_XOMP
     SgExprStatement* func_call_stmt1 = buildFunctionCallStmt("XOMP_atomic_start", buildVoidType(), NULL, scope);
     SgExprStatement* func_call_stmt2 = buildFunctionCallStmt("XOMP_atomic_end", buildVoidType(), NULL, scope);
@@ -2103,11 +2393,13 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
     SgExprStatement* func_call_stmt1 = buildFunctionCallStmt("GOMP_atomic_start", buildVoidType(), NULL, scope);
     SgExprStatement* func_call_stmt2 = buildFunctionCallStmt("GOMP_atomic_end", buildVoidType(), NULL, scope);
 #endif
+
     insertStatementBefore(body, func_call_stmt1);
     // this is actually sensitive to the type of preprocessing Info
     // In most cases, we want to move up them (such as #ifdef etc)
     moveUpPreprocessingInfo (func_call_stmt1, body, PreprocessingInfo::before); 
     insertStatementAfter(body, func_call_stmt2);
+#endif
   }
 
 
@@ -2351,8 +2643,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       
 #ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
       // Empty struct with the same type as the struc containing the parameters to the outlined function
-      SgExpression* parameter_empty_st = buildCastExp(
-          buildAddressOfOp(build_nanox_empty_struct(target, p_scope, struct_decl)), buildPointerType(buildVoidType()));
+      SgExpression* parameter_empty_st = buildAddressOfOp(build_nanox_empty_struct(target, p_scope, struct_decl->get_type(), wrapper_name));
 
       // Function that initializes the empty struct
       SgExpression* parameter_init_func = build_nanox_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl);
@@ -3847,8 +4138,8 @@ void lower_omp(SgSourceFile* file)
   
 #ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
     
-    // FIXME This should not be here. If the compilation is multifile or it has no main, then it will fail!
-    
+  // FIXME This should not be here. If the compilation is multifile or it has no main, then it will fail! 
+
   SgFunctionDeclaration * main_decl = findMain(file);
   if (main_decl != NULL)
   {
@@ -3872,62 +4163,9 @@ void lower_omp(SgSourceFile* file)
     SgType* nanos_init_type = buildOpaqueType("nanos_init_desc_t", main_sc);
     SgAggregateInitializer* section_initor = buildAggregateInitializer (members, nanos_init_type);
     SgVariableDeclaration* section_init_decl = buildVariableDeclaration ("__section__nanos_init", nanos_init_type, section_initor, main_sc);
+    attachComment(section_init_decl, "This declaration is used to initialize the Nanos RunTime Library");
     attachArbitraryText(section_init_decl, "__attribute__((weak, section(\"nanos_init\")))");
-    insertStatementBefore(main_decl, section_init_decl);
-    
-    
-    /*! Initialize the OpenMP NANOX worksharing
-     * static nanos_ws_t ws_policy[3];
-     * void nanos_omp_initialize_worksharings(void *_dummy)
-     * {
-     *    ws_policy[0] = nanos_find_worksharing("static_for");
-     *    ws_policy[1] = nanos_find_worksharing("dynamic_for");
-     *    ws_policy[2] = nanos_find_worksharing("guided_for");
-     *    \/\/ws_policy[3] = nanos_find_worksharing("omp_sched_auto");   Only for interface at least OpenMP 5
-     * }
-     * __attribute__((weak, section("nanos_post_init"))) nanos_init_desc_t __section__nanos_init_worksharing = {
-     *   nanos_omp_initialize_worksharings,
-     *   (void *) 0
-     * }; 
-     */
-//     SgType* ws_type = buildOpaqueType("nanos_ws_t", main_sc);
-//     SgVariableDeclaration* ws_policy_decl = buildVariableDeclaration("ws_policy",
-//           buildArrayType(ws_type, buildIntVal(3)));
-//     SageInterface::setStatic(ws_policy_decl);
-//     insertStatementBefore(main_decl, ws_policy_decl);
-//     
-//     SgInitializedName* ws_name_param = buildInitializedName("name", buildPointerType(buildConstType(buildCharType())));
-//     SgFunctionParameterList* find_params = buildFunctionParameterList(ws_name_param);
-//     SgFunctionDeclaration* find_ws_decl = buildNondefiningFunctionDeclaration("nanos_find_worksharing", ws_type, find_params, main_sc);
-//     insertStatementBefore(main_decl, find_ws_decl);
-//     
-//     SgInitializedName* dummy_param = buildInitializedName("dummy", buildPointerType(buildVoidType()));
-//     SgFunctionParameterList* ws_params = buildFunctionParameterList(dummy_param);
-//     SgFunctionDeclaration* init_ws_func_def = buildDefiningFunctionDeclaration("nanos_omp_initialize_worksharings", buildVoidType(), ws_params, main_sc);
-//     SgBasicBlock* init_ws_func_body = init_ws_func_def->get_definition()->get_body();
-//     ROSE_ASSERT (init_ws_func_body != NULL);
-//     SgInitializedName* ws_policy_name = *(ws_policy_decl->get_variables().begin());
-//     SgVarRefExp* ws_policy_var = buildVarRefExp(ws_policy_name, init_ws_func_body);
-//     SgFunctionSymbol* func_sym = isSgFunctionSymbol(find_ws_decl->get_symbol_from_symbol_table());
-//     SgExpression* lhs = buildPntrArrRefExp(ws_policy_var, buildIntVal(0));
-//     SgExpression* rhs = buildFunctionCallExp(buildFunctionRefExp(func_sym), buildExprListExp(buildStringVal("static_for")));
-//     appendStatement(buildAssignStatement(lhs, rhs), init_ws_func_body);
-//     lhs = new SgPntrArrRefExp(ws_policy_var, buildIntVal(1), NULL);
-//     rhs = buildFunctionCallExp(buildFunctionRefExp(func_sym), buildExprListExp(buildStringVal("dynamic_for")));
-//     appendStatement(buildAssignStatement(lhs, rhs), init_ws_func_body);
-//     lhs = new SgPntrArrRefExp(ws_policy_var, buildIntVal(2), NULL);
-//     rhs = buildFunctionCallExp(buildFunctionRefExp(func_sym), buildExprListExp(buildStringVal("guided_for")));
-//     appendStatement(buildAssignStatement(lhs, rhs), init_ws_func_body);
-//     insertStatementBefore(main_decl, init_ws_func_def);
-//     // FIXME Check Nanos inteface to include "omp_scheduled_auto" as ws
-//     
-//     SgAssignInitializer* first_ws_member_val = buildAssignInitializer(
-//         buildFunctionRefExp("nanos_omp_initialize_worksharings", init_func_type, main_sc), first_member_type);
-//     SgExprListExp* ws_members = buildExprListExp(first_ws_member_val, second_member_val);
-//     SgAggregateInitializer* ws_section_initor = buildAggregateInitializer (ws_members, nanos_init_type);
-//     SgVariableDeclaration* ws_section_init_decl = buildVariableDeclaration ("__section__nanos_init_worksharing", nanos_init_type, ws_section_initor, main_sc);
-//     attachArbitraryText(ws_section_init_decl, "__attribute__((weak, section(\"nanos_post_init\")))");
-//     insertStatementBefore(main_decl, ws_section_init_decl);
+    insertStatementAfter(main_decl, section_init_decl);
   }
 #endif
   
@@ -3964,7 +4202,7 @@ void lower_omp(SgSourceFile* file)
         }
       case V_SgOmpForStatement:
       case V_SgOmpDoStatement:
-        {
+        {       
           //transOmpFor(node);
           transOmpLoop(node);
           break;

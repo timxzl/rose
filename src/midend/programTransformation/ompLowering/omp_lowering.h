@@ -85,6 +85,13 @@ namespace OmpSupport
   //! Translate omp single 
   void transOmpSingle(SgNode* node);
 
+ //! A helper function to generate implicit or explicit task for either omp parallel or omp task
+ // It calls the ROSE AST outliner internally. 
+ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, 
+          std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
+          SgClassDeclaration*& struct_decl, SgFunctionDeclaration* nanox_init_func = NULL);
+ 
+
   //! A helper function to generate explicit task for omp loop
   // It is only needed for Nanos runtime library
   // It calls the ROSE AST outliner internally. 
@@ -92,12 +99,11 @@ namespace OmpSupport
           std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
           SgClassDeclaration*& struct_decl, SgFunctionDeclaration* nanox_init_func = NULL);
 
- //! A helper function to generate implicit or explicit task for either omp parallel or omp task
- // It calls the ROSE AST outliner internally. 
- SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, 
-          std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
-          SgClassDeclaration*& struct_decl, SgFunctionDeclaration* nanox_init_func = NULL);
- 
+  //! A helper function to generate explicit task for omp section
+  // It is only needed for Nanos runtime library
+  // It calls the ROSE AST outliner internally. 
+  SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, SgClassDeclaration*& struct_decl);
+
   //! Translate OpenMP variables associated with an OpenMP pragma, such as private, firstprivate, lastprivate, reduction, etc. bb1 is the translation generated code block in which the variable handling statements will be inserted. Original loop upper bound is needed for implementing lastprivate (check if it is the last iteration) 
   void transOmpVariables(SgStatement * ompStmt, SgBasicBlock* bb1, SgExpression* orig_loop_upper = NULL);
 

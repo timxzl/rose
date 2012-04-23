@@ -1233,6 +1233,7 @@ Outliner::generateFunction ( SgBasicBlock* s,
 // psyms are the symbols for OpenMP private variables, or dead variables (not live-in, not live-out)
 SgFunctionDeclaration *
     Outliner::generateLoopFunction ( SgBasicBlock* s,
+                                     SgStatement* loop,
                                      const string& func_name_str,
                                      const ASTtools::VarSymSet_t& syms,
                                      const ASTtools::VarSymSet_t& pdSyms,
@@ -1327,6 +1328,7 @@ SgFunctionDeclaration *
    *    }
    *    nanos_omp_barrier();
    */
+  SgForStatement * for_loop = isSgForStatement(loop);
   
   //! nanos_ws_item_loop_t _nth_info;
   SgVariableDeclaration* nth_info = buildVariableDeclaration("_nth_info", buildOpaqueType("nanos_ws_item_loop_t", scope), NULL, func_body);
@@ -1348,6 +1350,46 @@ SgFunctionDeclaration *
   SgStatement* get_next_item = buildFunctionCallStmt("nanos_worksharing_next_item", buildOpaqueType("nanos_err_t", func_body), next_item_params, func_body);
   appendStatement(get_next_item, func_body);
   
+  //! Loop boundaries replacement
+  /*!
+   * We declare this struct to be able to access to its members
+   * We don't need to include the declaration in the generated code because it is declared in the Nanos library
+   * struct nanos_ws_item_loop_t {
+   *   int lower;
+   *   int upper;
+   *   bool execute;
+   *   bool last;
+   * } ;
+   */
+  SgClassDeclaration* item_loop_decl = buildStructDeclaration("nanos_ws_item_loop_t", scope);
+  SgClassDefinition* item_loop_def = item_loop_decl->get_definition();
+  ROSE_ASSERT (item_loop_def != NULL);
+  SgScopeStatement* def_scope = isSgScopeStatement (item_loop_def);
+  ROSE_ASSERT (def_scope != NULL);
+  SgVariableDeclaration* _lower = buildVariableDeclaration("lower", buildIntType(), NULL, def_scope);
+  appendStatement(_lower, def_scope);
+  SgVariableDeclaration* _upper = buildVariableDeclaration("upper", buildIntType(), NULL, def_scope);
+  appendStatement(_upper, def_scope);
+  SgVariableDeclaration* _execute = buildVariableDeclaration("execute", buildBoolType(), NULL, def_scope);
+  appendStatement(_execute, def_scope);
+  SgVariableDeclaration* _last = buildVariableDeclaration("last", buildBoolType(), NULL, def_scope);
+  appendStatement(_last, def_scope);
+
+  // Replacement
+  SgDeclarationStatementPtrList members = item_loop_decl->get_definition()->get_members();
+  Rose_STL_Container<SgDeclarationStatement*>::iterator member = members.begin();
+      // Lower bound
+  SgVariableDeclaration* lower_member = isSgVariableDeclaration(*member);
+  SgInitializedName* lower_name = *(lower_member->get_variables().begin());
+  SgExpression* lower_bound = buildDotExp(buildVarRefExp("_nth_info", func_body), buildVarRefExp(lower_name, func_body));
+  SageInterface::setLoopLowerBound(for_loop, lower_bound);
+      // Upper bound
+  ++member;
+  SgVariableDeclaration* upper_member = isSgVariableDeclaration(*member);
+  SgInitializedName* upper_name = *(upper_member->get_variables().begin());
+  SgExpression* upper_bound = buildDotExp(buildVarRefExp("_nth_info", func_body), buildVarRefExp(upper_name, func_body));
+  SageInterface::setLoopUpperBound(for_loop, upper_bound);
+    
   /*! while (_nth_info.execute) {
    *      for (i = _nth_info.lower; i <= _nth_info.upper; i += 1) {
    *          a_0[i] = i * 2;
@@ -1364,31 +1406,6 @@ SgFunctionDeclaration *
   
   if (Outliner::useNewFile)
     ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation(func_body);
-  
-  // step 5: loop index handling
-  // this step replaces the use of the original loop index by the local copies
-  // TODO!!!!
-    /*
-    typedef struct 
-    {
-    int lower;
-    int upper;
-    _Bool execute : 1;
-    _Bool last : 1;
-  } nanos_ws_item_loop_t;
-    */
-  //   SgClassDeclaration* item_loop_decl = buildStructDeclaration("nanos_ws_item_loop_t", func_body);
-  //   SgClassDefinition* item_loop_def = new SgClassDefinition();
-  //   SgVariableDeclaration* _lower = buildVariableDeclaration("lower", buildIntType(), NULL, func_body);
-  //   item_loop_def->append_member(_lower);
-  //   SgVariableDeclaration* _upper = buildVariableDeclaration("upper", buildIntType(), NULL, func_body);
-  //   item_loop_def->append_member(_upper);
-  //   SgVariableDeclaration* _execute = buildVariableDeclaration("execute", buildBoolType(), NULL, func_body);
-  //   item_loop_def->append_member(_execute);
-  //   SgVariableDeclaration* _last = buildVariableDeclaration("last", buildBoolType(), NULL, func_body);
-  //   item_loop_def->append_member(_last);
-  //   item_loop_decl->set_definition(item_loop_def);
-  //   appendStatement(item_loop_decl, func_body);
   
   return func;
 }
