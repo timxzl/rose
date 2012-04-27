@@ -1647,7 +1647,7 @@ void XOMP_loop_end_nowait (void)
 
 #else
 
-void XOMP_loop_for_NANOX (int start, int end, int incr, int chunk, int policy,
+void XOMP_loop_for_NANOX (void* start, void* end, void* incr, int chunk, int policy,
                           void (*func) (void *), void *data, void * data_wsd, long data_size, long (*get_data_align)(void), 
                           void * empty_data, void (* init_func) (void *, void *))
 {

@@ -90,7 +90,7 @@ extern void XOMP_loop_ordered_guided_init(int lower, int upper, int stride, int 
 extern void XOMP_loop_ordered_runtime_init(int lower, int upper, int stride);
 
 // Specific method for Nanos++
-extern void XOMP_loop_for_NANOX (int start, int end, int incr, int chunk, int policy,
+extern void XOMP_loop_for_NANOX (void* start, void* end, void* incr, int chunk, int policy,
                                  void (*func) (void *), void *data, void * data_wsd, long arg_size, long (*get_arg_align)(void), 
                                  void * empty_data, void (* init_func) (void *, void *)/*, void * ws_policy*/);
 

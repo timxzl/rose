@@ -1518,11 +1518,29 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
       SgExpression* param_init_func = build_nanox_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl);
       
       std::vector<SgExpression*> param_list;
-      param_list.push_back(isSgIntVal(orig_lower));
-      param_list.push_back(isSgIntVal(orig_upper));
-      param_list.push_back(isSgIntVal(orig_stride));
+      // Loop boundaries
+      std::string lb_name = "__lb_" + generateUniqueName(orig_lower, true);
+      SgInitializer* lb_init = buildAssignInitializer(orig_lower, buildIntType());
+      SgVariableDeclaration* lb = buildVariableDeclaration(lb_name, buildIntType(), lb_init, p_scope);
+      prependStatement(lb, p_scope);
+      param_list.push_back(buildAddressOfOp(buildVarRefExp(lb->get_decl_item(lb_name), p_scope)));
+      
+      std::string ub_name = "__ub_" + generateUniqueName(orig_upper, true);
+      SgInitializer* ub_init = buildAssignInitializer(orig_upper, buildIntType());
+      SgVariableDeclaration* ub = buildVariableDeclaration(ub_name, buildIntType(), ub_init, p_scope);
+      prependStatement(ub, p_scope);
+      param_list.push_back(buildAddressOfOp(buildVarRefExp(ub->get_decl_item(ub_name), p_scope)));
+      
+      std::string stride_name = "__stride_" + generateUniqueName(orig_stride, true);
+      SgInitializer* stride_init = buildAssignInitializer(orig_stride, buildIntType());
+      SgVariableDeclaration* stride = buildVariableDeclaration(stride_name, buildIntType(), stride_init, p_scope);
+      prependStatement(stride, p_scope);
+      param_list.push_back(buildAddressOfOp(buildVarRefExp(stride->get_decl_item(stride_name), p_scope)));
+      
       param_list.push_back(chunk_size);
       param_list.push_back(ws_index);
+
+      // Function and data references
       param_list.push_back(param_outlined_func);
       param_list.push_back(param_data);
       param_list.push_back(param_data_wsd);

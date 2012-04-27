@@ -172,7 +172,7 @@ void nanos_omp_initialize_worksharings(void *dummy)
 __attribute__((weak, section("nanos_post_init")))
 nanos_init_desc_t __section__nanos_init_worksharing = {(nanos_omp_initialize_worksharings), ((void *)0)};
 
-void NANOX_loop(int start, int end, int incr, int chunk, int policy, 
+void NANOX_loop(void* start, void* end, void* incr, int chunk, int policy, 
                 void (*func) (void *), void *data, void * data_wsd /*data_wsd == &(data->wsd)*/, long data_size, long (*get_data_align)(void),
                 void* empty_data, void (*init_func) (void *, void *))
 {
@@ -193,7 +193,7 @@ void NANOX_loop(int start, int end, int incr, int chunk, int policy,
     policy = _runtime_sched - 1;
   }
   nanos_ws_t* current_ws_policy = &ws_policy[policy];
-  nanos_ws_info_loop_t info_loop = { start, end, incr, chunk };
+  nanos_ws_info_loop_t info_loop = { *((int*) start), *((int*) end), *((int*) incr), chunk };
 
   err = nanos_worksharing_create(data_wsd, *current_ws_policy, (nanos_ws_info_t*) &info_loop, &single_guard);
   if (err != NANOS_OK)

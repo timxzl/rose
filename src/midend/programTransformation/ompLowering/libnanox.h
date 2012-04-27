@@ -20,7 +20,7 @@ void NANOX_parallel( void (*) (void *), void *, unsigned, long, long (*) (void),
 
 void NANOX_task(void (*) (void *), void (*), long, long (*) (void), bool, unsigned, void *, void (*) (void *, void *));
 
-void NANOX_loop(int, int, int, int, int, void (*) (void *), void *, void *, long, long (*)(void), void *, void (*) (void *, void *));
+void NANOX_loop(void*, void*, void*, int, int, void (*) (void *), void *, void *, long, long (*)(void), void *, void (*) (void *, void *));
 
 void NANOS_sections(int, bool, va_list);
 
