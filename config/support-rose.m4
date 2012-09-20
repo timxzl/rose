@@ -494,7 +494,8 @@ AM_CONDITIONAL(ROSE_USING_BOOST_VERSION_1_45,test "x$rose_boost_version" = "x104
 AM_CONDITIONAL(ROSE_USING_BOOST_VERSION_1_46,test "x$rose_boost_version" = "x104600" -o "x$_version" = "x1.46")
 AM_CONDITIONAL(ROSE_USING_BOOST_VERSION_1_46,test "x$rose_boost_version" = "x104601" -o "x$_version" = "x1.46")
 AM_CONDITIONAL(ROSE_USING_BOOST_VERSION_1_47,test "x$rose_boost_version" = "x104700" -o "x$_version" = "x1.47")
-AM_CONDITIONAL(ROSE_USING_BOOST_VERSION_1_48,test "x$rose_boost_version" = "x104800" -o "x$_version" = "x1.48")
+# Liao 9/19/2012, 1.48 is not yet supported
+#AM_CONDITIONAL(ROSE_USING_BOOST_VERSION_1_48,test "x$rose_boost_version" = "x104800" -o "x$_version" = "x1.48")
 
 # DQ (10/18/2010): Error checking for Boost version.
 if test "x$rose_boost_version" = "x103600" -o "x$_version" = "x1.36" \
@@ -509,12 +510,13 @@ if test "x$rose_boost_version" = "x103600" -o "x$_version" = "x1.36" \
    -o "x$rose_boost_version" = "x104500" -o "x$_version" = "x1.45" \
    -o "x$rose_boost_version" = "x104600" -o "x$_version" = "x1.46" \
    -o "x$rose_boost_version" = "x104601" -o "x$_version" = "x1.46" \
-   -o "x$rose_boost_version" = "x104700" -o "x$_version" = "x1.47" \
-   -o "x$rose_boost_version" = "x104800" -o "x$_version" = "x1.48"
+   -o "x$rose_boost_version" = "x104700" -o "x$_version" = "x1.47" 
+# Not ready   
+#   -o "x$rose_boost_version" = "x104800" -o "x$_version" = "x1.48"
 then
-    echo "Supported version of Boost (1.36 to 1.48) has been found!"
+    echo "Supported version of Boost (1.36 to 1.47) has been found!"
 else
-    ROSE_MSG_ERROR([Unsupported version of Boost: '$_version' ('$rose_boost_version'). Only 1.36 to 1.48 is supported now.])
+    ROSE_MSG_ERROR([Unsupported version of Boost: '$_version' ('$rose_boost_version'). Only 1.36 to 1.47 is supported now.])
 fi
 
 # DQ (12/22/2008): Fix boost configure to handle OS with older version of Boost that will
@@ -799,6 +801,8 @@ AC_SUBST(TEST_SMT_SOLVER)
 
 ROSE_SUPPORT_MINT
 
+ROSE_SUPPORT_VECTORIZATION
+
 ROSE_SUPPORT_PHP
 
 AM_CONDITIONAL(ROSE_USE_PHP,test ! "$with_php" = no)
@@ -970,6 +974,12 @@ fi
 
 # Call supporting macro for Haskell
 ROSE_SUPPORT_HASKELL
+
+# Call supporting macro for SWI Prolog
+ROSE_SUPPORT_SWIPL
+
+# Call supporting macro for minitermite
+ROSE_CONFIGURE_MINITERMITE
 
 # Call supporting macro for bddbddb
 ROSE_SUPPORT_BDDBDDB
@@ -1873,6 +1883,7 @@ stamp-h
 Makefile
 rose.docs
 config/Makefile
+config/include-staging/Makefile
 src/Makefile
 src/util/Makefile
 src/util/stringSupport/Makefile
@@ -2157,9 +2168,15 @@ projects/RTC/Makefile
 projects/PowerAwareCompiler/Makefile
 projects/ManyCoreRuntime/Makefile
 projects/ManyCoreRuntime/docs/Makefile
+projects/minitermite/Makefile
+projects/minitermite/Doxyfile
+projects/minitermite/src/minitermite/minitermite.h
 projects/mint/Makefile
 projects/mint/src/Makefile
 projects/mint/tests/Makefile
+projects/vectorization/Makefile
+projects/vectorization/src/Makefile
+projects/vectorization/tests/Makefile
 projects/Fortran_to_C/Makefile
 projects/Fortran_to_C/src/Makefile
 projects/Fortran_to_C/tests/Makefile
@@ -2176,6 +2193,10 @@ projects/PolyhedralModel/projects/loop-ocl/Makefile
 projects/PolyhedralModel/projects/spmd-generator/Makefile
 projects/PolyhedralModel/projects/polygraph/Makefile
 projects/PolyhedralModel/projects/utils/Makefile
+projects/mpiAnalOptTools/Makefile
+projects/mpiAnalOptTools/mpiToGOAL/Makefile
+projects/mpiAnalOptTools/mpiToGOAL/src/Makefile
+projects/mpiAnalOptTools/mpiToGOAL/tests/Makefile
 tests/Makefile
 tests/RunTests/Makefile
 tests/RunTests/A++Tests/Makefile
@@ -2355,10 +2376,26 @@ projects/compass2/docs/doxygen/doxygen.config
 projects/compass2/docs/doxygen/Makefile
 projects/compass2/tests/Makefile
 projects/compass2/tests/checkers/Makefile
+projects/compass2/tests/checkers/dead_function/Makefile
+projects/compass2/tests/checkers/dead_function/compass_parameters.xml
+projects/compass2/tests/checkers/default_argument/Makefile
+projects/compass2/tests/checkers/default_argument/compass_parameters.xml
 projects/compass2/tests/checkers/function_pointer/Makefile
 projects/compass2/tests/checkers/function_pointer/compass_parameters.xml
+projects/compass2/tests/checkers/function_prototype/Makefile
+projects/compass2/tests/checkers/function_prototype/compass_parameters.xml
+projects/compass2/tests/checkers/function_with_multiple_returns/Makefile
+projects/compass2/tests/checkers/function_with_multiple_returns/compass_parameters.xml
+projects/compass2/tests/checkers/global_variables/Makefile
+projects/compass2/tests/checkers/global_variables/compass_parameters.xml
 projects/compass2/tests/checkers/keyword_macro/Makefile
 projects/compass2/tests/checkers/keyword_macro/compass_parameters.xml
+projects/compass2/tests/checkers/non_global_cpp_directive/Makefile
+projects/compass2/tests/checkers/non_global_cpp_directive/compass_parameters.xml
+projects/compass2/tests/checkers/non_static_array_size/Makefile
+projects/compass2/tests/checkers/non_static_array_size/compass_parameters.xml
+projects/compass2/tests/checkers/variable_name_similarity/Makefile
+projects/compass2/tests/checkers/variable_name_similarity/compass_parameters.xml
 projects/compass2/tests/core/Makefile
 projects/compass2/tests/core/compass_parameters.xml
 ])
