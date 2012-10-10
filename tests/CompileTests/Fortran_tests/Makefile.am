@@ -716,7 +716,20 @@ F90_TESTCODES_REQUIRED_TO_PASS += \
      test2011_72.f90 \
      test2011_75.f90 \
      test2011_76.f90 
-
+     
+# DXN (as of 10/09/2012):
+F90_TESTCODES_REQUIRED_TO_PASS += \
+     test2011_Rice_A-cant-assert-keyword-nonnull.f90 \
+     test2011_Rice_B-cant-assert-keyword-nonnull.f90 \
+     test2011_Rice_C-cant-assert-keyword-nonnull.f90 \
+     test2011_Rice_lost-func-return-type.f90 \
+	 test2012_Rice_derived-type-array-2.f90 \
+     test2012_Rice_derived-type-array-3.f90 \
+     test2012_Rice_derived-type-array-4.f90 \
+     test2012_Rice_derived-type-array-5.f90 \
+     test2012_Rice_extern_func_call.f90 \
+     test2012_Rice_if-scope.f90
+    
 # DQ (9/30/2011): There is a long history of this being a statistical failure on at least OSX systems. 
 # test2010_161.f90 
 # Liao 12/15/2011. This one also uses alternative return according to Dan
@@ -813,10 +826,6 @@ F90_TESTCODES_CURRENTLY_FAILING += \
      test2011_65.f90 \
      test2011_67.f90 \
      test2011_73.f90 \
-     test2011_Rice_A-cant-assert-keyword-nonnull.f90 \
-     test2011_Rice_B-cant-assert-keyword-nonnull.f90 \
-     test2011_Rice_C-cant-assert-keyword-nonnull.f90 \
-     test2011_Rice_lost-func-return-type.f90 \
      fCaller.f90 \
      triangle.f90 \
      X-comment-in-wrong-place.f90 \
