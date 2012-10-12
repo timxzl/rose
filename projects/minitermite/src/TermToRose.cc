@@ -89,6 +89,9 @@ static inline string makeFunctionID(const string& func_name,
            << "certain node types may have changed.\n"                  \
            << "In any case, please report this bug to\n"                \
            << PACKAGE_BUGREPORT << "\n"                                 \
+           << "To fix this error please consult\n"			\
+           << "HOWTO_ADD_NEW_SGNODE_VARIANTS in the\n"			\
+	   << "minitermite source directory.\n"				\
            << "====================================\n"                  \
            << endl;                                                     \
     ROSE_ASSERT(assertion);                                             \
@@ -2663,7 +2666,7 @@ TermToRose::createCaseOptionStmt(Sg_File_Info* fi, SgNode* child1, SgNode* child
   SgStatement* case_block = NULL;
   /* second child must be a SgStatement*/
   abort_unless(
-               case_block = isSgStatement(child2),
+               (case_block = isSgStatement(child2)),
                "Could not retrieve body of case statement"
                );
   /* first child must be either a SgExpressionRoot or a SgExpression*/
@@ -2672,7 +2675,7 @@ TermToRose::createCaseOptionStmt(Sg_File_Info* fi, SgNode* child1, SgNode* child
   } else {
     SgExpression *e = NULL;
     abort_unless(
-                 e = isSgExpression(child1),
+                 (e = isSgExpression(child1)),
                  "Could not retrieve selector value of case statement"
                  );
     case_stmt = new SgCaseOptionStmt(fi,e,case_block);
@@ -2695,12 +2698,12 @@ TermToRose::createDefaultOptionStmt(Sg_File_Info* fi, SgNode* child1, CompTerm* 
   SgStatement* b = NULL;
   /*make sure the body is actually one.*/
   abort_unless(
-               b = isSgStatement(child1),
+               (b = isSgStatement(child1)),
                "Body of default option is not a basic block"
                );
   /* make sure the statement is actually created */
   abort_unless(
-               default_stmt = new SgDefaultOptionStmt(fi,b),
+               (default_stmt = new SgDefaultOptionStmt(fi,b)),
                "Failed to create default option statement"
                );
   TERM_ASSERT(t, default_stmt->get_file_info() != NULL);
@@ -3181,7 +3184,6 @@ TermToRose::createTypedefDeclaration(Sg_File_Info* fi, CompTerm* t) {
     tpe = createType(annot->at(1));
 
   /*create typedef declaration*/
-  SgSymbol* smb = NULL;
   SgTypedefDeclaration* d = new SgTypedefDeclaration(fi,n,tpe,NULL,decl);
   SgTypedefType* tdtpe = SgTypedefType::createType(d);
   string tid = "typedef_type("+annot->at(0)->getRepresentation()+", "
@@ -3314,10 +3316,9 @@ TermToRose::storeVariableSymbolFromDeclaration(SgScopeStatement *scope,
  */
 std::string*
 TermToRose::toStringP(Term* t) {
-  if(Atom* a =isAtom(t)) {
-    TERM_ASSERT(t, a != NULL);
-    return new string(a->getName());
-  }
+  Atom* a = isAtom(t);
+  TERM_ASSERT(t, a != NULL);
+  return new string(a->getName());
 }
 
 /**
@@ -4003,7 +4004,7 @@ TermToRose::createConstructorInitializer(Sg_File_Info* fi, SgNode* child1,CompTe
 SgPragmaDeclaration*
 TermToRose::createPragmaDeclaration(Sg_File_Info* fi, SgNode* child1,CompTerm* t) {
   /*retrieve annotation*/
-  CompTerm* annot = retrieveAnnotation(t);
+  //CompTerm* annot = retrieveAnnotation(t);
   TERM_ASSERT(t, t != NULL);
   /* cast the SgPragma*/
   SgPragma* p = isSgPragma(child1);
