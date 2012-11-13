@@ -4,12 +4,13 @@ mptOmpLowering_la_sources=\
 
 # avoid using libtool for libxomp.a since it will be directly linked to executable
 mptOmpLowering_lib_ltlibraries=\
-	libxomp.la
+	libxomp.a
 
 # only generate .libs/libxomp.a
-libxomp_la_LDFLAGS = -static
+# libxomp_la_LDFLAGS = -static
 
-libxomp_la_SOURCES=\
+libxomp_a_SOURCES=\
+	$(mptOmpLoweringPath)/libnanox.c \
 	$(mptOmpLoweringPath)/xomp.c \
 	$(mptOmpLoweringPath)/run_me_callers.inc \
 	$(mptOmpLoweringPath)/run_me_defs.inc \
@@ -18,6 +19,10 @@ libxomp_la_SOURCES=\
 
 mptOmpLowering_includeHeaders=\
 	$(mptOmpLoweringPath)/omp_lowering.h \
+	$(mptOmpLoweringPath)/nanos-int.h \
+	$(mptOmpLoweringPath)/nanos_omp.h \
+	$(mptOmpLoweringPath)/nanos.h \
+	$(mptOmpLoweringPath)/libnanox.h \
 	$(mptOmpLoweringPath)/libgomp_g.h \
 	$(mptOmpLoweringPath)/libompc.h \
 	$(mptOmpLoweringPath)/libxomp.h \

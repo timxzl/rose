@@ -1,5 +1,5 @@
 /*  
- * A common layer for both gomp and omni runtime library
+ * A common layer for either gomp, omni and nanos runtime library
  *  Liao 1/20/2009
  *  */
 #ifndef LIB_XOMP_H 
@@ -37,6 +37,16 @@ extern void XOMP_terminate (int exitcode);
 extern void XOMP_parallel_start (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified);
 extern void XOMP_parallel_end (void);
 
+// Method for parallel when NANOX library. In addition to the parameters of the regular XOMP call for parallel:
+// data_size: size of the data segment used as argument of 'func'
+// get_data_align: method that will compute the alignment of the data segment used as argument of 'func' at runtime
+// empty_data: pointer to a data segment with the same type as 'data', but empty.
+//             'empty_data' is used to initialize the team, and 'data' is used to fill the empty struct after the team initialization
+// init_func: function that initialized 'empty_data' with the values of the members in 'data'
+extern void XOMP_parallel_for_NANOX (void (*func) (void*), void* data, unsigned ifClauseValue, unsigned numThreadsSpecified,
+                                     long data_size, long (*get_data_align) (void), void* empty_data, void (*init_func) (void*, void*));
+// nanos_team: team that has to be finalized
+
 /* Initialize sections and return the next section id (starting from 0) to be executed by the current thread */
 extern int XOMP_sections_init_next(int section_count); 
 
@@ -49,8 +59,13 @@ extern void XOMP_sections_end(void);
 /* Called after the current thread is told that all sections are executed. It does not synchronizes all threads. */
 extern void XOMP_sections_end_nowait(void);
 
+// Method for sections when NANOX library.
+extern void XOMP_sections_for_NANOX(int num_sections, bool must_wait, ... );
+
 extern void XOMP_task (void (*) (void *), void *, void (*) (void *, void *),
                        long, long, bool, unsigned);
+extern void XOMP_task_for_NANOX(void (*fn) (void *), void *data, long data_size, long (*get_data_align) (void), 
+                                bool if_clause, unsigned untied, void* empty_data, void (*init_func) (void*, void*));
 extern void XOMP_taskwait (void);
 
 // scheduler functions, union of runtime library functions
@@ -74,6 +89,10 @@ extern void XOMP_loop_ordered_dynamic_init(int lower, int upper, int stride, int
 extern void XOMP_loop_ordered_guided_init(int lower, int upper, int stride, int chunk_size);
 extern void XOMP_loop_ordered_runtime_init(int lower, int upper, int stride);
 
+// Specific method for Nanos++
+extern void XOMP_loop_for_NANOX (void* start, void* end, void* incr, int chunk, int policy,
+                                 void (*func) (void *), void *data, void * data_wsd, long arg_size, long (*get_arg_align)(void), 
+                                 void * empty_data, void (* init_func) (void *, void *)/*, void * ws_policy*/);
 
 // if (start), 
 // mostly used because of gomp, omni will just call  XOMP_loop_xxx_next();
@@ -111,6 +130,7 @@ extern bool XOMP_master(void);
 
 extern void XOMP_atomic_start (void);
 extern void XOMP_atomic_end (void);
+extern void XOMP_atomic_for_NANOX (int, int, void *, void *);
 
 extern void XOMP_loop_end (void);
 extern void XOMP_loop_end_nowait (void);

@@ -508,6 +508,13 @@ namespace OmpSupport
       case e_collapse: result = "collapse"; break;
       case e_untied: result = "untied"; break;
 
+// Sara Royuela (11/13/2012): Add support for OmpSs task dependency nodes
+#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+      case e_input result = "input"; break;
+      case e_output result = "output"; break;
+      case e_inout result = "inout"; break;
+#endif
+      
                      // values
       case e_default_none: result = "none"; break;
       case e_default_shared: result = "shared"; break;
@@ -841,7 +848,14 @@ namespace OmpSupport
       case e_if:
       case e_num_threads:
       case e_nowait:
-
+//           
+// Sara Royuela (11/13/2012): Add support for OmpSs task dependency nodes
+#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+      case e_input:
+      case e_output:
+      case e_inout:
+#endif
+          
       case e_ordered_clause:
       case e_reduction:
       case e_schedule:
@@ -849,6 +863,7 @@ namespace OmpSupport
       case e_untied:
         result = true; 
         break;
+        
       default:
         result = false;
         break;
@@ -985,6 +1000,13 @@ namespace OmpSupport
           (omp_type == e_shared)||
           (omp_type == e_copyin)||
           (omp_type == e_lastprivate)
+// Sara Royuela (11/13/2012): Add support for OmpSs task dependency nodes
+#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+          ||
+          (omp_type == e_input)||
+          (omp_type == e_output)||
+          (omp_type == e_inout)
+#endif   
           )
       {
         result += OmpSupport::toString(omp_type);

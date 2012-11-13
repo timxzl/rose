@@ -81,6 +81,7 @@ corresponding C type is union name defaults to YYSTYPE.
         FOR MASTER CRITICAL BARRIER ATOMIC FLUSH 
         THREADPRIVATE PRIVATE COPYPRIVATE FIRSTPRIVATE LASTPRIVATE SHARED DEFAULT NONE REDUCTION COPYIN 
         TASK TASKWAIT UNTIED COLLAPSE AUTO
+        INPUT OUTPUT INOUT
         '(' ')' ',' ':' '+' '*' '-' '&' '^' '|' LOGAND LOGOR SHLEFT SHRIGHT PLUSPLUS MINUSMINUS PTR_TO '.'
         LE_OP2 GE_OP2 EQ_OP2 NE_OP2 RIGHT_ASSIGN2 LEFT_ASSIGN2 ADD_ASSIGN2
         SUB_ASSIGN2 MUL_ASSIGN2 DIV_ASSIGN2 MOD_ASSIGN2 AND_ASSIGN2 
@@ -296,11 +297,30 @@ task_clause_optseq :  /* empty */
                    | task_clause_optseq ',' task_clause
                    ;
 
+
 task_clause : unique_task_clause
             | data_default_clause
             | data_privatization_clause
             | data_privatization_in_clause
             | data_sharing_clause
+            {
+              /* Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses */
+              #ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+                INPUT { 
+                    ompattribute->addClause(e_input);
+                    omptype = e_input;
+                  } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
+                | OUTPUT { 
+                    ompattribute->addClause(e_output);
+                    omptype = e_output;
+                  } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
+                | INOUT { 
+                    ompattribute->addClause(e_inout);
+                    omptype = e_inout;
+                  } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
+                ;
+              #endif
+            }
             ;
 
 unique_task_clause : IF { 

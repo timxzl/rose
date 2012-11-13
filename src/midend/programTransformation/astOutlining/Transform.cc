@@ -16,6 +16,8 @@
 #include "PreprocessingInfo.hh"
 #include "StmtRewrite.hh"
 #include "OmpAttribute.h" //regenerate pragma from omp attribute
+
+#include "rose_config.h"
 // =====================================================================
 
 using namespace std;
@@ -30,9 +32,17 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
                                SgScopeStatement* func_scope ) // the scope of the outlined function, could be different from s's global scope
 {
   SgClassDeclaration* result = NULL;
+#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY   
   // no need to generate the declaration if no variables are to be passed
-  if (syms.empty()) 
+  if (syms.empty())
+  {
+/*!
+ * GOMP and OMNI RTLs do not requiere of an structure when there is no parameter to be passed to the outlined function.
+ * On the contrary, NANOS methods always require an struct, so we build an structure with no member.
+ */
     return result;
+  }
+#endif
 
   ROSE_ASSERT (s != NULL);
   ROSE_ASSERT (func_scope != NULL);
@@ -378,13 +388,17 @@ Outliner::outlineBlock (SgBasicBlock* s, const string& func_name_str)
  */
 std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::VarSymSet_t & syms, ASTtools::VarSymSet_t & pdsyms, SgClassDeclaration* struct_decl /* = NULL */)
 {
-
   int var_count = syms.size();
   int counter=0;
   string wrapper_name= generateFuncArgName(target); //"__out_argv";
-
-  if (var_count==0) 
-    return wrapper_name;
+  SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()); 
+  ROSE_ASSERT (class_def != NULL);
+  
+#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+    if (var_count==0) 
+      return wrapper_name;
+#endif
+  
   SgScopeStatement* cur_scope = target->get_scope();
   ROSE_ASSERT( cur_scope != NULL);
 
@@ -408,7 +422,7 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
   // from its location in the original location where it was outlined, we can't insert new 
   // statements relative to "target".
   SageInterface::insertStatementBefore(target, out_argv);
-
+  
   SgVariableSymbol * wrapper_symbol = getFirstVarSym(out_argv);
   ROSE_ASSERT(wrapper_symbol->get_parent() != NULL);
   //  cout<<"Inserting wrapper declaration ...."<<wrapper_symbol->get_name().getString()<<endl;
@@ -426,7 +440,7 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
       SgInitializedName* i_name = (*i)->get_declaration();
       SgVariableSymbol * i_symbol = const_cast<SgVariableSymbol *>(*i);
       //SgType* i_type = i_symbol->get_type();
-       string member_name= i_name->get_name ().str ();
+      string member_name= i_name->get_name ().str ();
 //     cout<<"Debug: Outliner::generatePackingStatements() symbol to be packed:"<<member_name<<endl;  
       rhs = buildVarRefExp(i_symbol); 
       if (pdsyms.find(i_symbol) != pdsyms.end()) // pointer type
@@ -436,8 +450,6 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
         //rhs = buildAddressOfOp(rhs); 
         rhs = buildCastExp( buildAddressOfOp(rhs), buildPointerType(buildVoidType())); 
       }
-      SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()) ; 
-      ROSE_ASSERT (class_def != NULL);
       lhs = buildDotExp ( buildVarRefExp(out_argv), buildVarRefExp (member_name, class_def));  
     }
     else
@@ -453,6 +465,7 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
     SageInterface::insertStatementBefore(target, expstmti);
     counter ++;
   }
+  
   return wrapper_name; 
 }
 
