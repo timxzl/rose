@@ -7,6 +7,7 @@ distributedScripts =				\
      buildExampleRoseWorkspaceScript.sh		\
      check-dist-file dotgenLetter		\
      configure_with_SQL				\
+     check_boost_linkage.sh \
      dotgen					\
      dotgen2					\
      dotgenLetterPDF				\
@@ -34,10 +35,12 @@ distributedScripts =				\
      rth_stats.pl                               \
      runscript					\
      sample_binary_rules.pl			\
+     shtool \
      stringify.pl
 
 # scripts put into the distribution
-EXTRA_DIST = CMakeLists.txt README $(distributedScripts) buildExampleRoseWorkspaceDirectory hudson
+EXTRA_DIST = CMakeLists.txt README $(distributedScripts) buildExampleRoseWorkspaceDirectory hudson \
+	test_exit_status test_with_answer
 
 # install the tools in 'bin' (a subsect of EXTRA_DIST)
 bin_SCRIPTS =  $(distributedScripts)

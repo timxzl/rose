@@ -5,8 +5,6 @@
 
 #include <string>
 
-// #include "sageGeneric.hpp"
-
 #include "RtedSymbols.h"
 #include "DataStructures.h"
 #include "RtedTransformation.h"
@@ -62,7 +60,7 @@ RtedTransformation::changeReturnStmt(ReturnInfo rinfo)
   SgName                 rName( name );
   SgAssignInitializer*   init = SB::buildAssignInitializer(returnExpr);
   SgVariableDeclaration* resDecl = SB::buildVariableDeclaration( rName, typeRet, init, scope );
-  SgInitializedName&     resVar = getFirstVariable(*resDecl);
+  SgInitializedName&     resVar = SI::getFirstVariable(*resDecl);
 
   SgVarRefExp* const     vexp = SB::buildVarRefExp(rName, scope);
   SgStatement* const     newRtnStmt = SB::buildReturnStmt( vexp );

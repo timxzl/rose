@@ -5,7 +5,6 @@
  * run automatically because it depends on setting up a slave machine who's architecture is what is being simulated by the
  * instruction semantics (not necessarily the same architecture that's running ROSE). */
 
-//#include "rose.h"
 #include "semanticsModule.h"
 #include <cassert>
 #include <cstdio>
@@ -27,6 +26,13 @@ static inline X86SegmentRegister getSegregFromMemoryReference(SgAsmMemoryReferen
     return segreg;
 }
 
+namespace BinaryAnalysis {
+    namespace InstructionSemantics {
+
+/** Translation class.  Translates x86 instructions to RISC-like operations and invokes those operations in the supplied
+ *  semantic policy (a template argument).  See the BinaryAnalysis::InstructionSemantics name space for details. Apologies for
+ *  the lack of documentation for this class.  You can at least find some examples in the semantics.C file of the
+ *  tests/roseTests/binaryTests directory, among others. */
 template <typename Policy, template <size_t> class WordType>
 struct X86InstructionSemantics {
 #   ifdef Word
@@ -48,6 +54,7 @@ struct X86InstructionSemantics {
 
     Policy& policy;
     SgAsmInstruction *current_instruction;
+    Word(32) orig_eip; // set at the top of translate()
 
     /* Registers used explicitly by this class. */
     RegisterDescriptor REG_EAX, REG_EBX, REG_ECX, REG_EDX, REG_EDI, REG_EIP, REG_ESI, REG_ESP, REG_EBP;
@@ -55,7 +62,7 @@ struct X86InstructionSemantics {
     RegisterDescriptor REG_EFLAGS, REG_AF, REG_CF, REG_DF, REG_OF, REG_PF, REG_SF, REG_ZF;
 
     X86InstructionSemantics(Policy& policy)
-        : policy(policy), current_instruction(NULL) {
+        : policy(policy), current_instruction(NULL), orig_eip(policy.readRegister<32>(policy.findRegister("eip"))) {
         REG_EAX = policy.findRegister("eax", 32);
         REG_EBX = policy.findRegister("ebx", 32);
         REG_ECX = policy.findRegister("ecx", 32);
@@ -103,7 +110,7 @@ struct X86InstructionSemantics {
         repeat = policy.and_(repeat, policy.invert(policy.equalToZero(new_cx)));
         writeRegister(REG_EIP,
                       policy.ite(policy.and_(cond, repeat),
-                                 number<32>((uint32_t)(insn->get_address())),    /* repeat */
+                                 orig_eip,    /* repeat */
                                  readRegister<32>(REG_EIP)));                    /* exit */
     }
 
@@ -305,8 +312,135 @@ struct X86InstructionSemantics {
                                  policy.ite(readRegister<1>(REG_DF), number<32>(-N), number<32>(N))));
     }
 
+    /** Implements the SHR, SAR, SHL, SAL, SHRD, and SHLD instructions for various operand sizes.  The shift amount is always 8
+     *  bits wide in the instruction, but the semantics mask off all but the low-order bits, keeping 5 bits in 32-bit mode and
+     *  7 bits in 64-bit mode (indicated by the shiftSignificantBits template argument).  The semantics of SHL and SAL are
+     *  identical (in fact, ROSE doesn't even define x86_sal). The @p source_bits argument contains the bits to be shifted into
+     *  the result and is used only for SHRD and SHLD instructions. */
+    template<size_t operandBits, size_t shiftSignificantBits>
+    WordType<operandBits> shift_semantics(X86InstructionKind kind, const WordType<operandBits> &operand,
+                                          const WordType<operandBits> &source_bits, const WordType<8> &total_shift) {
+        assert(x86_shr==kind || x86_sar==kind || x86_shl==kind || x86_shld==kind || x86_shrd==kind);
 
+        // The 8086 does not mask the shift count; processors starting with the 80286 (including virtual-8086 mode) do
+        // mask.  The effect (other than timing) is the same either way.
+        WordType<shiftSignificantBits> maskedShiftCount = extract<0, shiftSignificantBits>(total_shift);
+        WordType<1> isZeroShiftCount = policy.equalToZero(maskedShiftCount);
 
+        // isLargeShift is true if the (unmasked) amount by which to shift is greater than or equal to the size in
+        // bits of the destination operand.
+        assert(shiftSignificantBits<8);
+        WordType<1> isLargeShift = policy.invert(policy.equalToZero(extract<shiftSignificantBits, 8>(total_shift)));
+
+        // isOneBitShift is true if the (masked) amount by which to shift is equal to one.
+        uintmax_t m = ((uintmax_t)1 << shiftSignificantBits) - 1;
+        WordType<shiftSignificantBits> mask = number<shiftSignificantBits>(m); // -1 in modulo arithmetic
+        WordType<1> isOneBitShift = policy.equalToZero(policy.add(maskedShiftCount, mask));
+
+        // Do the actual shift, according to instruction kind.
+        WordType<operandBits> retval = undefined_<operandBits>(); // not all policies define a default c'tor
+        switch (kind) {
+            case x86_shr:
+                retval = policy.shiftRight(operand, maskedShiftCount);
+                break;
+            case x86_sar:
+                retval = policy.shiftRightArithmetic(operand, maskedShiftCount);
+                break;
+            case x86_shl:
+                retval = policy.shiftLeft(operand, maskedShiftCount);
+                break;
+            case x86_shrd:
+                retval = policy.ite(isLargeShift,
+                                    undefined_<operandBits>(),
+                                    policy.or_(policy.shiftRight(operand, maskedShiftCount),
+                                               policy.ite(isZeroShiftCount,
+                                                          number<operandBits>(0),
+                                                          policy.shiftLeft(source_bits, policy.negate(maskedShiftCount)))));
+                break;
+            case x86_shld:
+                retval = policy.ite(isLargeShift,
+                                    undefined_<operandBits>(),
+                                    policy.or_(policy.shiftLeft(operand, maskedShiftCount),
+                                               policy.ite(isZeroShiftCount,
+                                                          number<operandBits>(0),
+                                                          policy.shiftRight(source_bits, policy.negate(maskedShiftCount)))));
+                break;
+            default:
+                abort();
+        }
+
+        // The AF flag is undefined if a shift occurs.  The documentation for SHL, SHR, and SAR are somewhat ambiguous about
+        // this, but the documentation for SHLD and SHRD is more specific.  We assume that both sets of shift instructions
+        // behave the same way.
+        writeRegister(REG_AF, policy.ite(isZeroShiftCount, readRegister<1>(REG_AF), undefined_<1>()));
+
+        // What is the last bit shifted off the operand?  If we're right shifting by N bits, then the original operand N-1 bit
+        // is what should make it into the final CF; if we're left shifting by N bits then we need bit operandBits-N.
+        WordType<shiftSignificantBits> bitPosition;
+        if (x86_shr==kind || x86_sar==kind) {
+            bitPosition = policy.add(maskedShiftCount, mask);
+        } else {
+            bitPosition = policy.add(number<shiftSignificantBits>(operandBits & m), // probably zero in modulo arithmetic
+                                     policy.add(policy.invert(maskedShiftCount),
+                                                number<shiftSignificantBits>(1)));
+        }
+        WordType<1> shifted_off = extract<0, 1>(policy.shiftRight(operand, bitPosition));
+
+        // New carry flag value.  From the Intel manual, the CF flag is "undefined for SHL and SHR [and SAL] instructions where
+        // the count is greater than or equal to the size (in bits) of the destination operand", and "if the count is 0, the
+        // flags are not affected."  The manual is silent about the value of CF for large SAR shifts, so we use the original
+        // sign bit, matching the pseudo-code in the manual.
+        WordType<1> newCF = policy.ite(isZeroShiftCount,
+                                        readRegister<1>(REG_CF), // preserve current value
+                                        policy.ite(isLargeShift,
+                                                   (x86_sar==kind ?
+                                                    extract<operandBits-1, operandBits>(operand) : // original sign bit
+                                                    undefined_<1>()),
+                                                   shifted_off));
+        writeRegister(REG_CF, newCF);
+
+        // Ajust the overflow flag.  From the Intel manual for the SHL, SHR, and SAR instructions, "The OF flag is affected
+        // only on 1-bit shifts.  For left shifts, the OF flag is set to 0 if the most-significant bit of the result is the
+        // same as the CF flag (that is, the top two bits of the original operand were the same); otherwise, it is set to 1.
+        // For the SAR instruction, the OF flag is cleared for all 1-bit shifts.  For the SHR instruction, the OF flag is set
+        // to the most-significant bit of the original operand."  Later, it states that "the OF flag is affected only for 1-bit
+        // shifts; otherwise it is undefined."  We're assuming that the statement "if the count is 0, then the flags are not
+        // affected" takes precedence. For SHLD and SHRD it says, "for a 1-bit shift, the OF flag is set if a sign changed
+        // occurred; otherwise it is cleared. For shifts greater than 1 bit, the OF flag is undefined."
+        WordType<1> newOF = undefined_<1>();
+        switch (kind) {
+            case x86_shr:
+                newOF = policy.ite(isOneBitShift,
+                                   extract<operandBits-1, operandBits>(operand),
+                                   policy.ite(isZeroShiftCount, 
+                                              readRegister<1>(REG_OF),
+                                              undefined_<1>()));
+                break;
+            case x86_sar:
+                newOF = policy.ite(isOneBitShift,
+                                   policy.false_(),
+                                   policy.ite(isZeroShiftCount,
+                                              readRegister<1>(REG_OF),
+                                              undefined_<1>()));
+                break;
+            case x86_shl:
+            case x86_shld:
+            case x86_shrd:
+                newOF = policy.ite(isOneBitShift,
+                                   policy.xor_(newCF, extract<operandBits-1, operandBits>(retval)),
+                                   policy.ite(isZeroShiftCount,
+                                              readRegister<1>(REG_OF),
+                                              undefined_<1>()));
+                break;
+            default: // to shut up compiler warnings even though we would have aborted by now.
+                abort();
+        }
+        writeRegister(REG_OF, newOF);
+
+        // Result flags SF, ZF, and PF are set according to the result, but are unchanged if the shift count is zero.
+        setFlagsForResult<operandBits>(retval, policy.invert(isZeroShiftCount));
+        return retval;
+    }
 
     template <size_t Len>
     Word(Len) invertMaybe(const Word(Len)& w, bool inv) {
@@ -320,6 +454,11 @@ struct X86InstructionSemantics {
     template <size_t Len>
     Word(Len) number(uintmax_t v) {
         return policy.template number<Len>(v);
+    }
+
+    template <size_t Len>
+    Word(Len) undefined_() {
+        return policy.template undefined_<Len>();
     }
 
     template <size_t From, size_t To, size_t Len>
@@ -609,7 +748,8 @@ struct X86InstructionSemantics {
         }
 #else
     virtual void translate(SgAsmx86Instruction* insn) try {
-        writeRegister(REG_EIP, number<32>((unsigned int)(insn->get_address() + insn->get_size())));
+        orig_eip = readRegister<32>(REG_EIP);
+        writeRegister(REG_EIP, policy.add(orig_eip, policy.number<32>(insn->get_size())));
         X86InstructionKind kind = insn->get_kind();
         const SgAsmExpressionPtrList& operands = insn->get_operandList()->get_operands();
         switch (kind) {
@@ -777,7 +917,7 @@ struct X86InstructionSemantics {
                         break;
                 }
                 writeRegister(REG_OF, policy.false_());
-                writeRegister(REG_AF, policy.undefined_());
+                writeRegister(REG_AF, undefined_<1>());
                 writeRegister(REG_CF, policy.false_());
                 break;
             }
@@ -809,7 +949,7 @@ struct X86InstructionSemantics {
                         break;
                 }
                 writeRegister(REG_OF, policy.false_());
-                writeRegister(REG_AF, policy.undefined_());
+                writeRegister(REG_AF, undefined_<1>());
                 writeRegister(REG_CF, policy.false_());
                 break;
             }
@@ -838,7 +978,7 @@ struct X86InstructionSemantics {
                         break;
                 }
                 writeRegister(REG_OF, policy.false_());
-                writeRegister(REG_AF, policy.undefined_());
+                writeRegister(REG_AF, undefined_<1>());
                 writeRegister(REG_CF, policy.false_());
                 break;
             }
@@ -870,7 +1010,7 @@ struct X86InstructionSemantics {
                         break;
                 }
                 writeRegister(REG_OF, policy.false_());
-                writeRegister(REG_AF, policy.undefined_());
+                writeRegister(REG_AF, undefined_<1>());
                 writeRegister(REG_CF, policy.false_());
                 break;
             }
@@ -1182,157 +1322,26 @@ struct X86InstructionSemantics {
                 break;
             }
 
-            case x86_shl: {
-                Word(5) shiftCount = extract<0, 5>(read8(operands[1]));
-                Word(1) shiftCountZero = policy.equalToZero(shiftCount);
-                writeRegister(REG_AF, policy.ite(shiftCountZero, readRegister<1>(REG_AF), policy.undefined_()));
-                switch (numBytesInAsmType(operands[0]->get_type())) {
-                    case 1: {
-                        Word(8) op = read8(operands[0]);
-                        Word(8) output = policy.shiftLeft(op, shiftCount);
-                        Word(1) newCf = policy.ite(shiftCountZero,
-                                                   readRegister<1>(REG_CF),
-                                                   extract<7, 8>(policy.shiftLeft(op, policy.add(shiftCount, number<5>(7)))));
-                        writeRegister(REG_CF, newCf);
-                        writeRegister(REG_OF, policy.ite(shiftCountZero,
-                                                       readRegister<1>(REG_OF),
-                                                       policy.xor_(extract<7, 8>(output), newCf)));
-                        write8(operands[0], output);
-                        setFlagsForResult<8>(output, policy.invert(shiftCountZero));
-                        break;
-                    }
-                    case 2: {
-                        Word(16) op = read16(operands[0]);
-                        Word(16) output = policy.shiftLeft(op, shiftCount);
-                        Word(1) newCf = policy.ite(shiftCountZero,
-                                                   readRegister<1>(REG_CF),
-                                                   extract<15, 16>(policy.shiftLeft(op, policy.add(shiftCount, number<5>(15)))));
-                        writeRegister(REG_CF, newCf);
-                        writeRegister(REG_OF, policy.ite(shiftCountZero,
-                                                       readRegister<1>(REG_OF),
-                                                       policy.xor_(extract<15, 16>(output), newCf)));
-                        write16(operands[0], output);
-                        setFlagsForResult<16>(output, policy.invert(shiftCountZero));
-                        break;
-                    }
-                    case 4: {
-                        Word(32) op = read32(operands[0]);
-                        Word(32) output = policy.shiftLeft(op, shiftCount);
-                        Word(1) newCf = policy.ite(shiftCountZero,
-                                                   readRegister<1>(REG_CF),
-                                                   extract<31, 32>(policy.shiftLeft(op, policy.add(shiftCount, number<5>(31)))));
-                        writeRegister(REG_CF, newCf);
-                        writeRegister(REG_OF, policy.ite(shiftCountZero,
-                                                       readRegister<1>(REG_OF),
-                                                       policy.xor_(extract<31, 32>(output), newCf)));
-                        write32(operands[0], output);
-                        setFlagsForResult<32>(output, policy.invert(shiftCountZero));
-                        break;
-                    }
-                    default:
-                        throw Exception("size not implemented", insn);
-                }
-                break;
-            }
-
+            case x86_shl:       // fall through
+            case x86_sar:       // fall through
             case x86_shr: {
-                Word(5) shiftCount = extract<0, 5>(read8(operands[1]));
-                Word(1) shiftCountZero = policy.equalToZero(shiftCount);
-                writeRegister(REG_AF, policy.ite(shiftCountZero, readRegister<1>(REG_AF), policy.undefined_()));
                 switch (numBytesInAsmType(operands[0]->get_type())) {
                     case 1: {
-                        Word(8) op = read8(operands[0]);
-                        Word(8) output = policy.shiftRight(op, shiftCount);
-                        Word(1) newCf = policy.ite(shiftCountZero,
-                                                   readRegister<1>(REG_CF),
-                                                   extract<0, 1>(policy.shiftRight(op, policy.add(shiftCount, number<5>(7)))));
-                        writeRegister(REG_CF, newCf);
-                        writeRegister(REG_OF, policy.ite(shiftCountZero, readRegister<1>(REG_OF), extract<7, 8>(op)));
+                        WordType<8> output = shift_semantics<8, 5>(kind, read8(operands[0]), undefined_<8>(),
+                                                                   read8(operands[1]));
                         write8(operands[0], output);
-                        setFlagsForResult<8>(output, policy.invert(shiftCountZero));
                         break;
                     }
                     case 2: {
-                        Word(16) op = read16(operands[0]);
-                        Word(16) output = policy.shiftRight(op, shiftCount);
-                        Word(1) newCf = policy.ite(shiftCountZero,
-                                                   readRegister<1>(REG_CF),
-                                                   extract<0, 1>(policy.shiftRight(op, policy.add(shiftCount, number<5>(15)))));
-                        writeRegister(REG_CF, newCf);
-                        writeRegister(REG_OF, policy.ite(shiftCountZero, readRegister<1>(REG_OF), extract<15, 16>(op)));
+                        WordType<16> output = shift_semantics<16, 5>(kind, read16(operands[0]), undefined_<16>(),
+                                                                     read8(operands[1]));
                         write16(operands[0], output);
-                        setFlagsForResult<16>(output, policy.invert(shiftCountZero));
                         break;
                     }
                     case 4: {
-                        Word(32) op = read32(operands[0]);
-                        Word(32) output = policy.shiftRight(op, shiftCount);
-                        Word(1) newCf = policy.ite(shiftCountZero,
-                                                   readRegister<1>(REG_CF),
-                                                   extract<0, 1>(policy.shiftRight(op, policy.add(shiftCount, number<5>(31)))));
-                        writeRegister(REG_CF, newCf);
-                        writeRegister(REG_OF, policy.ite(shiftCountZero,
-                                                       readRegister<1>(REG_OF),
-                                                       extract<31, 32>(op)));
+                        WordType<32> output = shift_semantics<32, 5>(kind, read32(operands[0]), undefined_<32>(),
+                                                                     read8(operands[1]));
                         write32(operands[0], output);
-                        setFlagsForResult<32>(output, policy.invert(shiftCountZero));
-                        break;
-                    }
-                    default:
-                        throw Exception("size not implemented", insn);
-                }
-                break;
-            }
-
-            case x86_sar: {
-                Word(5) shiftCount = extract<0, 5>(read8(operands[1]));
-                Word(1) shiftCountZero = policy.equalToZero(shiftCount);
-                Word(1) shiftCountNotZero = policy.invert(shiftCountZero);
-                writeRegister(REG_AF, policy.ite(shiftCountZero, readRegister<1>(REG_AF), policy.undefined_()));
-                switch (numBytesInAsmType(operands[0]->get_type())) {
-                    case 1: {
-                        Word(8) op = read8(operands[0]);
-                        Word(8) output = policy.shiftRightArithmetic(op, shiftCount);
-                        Word(1) newCf = policy.ite(shiftCountZero,
-                                                   readRegister<1>(REG_CF),
-                                                   extract<0, 1>(policy.shiftRight(op, policy.add(shiftCount, number<5>(7)))));
-                        writeRegister(REG_CF, newCf);
-                        /* No change with sc = 0, clear when sc = 1, undefined otherwise */
-                        writeRegister(REG_OF, policy.ite(shiftCountZero,
-                                                       readRegister<1>(REG_OF),
-                                                       policy.false_()));
-                        write8(operands[0], output);
-                        setFlagsForResult<8>(output, shiftCountNotZero);
-                        break;
-                    }
-                    case 2: {
-                        Word(16) op = read16(operands[0]);
-                        Word(16) output = policy.shiftRightArithmetic(op, shiftCount);
-                        Word(1) newCf = policy.ite(shiftCountZero,
-                                                   readRegister<1>(REG_CF),
-                                                   extract<0, 1>(policy.shiftRight(op, policy.add(shiftCount, number<5>(15)))));
-                        writeRegister(REG_CF, newCf);
-                        /* No change with sc = 0, clear when sc = 1, undefined otherwise */
-                        writeRegister(REG_OF, policy.ite(shiftCountZero,
-                                                       readRegister<1>(REG_OF),
-                                                       policy.false_()));
-                        write16(operands[0], output);
-                        setFlagsForResult<16>(output, shiftCountNotZero);
-                        break;
-                    }
-                    case 4: {
-                        Word(32) op = read32(operands[0]);
-                        Word(32) output = policy.shiftRightArithmetic(op, shiftCount);
-                        Word(1) newCf = policy.ite(shiftCountZero,
-                                                   readRegister<1>(REG_CF),
-                                                   extract<0, 1>(policy.shiftRight(op, policy.add(shiftCount, number<5>(31)))));
-                        writeRegister(REG_CF, newCf);
-                        /* No change with sc = 0, clear when sc = 1, undefined otherwise */
-                        writeRegister(REG_OF, policy.ite(shiftCountZero,
-                                                       readRegister<1>(REG_OF),
-                                                       policy.false_()));
-                        write32(operands[0], output);
-                        setFlagsForResult<32>(output, shiftCountNotZero);
                         break;
                     }
                     default:
@@ -1458,7 +1467,7 @@ struct X86InstructionSemantics {
                         setFlagsForResult<16>(output);
                         writeRegister(REG_AF, policy.ite(policy.equalToZero(shiftCount),
                                                        readRegister<1>(REG_AF),
-                                                       policy.undefined_()));
+                                                       undefined_<1>()));
                         break;
                     }
                     case 4: {
@@ -1482,7 +1491,7 @@ struct X86InstructionSemantics {
                         setFlagsForResult<32>(output);
                         writeRegister(REG_AF, policy.ite(policy.equalToZero(shiftCount),
                                                        readRegister<1>(REG_AF),
-                                                       policy.undefined_()));
+                                                       undefined_<1>()));
                         break;
                     }
                     default:
@@ -1495,27 +1504,9 @@ struct X86InstructionSemantics {
                 Word(5) shiftCount = extract<0, 5>(read8(operands[2]));
                 switch (numBytesInAsmType(operands[0]->get_type())) {
                     case 2: {
-                        Word(16) op1 = read16(operands[0]);
-                        Word(16) op2 = read16(operands[1]);
-                        Word(16) output1 = policy.shiftRight(op1, shiftCount);
-                        Word(16) output2 = policy.ite(policy.equalToZero(shiftCount),
-                                                      number<16>(0),
-                                                      policy.shiftLeft(op2, policy.negate(shiftCount)));
-                        Word(16) output = policy.or_(output1, output2);
-                        Word(1) newCf = policy.ite(policy.equalToZero(shiftCount),
-                                                   readRegister<1>(REG_CF),
-                                                   extract<0, 1>(policy.shiftRight(op1, policy.add(shiftCount, number<5>(15)))));
-                        writeRegister(REG_CF, newCf);
-                        Word(1) newOf = policy.ite(policy.equalToZero(shiftCount),
-                                                   readRegister<1>(REG_OF), 
-                                                   policy.xor_(extract<15, 16>(output),
-                                                               extract<15, 16>(op1)));
-                        writeRegister(REG_OF, newOf);
+                        WordType<16> output = shift_semantics<16, 5>(kind, read16(operands[0]), read16(operands[1]),
+                                                                    read8(operands[2]));
                         write16(operands[0], output);
-                        setFlagsForResult<16>(output);
-                        writeRegister(REG_AF, policy.ite(policy.equalToZero(shiftCount),
-                                                       readRegister<1>(REG_AF),
-                                                       policy.undefined_()));
                         break;
                     }
                     case 4: {
@@ -1539,7 +1530,7 @@ struct X86InstructionSemantics {
                         setFlagsForResult<32>(output);
                         writeRegister(REG_AF, policy.ite(policy.equalToZero(shiftCount),
                                                        readRegister<1>(REG_AF),
-                                                       policy.undefined_()));
+                                                       undefined_<1>()));
                         break;
                     }
                     default:
@@ -1549,11 +1540,11 @@ struct X86InstructionSemantics {
             }
 
             case x86_bsf: {
-                writeRegister(REG_OF, policy.undefined_());
-                writeRegister(REG_SF, policy.undefined_());
-                writeRegister(REG_AF, policy.undefined_());
-                writeRegister(REG_PF, policy.undefined_());
-                writeRegister(REG_CF, policy.undefined_());
+                writeRegister(REG_OF, undefined_<1>());
+                writeRegister(REG_SF, undefined_<1>());
+                writeRegister(REG_AF, undefined_<1>());
+                writeRegister(REG_PF, undefined_<1>());
+                writeRegister(REG_CF, undefined_<1>());
                 switch (numBytesInAsmType(operands[0]->get_type())) {
                     case 2: {
                         Word(16) op = read16(operands[1]);
@@ -1580,11 +1571,11 @@ struct X86InstructionSemantics {
             }
 
             case x86_bsr: {
-                writeRegister(REG_OF, policy.undefined_());
-                writeRegister(REG_SF, policy.undefined_());
-                writeRegister(REG_AF, policy.undefined_());
-                writeRegister(REG_PF, policy.undefined_());
-                writeRegister(REG_CF, policy.undefined_());
+                writeRegister(REG_OF, undefined_<1>());
+                writeRegister(REG_SF, undefined_<1>());
+                writeRegister(REG_AF, undefined_<1>());
+                writeRegister(REG_PF, undefined_<1>());
+                writeRegister(REG_CF, undefined_<1>());
                 switch (numBytesInAsmType(operands[0]->get_type())) {
                     case 2: {
                         Word(16) op = read16(operands[1]);
@@ -1615,11 +1606,11 @@ struct X86InstructionSemantics {
                     throw Exception("instruction must have two operands", insn);
                 
                 /* All flags except CF are undefined */
-                writeRegister(REG_OF, policy.undefined_());
-                writeRegister(REG_SF, policy.undefined_());
-                writeRegister(REG_ZF, policy.undefined_());
-                writeRegister(REG_AF, policy.undefined_());
-                writeRegister(REG_PF, policy.undefined_());
+                writeRegister(REG_OF, undefined_<1>());
+                writeRegister(REG_SF, undefined_<1>());
+                writeRegister(REG_ZF, undefined_<1>());
+                writeRegister(REG_AF, undefined_<1>());
+                writeRegister(REG_PF, undefined_<1>());
                 
                 if (isSgAsmMemoryReferenceExpression(operands[0]) && isSgAsmx86RegisterReferenceExpression(operands[1])) {
                     /* Special case allowing multi-word offsets into memory */
@@ -1660,11 +1651,11 @@ struct X86InstructionSemantics {
                     throw Exception("instruction must have two operands", insn);
                 
                 /* All flags except CF are undefined */
-                writeRegister(REG_OF, policy.undefined_());
-                writeRegister(REG_SF, policy.undefined_());
-                writeRegister(REG_ZF, policy.undefined_());
-                writeRegister(REG_AF, policy.undefined_());
-                writeRegister(REG_PF, policy.undefined_());
+                writeRegister(REG_OF, undefined_<1>());
+                writeRegister(REG_SF, undefined_<1>());
+                writeRegister(REG_ZF, undefined_<1>());
+                writeRegister(REG_AF, undefined_<1>());
+                writeRegister(REG_PF, undefined_<1>());
                 
                 if (isSgAsmMemoryReferenceExpression(operands[0]) && isSgAsmx86RegisterReferenceExpression(operands[1])) {
                     /* Special case allowing multi-word offsets into memory */
@@ -1714,11 +1705,11 @@ struct X86InstructionSemantics {
                     throw Exception("instruction must have two operands", insn);
                 
                 /* All flags except CF are undefined */
-                writeRegister(REG_OF, policy.undefined_());
-                writeRegister(REG_SF, policy.undefined_());
-                writeRegister(REG_ZF, policy.undefined_());
-                writeRegister(REG_AF, policy.undefined_());
-                writeRegister(REG_PF, policy.undefined_());
+                writeRegister(REG_OF, undefined_<1>());
+                writeRegister(REG_SF, undefined_<1>());
+                writeRegister(REG_ZF, undefined_<1>());
+                writeRegister(REG_AF, undefined_<1>());
+                writeRegister(REG_PF, undefined_<1>());
                 
                 if (isSgAsmMemoryReferenceExpression(operands[0]) && isSgAsmx86RegisterReferenceExpression(operands[1])) {
                     /* Special case allowing multi-word offsets into memory */
@@ -1813,10 +1804,10 @@ struct X86InstructionSemantics {
                     default:
                         throw Exception("size not implemented", insn);
                 }
-                writeRegister(REG_SF, policy.undefined_());
-                writeRegister(REG_ZF, policy.undefined_());
-                writeRegister(REG_AF, policy.undefined_());
-                writeRegister(REG_PF, policy.undefined_());
+                writeRegister(REG_SF, undefined_<1>());
+                writeRegister(REG_ZF, undefined_<1>());
+                writeRegister(REG_AF, undefined_<1>());
+                writeRegister(REG_PF, undefined_<1>());
                 break;
             }
 
@@ -1857,10 +1848,10 @@ struct X86InstructionSemantics {
                     default:
                         throw Exception("size not implemented", insn);
                 }
-                writeRegister(REG_SF, policy.undefined_());
-                writeRegister(REG_ZF, policy.undefined_());
-                writeRegister(REG_AF, policy.undefined_());
-                writeRegister(REG_PF, policy.undefined_());
+                writeRegister(REG_SF, undefined_<1>());
+                writeRegister(REG_ZF, undefined_<1>());
+                writeRegister(REG_AF, undefined_<1>());
+                writeRegister(REG_PF, undefined_<1>());
                 break;
             }
 
@@ -1901,12 +1892,12 @@ struct X86InstructionSemantics {
                     default:
                         throw Exception("size not implemented", insn);
                 }
-                writeRegister(REG_SF, policy.undefined_());
-                writeRegister(REG_ZF, policy.undefined_());
-                writeRegister(REG_AF, policy.undefined_());
-                writeRegister(REG_PF, policy.undefined_());
-                writeRegister(REG_CF, policy.undefined_());
-                writeRegister(REG_OF, policy.undefined_());
+                writeRegister(REG_SF, undefined_<1>());
+                writeRegister(REG_ZF, undefined_<1>());
+                writeRegister(REG_AF, undefined_<1>());
+                writeRegister(REG_PF, undefined_<1>());
+                writeRegister(REG_CF, undefined_<1>());
+                writeRegister(REG_OF, undefined_<1>());
                 break;
             }
 
@@ -1947,12 +1938,12 @@ struct X86InstructionSemantics {
                     default:
                         throw Exception("size not implemented", insn);
                 }
-                writeRegister(REG_SF, policy.undefined_());
-                writeRegister(REG_ZF, policy.undefined_());
-                writeRegister(REG_AF, policy.undefined_());
-                writeRegister(REG_PF, policy.undefined_());
-                writeRegister(REG_CF, policy.undefined_());
-                writeRegister(REG_OF, policy.undefined_());
+                writeRegister(REG_SF, undefined_<1>());
+                writeRegister(REG_ZF, undefined_<1>());
+                writeRegister(REG_AF, undefined_<1>());
+                writeRegister(REG_PF, undefined_<1>());
+                writeRegister(REG_CF, undefined_<1>());
+                writeRegister(REG_OF, undefined_<1>());
                 break;
             }
 
@@ -1967,10 +1958,10 @@ struct X86InstructionSemantics {
                                             policy.concat(number<4>(0),
                                                           policy.add(policy.ite(incAh, number<8>(1), number<8>(0)),
                                                                      readRegister<8>(REG_AH)))));
-                writeRegister(REG_OF, policy.undefined_());
-                writeRegister(REG_SF, policy.undefined_());
-                writeRegister(REG_ZF, policy.undefined_());
-                writeRegister(REG_PF, policy.undefined_());
+                writeRegister(REG_OF, undefined_<1>());
+                writeRegister(REG_SF, undefined_<1>());
+                writeRegister(REG_ZF, undefined_<1>());
+                writeRegister(REG_PF, undefined_<1>());
                 writeRegister(REG_AF, incAh);
                 writeRegister(REG_CF, incAh);
                 break;
@@ -1987,10 +1978,10 @@ struct X86InstructionSemantics {
                                             policy.concat(number<4>(0),
                                                           policy.add(policy.ite(decAh, number<8>(-1), number<8>(0)),
                                                                      readRegister<8>(REG_AH)))));
-                writeRegister(REG_OF, policy.undefined_());
-                writeRegister(REG_SF, policy.undefined_());
-                writeRegister(REG_ZF, policy.undefined_());
-                writeRegister(REG_PF, policy.undefined_());
+                writeRegister(REG_OF, undefined_<1>());
+                writeRegister(REG_SF, undefined_<1>());
+                writeRegister(REG_ZF, undefined_<1>());
+                writeRegister(REG_PF, undefined_<1>());
                 writeRegister(REG_AF, decAh);
                 writeRegister(REG_CF, decAh);
                 break;
@@ -2004,9 +1995,9 @@ struct X86InstructionSemantics {
                 Word(8) newAh = policy.unsignedDivide(al, divisor);
                 Word(8) newAl = policy.unsignedModulo(al, divisor);
                 writeRegister(REG_AX, policy.concat(newAl, newAh));
-                writeRegister(REG_OF, policy.undefined_());
-                writeRegister(REG_AF, policy.undefined_());
-                writeRegister(REG_CF, policy.undefined_());
+                writeRegister(REG_OF, undefined_<1>());
+                writeRegister(REG_AF, undefined_<1>());
+                writeRegister(REG_CF, undefined_<1>());
                 setFlagsForResult<8>(newAl);
                 break;
             }
@@ -2019,9 +2010,9 @@ struct X86InstructionSemantics {
                 Word(8) divisor = read8(operands[0]);
                 Word(8) newAl = policy.add(al, extract<0, 8>(policy.unsignedMultiply(ah, divisor)));
                 writeRegister(REG_AX, policy.concat(newAl, number<8>(0)));
-                writeRegister(REG_OF, policy.undefined_());
-                writeRegister(REG_AF, policy.undefined_());
-                writeRegister(REG_CF, policy.undefined_());
+                writeRegister(REG_OF, undefined_<1>());
+                writeRegister(REG_AF, undefined_<1>());
+                writeRegister(REG_CF, undefined_<1>());
                 setFlagsForResult<8>(newAl);
                 break;
             }
@@ -2415,7 +2406,7 @@ struct X86InstructionSemantics {
                 if (operands.size()!=0)
                     throw Exception("instruction must have no operands", insn);
                 policy.hlt();
-                writeRegister(REG_EIP, number<32>((uint32_t)(insn->get_address())));
+                writeRegister(REG_EIP, orig_eip);
                 break;
             }
 
@@ -2570,5 +2561,7 @@ struct X86InstructionSemantics {
 };
 
 #undef Word
-
-#endif // ROSE_X86INSTRUCTIONSEMANTICS_H
+        
+    } /*namespace*/
+} /*namespace*/
+#endif /* ROSE_X86INSTRUCTIONSEMANTICS_H */

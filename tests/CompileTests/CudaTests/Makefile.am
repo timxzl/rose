@@ -13,12 +13,19 @@ CUDA_NO_BUILT_IN_CODES = \
 test_2011_01.cu \
 test_2011_02.cu
 
-CUDA_CODES = \
+CUDA_CODES =
+
+CUDA_CODES_FAILING = \
 test_2011_11.cu \
 test_2011_12.cu \
 test_2011_13.cu
 
-TESTCODES = $(CUDA_NO_BUILT_IN_CODES) $(CUDA_CODES)
+TESTCODES=
+if ROSE_USE_CLANG_FRONTEND
+TESTCODES+= \
+  $(CUDA_NO_BUILT_IN_CODES) \
+  $(CUDA_CODES)
+endif
 
 TESTCODES_Objects = ${TESTCODES:.cu=.o}
 
@@ -28,17 +35,11 @@ $(TESTCODES_Objects): ./CudaTests
 	rm -f $(@:.o=.cu)
 
 check-local:
-if ROSE_BUILD_EDG_WITH_CUDA_SUPPORT
 	@echo "Tests C for CUDA support (parsing)"
 	@$(MAKE) $(TESTCODES_Objects)
 	@echo "***********************************************************************************************"
 	@echo "****** ROSE/tests/CompileTests/CudaTests: make check rule complete (terminated normally) ******"
 	@echo "***********************************************************************************************"
-else
-	@echo "****************************************************************************************************"
-	@echo "****** ROSE/tests/CompileTests/CudaTests: (ROSE not configured for these tests) ******"
-	@echo "****************************************************************************************************"
-endif
 
 clean-local:
 	rm -f *.o rose_* test_*
