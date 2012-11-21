@@ -4,7 +4,7 @@ AC_DEFUN([ROSE_WITH_NANOX_OPENMP_LIBRARY],
 # Begin macro ROSE_WITH_NANOX_OPENMP_LIBRARY.
 # Inclusion of test for NANOX OpenMP Runtime system and its location.
 
-AC_MSG_CHECKING(for OpenMP using nanox runtime library)
+AC_MSG_CHECKING(for OpenMP using Nanos++ runtime library)
 AC_ARG_WITH(nanox_omp_runtime_library,
 [  --with-nanox_omp_runtime_library=PATH	Specify the prefix where NANOX Runtime System is installed],
 ,
