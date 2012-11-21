@@ -1921,7 +1921,7 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
   }
 #endif
   
-  // a data structure used to wrap parameters
+  // data structure used to wrap parameters
   if (SageInterface::is_Fortran_language())
     struct_decl = NULL; // We cannot use structure for Fortran
   else  

@@ -12,9 +12,10 @@ libxomp_a_SOURCES = libnanox.c xomp.c  \
 #libxomp_a_CXXFLAGS = -pthreads
 
 include_HEADERS = omp_lowering.h \
- 	   nanos-int.h nanos.h libnanox.h  \
-     libgomp_g.h libompc.h \
-     libxomp.h libxompf.h 
+ 	   		      nanos_c_api_macros.h nanos_error.h nanos-int.h nanos_reduction.h nanos_omp.h \
+				  nanos.h libnanox.h  \
+     		      libgomp_g.h libompc.h \
+     			  libxomp.h libxompf.h 
 				   
 
 EXTRA_DIST = CMakeLists.txt README run_me_caller_generator.sh run_me_generator.sh
