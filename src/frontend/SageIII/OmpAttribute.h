@@ -88,12 +88,10 @@ namespace OmpSupport
     e_untied, 
 
     // Sara Royuela (11/13/2012): Add support for OmpSs task dependency nodes
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
     // 3 task dependency clauses
     e_input,
     e_output,
     e_inout,
-#endif
     
     // Simple values for some clauses
 

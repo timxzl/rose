@@ -616,6 +616,22 @@ namespace OmpSupport
           result = new SgOmpSharedClause();
           break;
         }
+      // Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses
+      case e_input:
+        {
+          result = new SgOmpInputClause();
+          break;
+        }
+      case e_output:
+        {
+          result = new SgOmpOutputClause();
+          break;
+        }
+      case e_inout:
+        {
+          result = new SgOmpInoutClause();
+          break;
+        }
       case e_reduction:
         {
           printf("error: buildOmpVariableClause() does not handle reduction\n");
@@ -683,6 +699,10 @@ namespace OmpSupport
       case e_lastprivate:
       case e_private:
       case e_shared:
+// Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses
+      case e_input:
+      case e_output:
+      case e_inout:
         {
           result = buildOmpVariableClause(att, c_clause_type);
           break;

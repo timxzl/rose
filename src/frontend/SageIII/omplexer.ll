@@ -106,6 +106,10 @@ none            { return cond_return ( NONE ); }
 reduction       { return cond_return ( REDUCTION ); }
 copyin          { return cond_return ( COPYIN ); }
 
+input           { return cond_return ( INPUT ); }
+output          { return cond_return ( OUTPUT ); }
+inout           { return cond_return ( INOUT ); }
+
 "="             { return('='); }
 "("             { return ('('); }
 ")"             { return (')'); }

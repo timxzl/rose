@@ -3298,6 +3298,15 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
     case V_SgOmpPrivateClause:
       curprint(string(" private("));
       break;
+    case V_SgOmpInputClause:
+      curprint(string(" input("));
+      break;
+    case V_SgOmpOutputClause:
+      curprint(string(" output("));
+      break;
+    case V_SgOmpInoutClause:
+      curprint(string(" inout("));
+      break;
     case V_SgOmpReductionClause:
       {
         curprint(string(" reduction("));
@@ -3410,9 +3419,13 @@ void UnparseLanguageIndependentConstructs::unparseOmpClause(SgOmpClause* clause,
     case V_SgOmpCopyinClause:
     case V_SgOmpFirstprivateClause:
     case V_SgOmpLastprivateClause:
-    case V_SgOmpPrivateClause:
+    case V_SgOmpPrivateClause: 
     case V_SgOmpReductionClause:
     case V_SgOmpSharedClause:
+// Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses
+      case V_SgOmpInputClause:
+      case V_SgOmpOutputClause:
+      case V_SgOmpInoutClause:   
       {     
         unparseOmpVariablesClause(isSgOmpVariablesClause(clause), info);
         break;

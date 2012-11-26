@@ -513,10 +513,13 @@ SgOmpDefaultClause
 SgOmpExpressionClause
 SgOmpFirstprivateClause
 SgOmpIfClause
+SgOmpInoutClause
+SgOmpInputClause
 SgOmpLastprivateClause
 SgOmpNowaitClause
 SgOmpNumThreadsClause
 SgOmpOrderedClause
+SgOmpOutputClause
 SgOmpPrivateClause
 SgOmpReductionClause
 SgOmpScheduleClause

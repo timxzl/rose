@@ -54,6 +54,9 @@ Grammar::setUpNodes ()
            ** SgOmpSharedClause
            ** SgOmpCopyInClause
            ** SgOmpLastprivateClause
+           ** SgOmpInputClause
+           ** SgOmpOutputClause
+           ** SgOmpInoutClause
               // reduction, op : list
            *** SgOmpReductionClause
         */
@@ -76,8 +79,14 @@ Grammar::setUpNodes ()
      NEW_TERMINAL_MACRO (OmpLastprivateClause, "OmpLastprivateClause", "OmpLastprivateClauseTag" );
      NEW_TERMINAL_MACRO (OmpReductionClause, "OmpReductionClause", "OmpReductionClauseTag" );
 
+     // Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses
+     NEW_TERMINAL_MACRO (OmpInputClause, "OmpInputClause", "OmpInputClauseTag" );
+     NEW_TERMINAL_MACRO (OmpOutputClause, "OmpOutputClause", "OmpOutputClauseTag" );
+     NEW_TERMINAL_MACRO (OmpInoutClause, "OmpInoutClause", "OmpInoutClauseTag" );
+     
      NEW_NONTERMINAL_MACRO (OmpVariablesClause, OmpCopyprivateClause| OmpPrivateClause |OmpFirstprivateClause|
-         OmpSharedClause |OmpCopyinClause| OmpLastprivateClause| OmpReductionClause,
+         OmpSharedClause |OmpCopyinClause| OmpLastprivateClause| OmpReductionClause|
+         OmpInputClause| OmpOutputClause| OmpInoutClause,
          "OmpVariablesClause", "OmpVariablesClauseTag", false);
 
      NEW_TERMINAL_MACRO (OmpScheduleClause, "OmpScheduleClause", "OmpScheduleClauseTag" );

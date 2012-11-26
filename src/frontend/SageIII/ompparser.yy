@@ -11,7 +11,8 @@
 #include <stdio.h>
 #include <assert.h>
 #include <iostream>
-#include "sage3basic.h" // Sage Interface and Builders
+#include "sage3basic.h"     // Sage Interface and Builders
+#include "rose_config.h"    // For task clauses rules
 #include "sageBuilder.h"
 #include "OmpAttribute.h"
 using namespace OmpSupport;
@@ -41,6 +42,10 @@ static bool addVar(const char* var);
 
 //Insert expression into some clause
 static bool addExpression(const char* expr);
+
+//Task Dependency Clauses are allowd only when USE_ROSE_NANOX_OPENMP_LIBRARY macro is defined
+// Otherwise, the clauses must be ignored
+static bool treatTaskDependencyClauses(const char* expr);
 
 // The current AST annotation being built
 static OmpAttribute* ompattribute = NULL;
@@ -303,25 +308,31 @@ task_clause : unique_task_clause
             | data_privatization_clause
             | data_privatization_in_clause
             | data_sharing_clause
-            {
-              /* Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses */
-              #ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
-                INPUT { 
-                    ompattribute->addClause(e_input);
-                    omptype = e_input;
-                  } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
-                | OUTPUT { 
-                    ompattribute->addClause(e_output);
-                    omptype = e_output;
-                  } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
-                | INOUT { 
-                    ompattribute->addClause(e_inout);
-                    omptype = e_inout;
-                  } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
-                ;
-              #endif
-            }
+            | data_dependency_clause         /* Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses */
             ;
+
+data_dependency_clause : INPUT {
+                            ompattribute->addClause(e_input);
+                            omptype = e_input; 
+                         } '(' {b_within_variable_list = true;} variable_list ')' {
+                            b_within_variable_list = false;
+                            treatTaskDependencyClauses("INPUT");
+                         }
+                       | OUTPUT  {
+                            ompattribute->addClause(e_output);
+                            omptype = e_output;
+                         } '(' {b_within_variable_list = true;} variable_list ')' {
+                            b_within_variable_list = false;
+                            treatTaskDependencyClauses("OUTPUT");
+                         }
+                       | INOUT  {
+                            ompattribute->addClause(e_inout);
+                            omptype = e_inout;
+                         } '(' {b_within_variable_list = true;} variable_list ')' {
+                            b_within_variable_list = false;
+                            treatTaskDependencyClauses("INOUT");
+                         }
+                       ;
 
 unique_task_clause : IF { 
                        ompattribute->addClause(e_if);
@@ -451,7 +462,8 @@ data_default_clause : DEFAULT '(' SHARED ')' {
                     ;
                     
 data_privatization_clause : PRIVATE {
-                              ompattribute->addClause(e_private); omptype = e_private;
+                              ompattribute->addClause(e_private); 
+                              omptype = e_private;
                             } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
                           ;
 
@@ -468,7 +480,8 @@ data_privatization_out_clause : LASTPRIVATE {
                               ;
 
 data_sharing_clause : SHARED {
-                        ompattribute->addClause(e_shared); omptype = e_shared; 
+                        ompattribute->addClause(e_shared); 
+                        omptype = e_shared; 
                       } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
                     ;
 
@@ -859,3 +872,9 @@ static bool addExpression(const char* expr) {
     return true;
 }
 
+static bool treatTaskDependencyClauses(const char* clause)
+{
+#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+    printf("Task dependency clause '%s' will be ignored because defined OpenMP library isn't Nanos++\n", std::string(clause));
+#endif
+}
