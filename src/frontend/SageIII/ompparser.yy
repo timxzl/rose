@@ -872,7 +872,7 @@ static bool addExpression(const char* expr) {
     return true;
 }
 
-static bool treatTaskDependencyClauses(const char* clause)
+static void treatTaskDependencyClauses(const char* clause)
 {
 #ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
     printf("Task dependency clause '%s' will be ignored because defined OpenMP library isn't Nanos++\n", std::string(clause));
