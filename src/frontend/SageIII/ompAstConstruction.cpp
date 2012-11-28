@@ -3,6 +3,7 @@
 
 #include "sage3basic.h"
 
+#include "rose_config.h"
 #include "rose_paths.h"
 
 #include "astPostProcessing.h"
@@ -700,6 +701,7 @@ namespace OmpSupport
       case e_private:
       case e_shared:
 // Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses
+#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
       case e_input:
       case e_output:
       case e_inout:
@@ -707,6 +709,7 @@ namespace OmpSupport
           result = buildOmpVariableClause(att, c_clause_type);
           break;
         }
+#endif
       case e_reduction:
         {
           printf("error: buildOmpNonReductionClause() does not handle reduction. Please use buildOmpReductionClause().\n");

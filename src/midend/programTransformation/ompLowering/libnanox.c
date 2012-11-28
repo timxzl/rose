@@ -103,14 +103,13 @@ void NANOX_task(void (*func) (void *), void *data,
 {
   // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
   int num_copies = 0;
-  // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
-  int num_data_accesses = 0;
+
   // Compute the alignement of the struct with the arguments to the outlined function
   long data_align = (*get_data_align)();
 
   // Create a team and start wd in this team
-  nanos_omp_set_implicit(nanos_current_wd());
-  nanos_enter_team();
+//   nanos_omp_set_implicit(nanos_current_wd());
+//   nanos_enter_team();
   
   // Create the Device descriptor (at the moment, only SMP is supported)
   int num_devices = 1;
@@ -149,6 +148,37 @@ void NANOX_task(void (*func) (void *), void *data,
   if (err != NANOS_OK) 
     nanos_handle_error (err);
 
+  
+  // Compute data_accesses, if they exist
+  nanos_data_access_t * data_accesses;
+  int num_data_accesses;
+  if ( 1 )
+  {
+      data_accesses = (nanos_data_access_t *) 0;
+      num_data_accesses = 0;
+  }
+  else
+  {
+//       nanos_region_dimension_t dimensions0[1] = {{
+//           sizeof(float **),
+//           ((char *) (&x) - (char *) ol_args->x_0),
+//           sizeof(float **)
+//       }};
+//       nanos_data_access_t _data_accesses[1] = {{
+//           (void *) ol_args->x_0,
+//           {
+//               1,
+//               1,
+//               1,
+//               0,
+//               0
+//           },
+//           1,
+//           dimensions0,
+//           ((char *) (&x) - (char *) ol_args->x_0)
+//       }};
+  }
+  
   if (wd != (nanos_wd_t)0)
   { // Submit the task to the existing actual working group
     (*init_func)(empty_data, data);
@@ -165,8 +195,8 @@ void NANOX_task(void (*func) (void *), void *data,
       nanos_handle_error (err);
   }
   
-  nanos_omp_barrier();
-  nanos_leave_team();    // Abandon the team created for this task
+/*  nanos_omp_barrier();
+  nanos_leave_team(); */   // Abandon the team created for this task
 }
 
 /* Variables used during the creation of the slicer to execute OpenMP loop constructs */

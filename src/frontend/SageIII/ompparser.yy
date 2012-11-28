@@ -45,7 +45,7 @@ static bool addExpression(const char* expr);
 
 //Task Dependency Clauses are allowd only when USE_ROSE_NANOX_OPENMP_LIBRARY macro is defined
 // Otherwise, the clauses must be ignored
-static bool treatTaskDependencyClauses(const char* expr);
+static void treatTaskDependencyClauses(const char* expr);
 
 // The current AST annotation being built
 static OmpAttribute* ompattribute = NULL;

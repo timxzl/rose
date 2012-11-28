@@ -2916,6 +2916,44 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       // Function that initializes the empty struct
       SgExpression* parameter_init_func = build_nanox_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl);
       
+      // Check for dependency clauses
+      SgExprListExp* parameter_input_clause = NULL;
+      SgExprListExp* parameter_output_clause = NULL;
+      SgExprListExp* parameter_inout_clause = NULL;
+      if (hasClause(target, V_SgOmpInputClause))
+      {
+          std::vector<SgExpression*> all_refs;
+          Rose_STL_Container<SgOmpClause*> input_clauses = getClause(target, V_SgOmpInputClause);
+          for(Rose_STL_Container<SgOmpClause*>::iterator it = input_clauses.begin(); it != input_clauses.end(); it++)
+          {
+              SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpInputClause(*it))->get_variables();
+              all_refs.insert(all_refs.end(), refs.begin(), refs.end());
+          }
+          parameter_input_clause = buildExprListExp(all_refs);
+      }
+      if (hasClause(target, V_SgOmpOutputClause))
+      {
+          std::vector<SgExpression*> all_refs;
+          Rose_STL_Container<SgOmpClause*> output_clauses = getClause(target, V_SgOmpOutputClause);
+          for(Rose_STL_Container<SgOmpClause*>::iterator it = output_clauses.begin(); it != output_clauses.end(); it++)
+          {
+              SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpOutputClause(*it))->get_variables();
+              all_refs.insert(all_refs.end(), refs.begin(), refs.end());
+          }
+          parameter_output_clause = buildExprListExp(all_refs);
+      }
+      if (hasClause(target, V_SgOmpInoutClause))
+      {
+          std::vector<SgExpression*> all_refs;
+          Rose_STL_Container<SgOmpClause*> inout_clauses = getClause(target, V_SgOmpInoutClause);
+          for(Rose_STL_Container<SgOmpClause*>::iterator it = inout_clauses.begin(); it != inout_clauses.end(); it++)
+          {
+              SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpInoutClause(*it))->get_variables();
+              all_refs.insert(all_refs.end(), refs.begin(), refs.end());
+          }
+          parameter_inout_clause = buildExprListExp(all_refs);
+      }
+      
       // Parameters to the NANOX function call
       parameters = buildExprListExp(buildFunctionRefExp(outlined_func), parameter_data, parameter_arg_size, parameter_arg_align, parameter_if_clause, parameter_untied, parameter_empty_st, parameter_init_func);
 #else
