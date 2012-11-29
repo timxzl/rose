@@ -1242,8 +1242,6 @@ SgFunctionDeclaration *
 {
   ROSE_ASSERT (s && scope);
   ROSE_ASSERT (isSgGlobal(scope));
-
-  std::cerr << "El Bloc Basic S conte: " << std::endl << s->unparseToString() << std::endl;
   
   // step 1: perform necessary liveness and side effect analysis, if requested.
   // ---------------------------------------------------------

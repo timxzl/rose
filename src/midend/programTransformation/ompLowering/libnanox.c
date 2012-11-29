@@ -107,10 +107,6 @@ void NANOX_task(void (*func) (void *), void *data,
   int num_data_accesses = 0;
   // Compute the alignement of the struct with the arguments to the outlined function
   long data_align = (*get_data_align)();
-
-  // Create a team and start wd in this team
-  nanos_omp_set_implicit(nanos_current_wd());
-  nanos_enter_team();
   
   // Create the Device descriptor (at the moment, only SMP is supported)
   int num_devices = 1;
@@ -164,9 +160,6 @@ void NANOX_task(void (*func) (void *), void *data,
     if (err != NANOS_OK) 
       nanos_handle_error (err);
   }
-  
-  nanos_omp_barrier();
-  nanos_leave_team();    // Abandon the team created for this task
 }
 
 /* Variables used during the creation of the slicer to execute OpenMP loop constructs */
@@ -249,10 +242,9 @@ void NANOX_loop(void* start, void* end, void* incr, int chunk, int policy,
       if (err != NANOS_OK)
           nanos_handle_error(err);
     }
-
-    func(data);
-    nanos_omp_barrier();
   }
+  func(data);
+  nanos_omp_barrier();    
 }
 
 // The ellipsed arguments depend on the number of sections. The arguments per section are:

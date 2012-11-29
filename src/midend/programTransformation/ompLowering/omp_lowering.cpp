@@ -1940,12 +1940,25 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
   { // If the block is a parallel and not a task
     SgScopeStatement* sc = getEnclosingFunctionDefinition(node)->get_declaration()->get_scope();
     SgFunctionCallExp* get_current_wd_call = buildFunctionCallExp("nanos_current_wd", buildOpaqueType("nanos_wd_t", sc), /* params */ NULL, g_scope);
-    SgExprListExp* params = buildExprListExp(get_current_wd_call);
-    SgStatement* set_wd_stmt = buildFunctionCallStmt("nanos_omp_set_implicit", buildOpaqueType("nanos_err_t", sc), params, g_scope);
-    prependStatement(set_wd_stmt, func_body); 
     
+    // Nanos statements before the function body
+    SgExprListExp* params = buildExprListExp(get_current_wd_call);
+    SgStatement* set_wd_stmt = buildFunctionCallStmt("nanos_omp_set_implicit", buildOpaqueType("nanos_err_t", sc), 
+                                                     params, g_scope);
+    prependStatement(set_wd_stmt, func_body);
+    
+    SgExprListExp* null_params = NULL;
+    SgStatement* enter_team_stmt = buildFunctionCallStmt("nanos_enter_team", buildOpaqueType("nanos_err_t", sc),
+                                                         null_params, g_scope);
+    insertStatementAfter(set_wd_stmt, enter_team_stmt);
+    
+    // Nanos statements after the function body
     SgExprStatement* barrier_call= buildFunctionCallStmt("XOMP_barrier", buildVoidType(), NULL, g_scope);
     appendStatement(barrier_call, func_body);
+    
+    SgStatement* leave_team_stmt = buildFunctionCallStmt("nanos_leave_team", buildOpaqueType("nanos_err_t", sc), 
+                                                         null_params, g_scope);
+    insertStatementAfter(barrier_call, leave_team_stmt);
   }
 #endif
   
