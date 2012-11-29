@@ -1233,7 +1233,6 @@ Outliner::generateFunction ( SgBasicBlock* s,
 // psyms are the symbols for OpenMP private variables, or dead variables (not live-in, not live-out)
 SgFunctionDeclaration *
     Outliner::generateLoopFunction ( SgBasicBlock* s,
-                                     SgStatement* loop,
                                      const string& func_name_str,
                                      const ASTtools::VarSymSet_t& syms,
                                      const ASTtools::VarSymSet_t& pdSyms,
@@ -1244,6 +1243,8 @@ SgFunctionDeclaration *
   ROSE_ASSERT (s && scope);
   ROSE_ASSERT (isSgGlobal(scope));
 
+  std::cerr << "El Bloc Basic S conte: " << std::endl << s->unparseToString() << std::endl;
+  
   // step 1: perform necessary liveness and side effect analysis, if requested.
   // ---------------------------------------------------------
   std::set< SgInitializedName *> liveIns, liveOuts;
@@ -1294,8 +1295,19 @@ SgFunctionDeclaration *
     func->set_linkage ("C");
   }
 
-  // We have swapped steps 3 and 4 because in current step 4 we need a reference to the struct to be passed as argument
-  //step 3: variable handling, including: 
+  //step 3. Create the function body
+  // -----------------------------------------
+  SgBasicBlock* func_body = func->get_definition()->get_body();
+  ROSE_ASSERT (func_body != NULL);
+  
+  SgStatement* orig_body_stmt = SageInterface::copyStatement(s);
+  SgBasicBlock* sliced_stmt = isSgBasicBlock(orig_body_stmt);
+  appendStatement(sliced_stmt, func_body);
+  
+  if (Outliner::useNewFile)
+    ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation(func_body);
+  
+  //step 4: variable handling, including: 
   // -----------------------------------------
   //   create parameters of the outlined functions
   //   add statements to unwrap the parameters
@@ -1304,63 +1316,64 @@ SgFunctionDeclaration *
   variableHandling(syms, pdSyms, psyms, readOnlyVars, liveOuts, struct_decl, func);
   ROSE_ASSERT (func != NULL);
   func->set_type(buildFunctionType(func->get_type()->get_return_type(), buildFunctionParameterTypeList(func->get_parameterList())));
-  // Retest this...
-  SgBasicBlock* func_body = func->get_definition()->get_body();
+//   // Retest this...
   ROSE_ASSERT(func_body->get_parent() == func->get_definition());
   ROSE_ASSERT(scope->lookup_function_symbol(func->get_name()));
 
-  //step 4. Create the function body
-  // -----------------------------------------
-  /*! For an input 's' such as:
-   *    int i;
-   *    for (i = 0; i <= 9; i += 1) {
-   *        a[i] = (i * 2);
-   *    }
-   * The outlined function body 'func_body' will be:
-   *    int i;
-   *    nanos_ws_item_loop_t _nth_info;
-   *    nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
-   *    while (_nth_info.execute) {
-   *        for (i = _nth_info.lower; i <= _nth_info.upper; i += 1) {
-   *            a_0[i] = i * 2;
-   *        }
-   *        nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
-   *    }
-   *    nanos_omp_barrier();
-   */
-  SgForStatement * for_loop = isSgForStatement(loop);
-  
-  //! nanos_ws_item_loop_t _nth_info;
+  //step 5. Introduce in the function code the statements for Nanos calls
+  // We separete in two the construction of the function body because 
+  // we need variable handling to be done befor building the nanox calls
+  // and we need the original code to be placed in the function code 
+  // before the handling is made because it can cause replacement
+  // For an input 's' such as:
+  //    int i;
+  //    for (i = 0; i <= 9; i += 1) {
+  //        a[i] = (i * 2);
+  //    }
+  // The outlined function body 'func_body' will be:
+  //    int i;
+  //    nanos_ws_item_loop_t _nth_info;
+  //    nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
+  //    while (_nth_info.execute) {
+  //        for (i = _nth_info.lower; i <= _nth_info.upper; i += 1) {
+  //            a_0[i] = i * 2;
+  //        }
+  //        nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
+  //    }
+  //    nanos_omp_barrier();
+  // --------------------------------------------------------------------
+        // nanos_ws_item_loop_t _nth_info;
   SgVariableDeclaration* nth_info = buildVariableDeclaration("_nth_info", buildOpaqueType("nanos_ws_item_loop_t", scope), NULL, func_body);
-  appendStatement(nth_info, func_body);
-  
-  //! nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
+  insertStatementBefore(sliced_stmt, nth_info);
+     
+        // nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
   SgInitializedNamePtrList& argsList = parameterList->get_args();
   ROSE_ASSERT(argsList.size() == 1);
-  // Get the name of the worksharing descriptor, 'wsd' in the example
+              // Get the name of the worksharing descriptor, 'wsd' in the example
   SgDeclarationStatementPtrList st_members = struct_decl->get_definition()->get_members();
   SgVariableDeclaration* wsd_member = isSgVariableDeclaration(*(st_members.begin()));
   SgInitializedNamePtrList& wsd_member_name_list = wsd_member->get_variables();
   SgInitializedName* wsd_name = *(wsd_member_name_list.begin());
+              // Build the Nanox call
   SgExpression* wsd = buildArrowExp( buildCastExp(buildVarRefExp(*argsList.begin(), func_body), buildPointerType(struct_decl->get_type())),
                                      buildVarRefExp(wsd_name, func_body));
   SgExpression* nth = buildCastExp( buildAddressOfOp(buildVarRefExp("_nth_info", func_body)),
                                     buildPointerType(buildOpaqueType("nanos_ws_item_t", scope)));  
   SgExprListExp* next_item_params = buildExprListExp(wsd, nth);
   SgStatement* get_next_item = buildFunctionCallStmt("nanos_worksharing_next_item", buildOpaqueType("nanos_err_t", func_body), next_item_params, func_body);
-  appendStatement(get_next_item, func_body);
-  
-  //! Loop boundaries replacement
-  /*!
-   * We declare this struct to be able to access to its members
-   * We don't need to include the declaration in the generated code because it is declared in the Nanos library
-   * struct nanos_ws_item_loop_t {
-   *   int lower;
-   *   int upper;
-   *   bool execute;
-   *   bool last;
-   * } ;
-   */
+  insertStatementBefore(sliced_stmt, get_next_item);
+    
+        // Loop boundaries replacement
+              // We declare this struct to be able to access to its members
+              // We don't need to include the declaration in the generated code because it is declared in the Nanos library
+              // struct nanos_ws_item_loop_t { int lower; int upper; bool execute; bool last; } ;
+  SgForStatement* loop = NULL;
+  int i = 0, n_stmts = sliced_stmt->get_statements().size();
+  while( (isSgForStatement(sliced_stmt->get_statements()[i]) == NULL) && (i < n_stmts ) )
+    i++;
+  ROSE_ASSERT( i <= n_stmts );
+  loop = isSgForStatement(sliced_stmt->get_statements()[i]);
+  ROSE_ASSERT(loop != NULL);
   SgClassDeclaration* item_loop_decl = buildStructDeclaration("nanos_ws_item_loop_t", scope);
   SgClassDefinition* item_loop_def = item_loop_decl->get_definition();
   ROSE_ASSERT (item_loop_def != NULL);
@@ -1374,39 +1387,33 @@ SgFunctionDeclaration *
   appendStatement(_execute, def_scope);
   SgVariableDeclaration* _last = buildVariableDeclaration("last", buildBoolType(), NULL, def_scope);
   appendStatement(_last, def_scope);
-
-  // Replacement
+              // Replacement
   SgDeclarationStatementPtrList members = item_loop_decl->get_definition()->get_members();
   Rose_STL_Container<SgDeclarationStatement*>::iterator member = members.begin();
-      // Lower bound
+                    // Lower bound
   SgVariableDeclaration* lower_member = isSgVariableDeclaration(*member);
   SgInitializedName* lower_name = *(lower_member->get_variables().begin());
   SgExpression* lower_bound = buildDotExp(buildVarRefExp("_nth_info", func_body), buildVarRefExp(lower_name, func_body));
-  SageInterface::setLoopLowerBound(for_loop, lower_bound);
-      // Upper bound
+  SageInterface::setLoopLowerBound(loop, lower_bound);
+                    // Upper bound
   ++member;
   SgVariableDeclaration* upper_member = isSgVariableDeclaration(*member);
   SgInitializedName* upper_name = *(upper_member->get_variables().begin());
   SgExpression* upper_bound = buildDotExp(buildVarRefExp("_nth_info", func_body), buildVarRefExp(upper_name, func_body));
-  SageInterface::setLoopUpperBound(for_loop, upper_bound);
-    
-  /*! while (_nth_info.execute) {
-   *      for (i = _nth_info.lower; i <= _nth_info.upper; i += 1) {
-   *          a_0[i] = i * 2;
-   *      }
-   *      nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
-   *  }
-   */
-  SgStatement* orig_body_stmt = SageInterface::copyStatement(s);
-  SgStatement* sliced_stmt = buildBasicBlock(orig_body_stmt, SageInterface::copyStatement(get_next_item));
-  appendStatement(sliced_stmt, func_body);
+  SageInterface::setLoopUpperBound(loop, upper_bound);
+  
+        // Wrap the loop body into the while-loop used in Nanox to iterate over the worksharing 
+        // while (_nth_info.execute) {
+        //     for (i = _nth_info.lower; i <= _nth_info.upper; i += 1) {
+        //         a_0[i] = i * 2;
+        //     }
+        //     nanos_worksharing_next_item((struct name_func_param_st) __out_argv->wsd, (nanos_ws_item_t *) &_nth_info);
+        // }
+  appendStatement(SageInterface::copyStatement(get_next_item), sliced_stmt);
   SageInterface::attachArbitraryText(sliced_stmt, "  while(_nth_info.execute)", PreprocessingInfo::before);
-  
+     
   appendStatement(buildFunctionCallStmt("XOMP_barrier", buildVoidType(), NULL, func_body), func_body);
-  
-  if (Outliner::useNewFile)
-    ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation(func_body);
-  
+
   return func;
 }
 
