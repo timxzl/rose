@@ -1159,7 +1159,7 @@ SgExpression* build_nanox_get_alignof(SgStatement* ancestor, std::string& wrappe
   }
   
   // Generate the outlined function
-  result = Outliner::generateLoopFunction(body_block, body, func_name, syms, pdSyms3, pSyms, struct_decl, g_scope);
+  result = Outliner::generateLoopFunction(body_block, func_name, syms, pdSyms3, pSyms, struct_decl, g_scope);
   
   Outliner::insert(result, g_scope, body_block);
   
@@ -1396,7 +1396,6 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
     else if (do_loop)
       is_canonical = isCanonicalDoLoop (do_loop, &orig_index, & orig_lower, &orig_upper, &orig_stride, NULL, &isIncremental, NULL);
     ROSE_ASSERT(is_canonical == true);
-
     
 #ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
     // step 2. Insert a basic block to replace SgOmpForStatement
@@ -1728,19 +1727,19 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
       std::string lb_name = "__lb_" + generateUniqueName(orig_lower, true);
       SgInitializer* lb_init = buildAssignInitializer(orig_lower, buildIntType());
       SgVariableDeclaration* lb = buildVariableDeclaration(lb_name, buildIntType(), lb_init, p_scope);
-      prependStatement(lb, p_scope);
+      insertStatementBefore(target, lb);
       param_list.push_back(buildAddressOfOp(buildVarRefExp(lb->get_decl_item(lb_name), p_scope)));
       
       std::string ub_name = "__ub_" + generateUniqueName(orig_upper, true);
       SgInitializer* ub_init = buildAssignInitializer(orig_upper, buildIntType());
       SgVariableDeclaration* ub = buildVariableDeclaration(ub_name, buildIntType(), ub_init, p_scope);
-      prependStatement(ub, p_scope);
+      insertStatementBefore(target, ub);
       param_list.push_back(buildAddressOfOp(buildVarRefExp(ub->get_decl_item(ub_name), p_scope)));
       
       std::string stride_name = "__stride_" + generateUniqueName(orig_stride, true);
       SgInitializer* stride_init = buildAssignInitializer(orig_stride, buildIntType());
       SgVariableDeclaration* stride = buildVariableDeclaration(stride_name, buildIntType(), stride_init, p_scope);
-      prependStatement(stride, p_scope);
+      insertStatementBefore(target, stride);
       param_list.push_back(buildAddressOfOp(buildVarRefExp(stride->get_decl_item(stride_name), p_scope)));
       
       param_list.push_back(chunk_size);

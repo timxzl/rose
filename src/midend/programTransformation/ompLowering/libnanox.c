@@ -192,17 +192,6 @@ void NANOX_loop(void* start, void* end, void* incr, int chunk, int policy,
   // Create the worksharing descriptor
   _Bool single_guard;
 
-  // Policy of schedules that are not initialized in "nanos_omp_initialize_worksharings"
-  // have a value greater or equal to 10 (using 10 because it is a round number 
-  // bigger than the number of policies defined in OpenMP specifics)
-//   if (policy >= 10)
-//   {
-//     omp_sched_t _runtime_sched;
-//     err = nanos_omp_get_schedule(&_runtime_sched, &chunk);
-//     if (err != NANOS_OK)
-//         nanos_handle_error(err);
-//     policy = _runtime_sched - 1;
-//   }
   nanos_ws_t* current_ws_policy = &ws_policy[policy];
   nanos_ws_info_loop_t info_loop = { *((int*) start), *((int*) end), *((int*) incr), chunk };
 

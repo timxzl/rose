@@ -240,7 +240,6 @@ namespace Outliner
      */
     SgFunctionDeclaration*
     generateLoopFunction (SgBasicBlock* s,
-                          SgStatement* loop,
                           const std::string& func_name_str,
                           const ASTtools::VarSymSet_t& syms,
                           const ASTtools::VarSymSet_t& pdSyms,
