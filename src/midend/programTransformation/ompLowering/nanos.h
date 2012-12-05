@@ -163,20 +163,20 @@ NANOS_API_DECL(nanos_err_t, nanos_get_addr, ( nanos_copy_id_t copy_id, void **ad
 NANOS_API_DECL(nanos_err_t, nanos_copy_value, ( void *dst, nanos_copy_id_t copy_id, nanos_wd_t cwd ));
 
 // system interface
-NANOS_API_DECL(const char *, nanos_get_default_architecture, ());
-NANOS_API_DECL(const char *, nanos_get_pm, ());
+NANOS_API_DECL(const char *, nanos_get_default_architecture, ( void ));
+NANOS_API_DECL(const char *, nanos_get_pm, ( void ));
 NANOS_API_DECL(nanos_err_t, nanos_get_default_binding, ( bool *res ));
 NANOS_API_DECL(nanos_err_t, nanos_get_num_running_tasks, ( int *num ));
 
-NANOS_API_DECL(const char *, nanos_get_default_scheduler, ());
-NANOS_API_DECL(nanos_err_t, nanos_start_scheduler, ());
-NANOS_API_DECL(nanos_err_t, nanos_stop_scheduler, ());
+NANOS_API_DECL(const char *, nanos_get_default_scheduler, ( void ));
+NANOS_API_DECL(nanos_err_t, nanos_start_scheduler, ( void ));
+NANOS_API_DECL(nanos_err_t, nanos_stop_scheduler, ( void ));
 NANOS_API_DECL(nanos_err_t, nanos_scheduler_enabled, ( bool *res ));
-NANOS_API_DECL(nanos_err_t, nanos_wait_until_threads_paused, () );
-NANOS_API_DECL(nanos_err_t, nanos_wait_until_threads_unpaused, () );
-NANOS_API_DECL(nanos_err_t, nanos_delay_start, ());
-NANOS_API_DECL(nanos_err_t, nanos_start, ());
-NANOS_API_DECL(nanos_err_t, nanos_finish, ());
+NANOS_API_DECL(nanos_err_t, nanos_wait_until_threads_paused, ( void ));
+NANOS_API_DECL(nanos_err_t, nanos_wait_until_threads_unpaused, ( void ));
+NANOS_API_DECL(nanos_err_t, nanos_delay_start, ( void ));
+NANOS_API_DECL(nanos_err_t, nanos_start, ( void ));
+NANOS_API_DECL(nanos_err_t, nanos_finish, ( void ));
 
 // Memory management
 NANOS_API_DECL(nanos_err_t, nanos_malloc, ( void **p, size_t size, const char *file, int line ));
@@ -202,7 +202,7 @@ NANOS_API_DECL(nanos_err_t, nanos_instrument_get_value, (const char *key, const 
 
 NANOS_API_DECL(nanos_err_t, nanos_instrument_events, ( unsigned int num_events, nanos_event_t events[] ));
 
-NANOS_API_DECL(nanos_err_t, nanos_instrument_close_user_fun_event,());
+NANOS_API_DECL(nanos_err_t, nanos_instrument_close_user_fun_event,( void ));
 
 NANOS_API_DECL(nanos_err_t, nanos_instrument_enable,( void ));
 

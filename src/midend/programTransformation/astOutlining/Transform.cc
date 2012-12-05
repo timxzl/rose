@@ -32,7 +32,7 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
                                SgScopeStatement* func_scope ) // the scope of the outlined function, could be different from s's global scope
 {
   SgClassDeclaration* result = NULL;
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY   
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY   
   // no need to generate the declaration if no variables are to be passed
   if (syms.empty())
   {
@@ -394,7 +394,7 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
   SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()); 
   ROSE_ASSERT (class_def != NULL);
   
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
     if (var_count==0) 
       return wrapper_name;
 #endif

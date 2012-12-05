@@ -1,4 +1,5 @@
-#include "libnanox.h"
+#include "libnanos.h"
+#include "nanos_ompss.h"
 
 #include <omp.h>
 #include <stdio.h>
@@ -10,7 +11,7 @@ __attribute__((weak)) nanos_lock_t _nx_default_critical_lock = {NANOS_LOCK_FREE}
 
 void nanos_omp_initialize_worksharings(void *dummy);
 
-void NANOX_parallel(void (*func) (void *), void *data, unsigned numThreads, long data_size, long (*get_data_align)(void), 
+void NANOS_parallel(void (*func) (void *), void *data, unsigned numThreads, long data_size, long (*get_data_align)(void), 
                           void* empty_data, void (* init_func) (void *, void *))
 {
   nanos_err_t err;
@@ -46,8 +47,8 @@ void NANOX_parallel(void (*func) (void *), void *data, unsigned numThreads, long
       {
         1,                  /* mandatory creation */
         0,                  /* tied */
-        0, 0, 0, 0, 0, 0,   /* reserved0..5 */
-        0                   /* priority */
+        0, 0, 0, 0, 0, 0    /* reserved0..5 */
+//         0                   /* priority */
       },
       data_align,
       num_copies,
@@ -97,19 +98,17 @@ void NANOX_parallel(void (*func) (void *), void *data, unsigned numThreads, long
     nanos_handle_error(err);
 }
 
-void NANOX_task(void (*func) (void *), void *data,
+void NANOS_task(void (*func) (void *), void *data,
                 long data_size, long (*get_data_align) (void), bool if_clause, unsigned untied, 
-                void* empty_data, void (*init_func) (void *, void *))
+                void* empty_data, void (*init_func) (void *, void *),
+                int num_deps, void * deps_direction, int (*get_dep_direction) (int [], int ),
+                void* deps_data, void* (*get_dep_data) (void* [], int ))
 {
   // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
   int num_copies = 0;
 
   // Compute the alignement of the struct with the arguments to the outlined function
   long data_align = (*get_data_align)();
-
-  // Create a team and start wd in this team
-//   nanos_omp_set_implicit(nanos_current_wd());
-//   nanos_enter_team();
   
   // Create the Device descriptor (at the moment, only SMP is supported)
   int num_devices = 1;
@@ -124,8 +123,8 @@ void NANOX_task(void (*func) (void *), void *data,
       {
         0,                  /* mandatory creation => only CUDA requieres mandatory creation */
         1,                  /* tied   FIXME this value should depend on the parameter 'untied' */
-        0, 0, 0, 0, 0, 0,   /* reserved0..5 */
-        0                   /* priority */
+        0, 0, 0, 0, 0, 0    /* reserved0..5 */
+//         0                   /* priority */
       },
       data_align,
       num_copies,
@@ -151,32 +150,51 @@ void NANOX_task(void (*func) (void *), void *data,
   
   // Compute data_accesses, if they exist
   nanos_data_access_t * data_accesses;
-  int num_data_accesses;
-  if ( 1 )
+  const int num_data_accesses = num_deps;
+  if ( num_data_accesses )
   {
       data_accesses = (nanos_data_access_t *) 0;
-      num_data_accesses = 0;
   }
   else
   {
-//       nanos_region_dimension_t dimensions0[1] = {{
-//           sizeof(float **),
-//           ((char *) (&x) - (char *) ol_args->x_0),
-//           sizeof(float **)
-//       }};
-//       nanos_data_access_t _data_accesses[1] = {{
-//           (void *) ol_args->x_0,
+      nanos_data_access_t data_accesses_array[num_data_accesses];
+      data_accesses = &data_accesses_array[num_data_accesses];
+      
+      int access, dim;
+      for(access=0; access<num_data_accesses; access++)
+      {
+          // Dimensions of the data access
+//           const int num_dimensions = 1;
+//           nanos_region_dimension_t* dimensions;
+//           dimensions = (nanos_region_dimension_t*) malloc(num_dimensions * sizeof(nanos_region_dimension_t)); 
+//           for(dim=0; dim<num_dimensions; dim++)
 //           {
-//               1,
-//               1,
-//               1,
-//               0,
-//               0
-//           },
-//           1,
-//           dimensions0,
-//           ((char *) (&x) - (char *) ol_args->x_0)
-//       }};
+//               nanos_region_dimension_t current_dim = {
+//                   sizeof(float **),                         // size of the dimension
+//                   0,                                        // lower bound
+//                   sizeof(float **)                          // accessed length
+//               };
+//               dimensions[dim] = current_dim; 
+//           }
+          
+          // Actual data access
+//           nanos_data_access_t current_data_access = {
+//               deps_data[access],               // base address of the accessed range  
+//               {                                         // internal flags
+//                   ( deps_direction[access] == e_dep_dir_input                       // is input dependency
+//                           || deps_direction[access] == e_dep_dir_inout ) ? 1 : 0,
+//                   ( deps_direction[access] == e_dep_dir_output                      // is output dependency
+//                           || deps_direction[access] == e_dep_dir_inout ) ? 1 : 0,
+//                   1,                                                                // can rename
+//                   0,                                                                // is concurrent
+//                   0                                                                 // is commutative
+//               },
+//               num_dimensions,                           // number of dimensions
+//               dimensions,                               // dimensions data
+//               0                                         // offset of the first element
+//           };
+//           data_accesses[access] = current_data_access; 
+      } 
   }
   
   if (wd != (nanos_wd_t)0)
@@ -194,9 +212,6 @@ void NANOX_task(void (*func) (void *), void *data,
     if (err != NANOS_OK) 
       nanos_handle_error (err);
   }
-  
-/*  nanos_omp_barrier();
-  nanos_leave_team(); */   // Abandon the team created for this task
 }
 
 /* Variables used during the creation of the slicer to execute OpenMP loop constructs */
@@ -213,7 +228,7 @@ void nanos_omp_initialize_worksharings(void *dummy)
 __attribute__((weak, section("nanos_post_init")))
 nanos_init_desc_t __section__nanos_init_worksharing = {(nanos_omp_initialize_worksharings), ((void *)0)};
 
-void NANOX_loop(void* start, void* end, void* incr, int chunk, int policy, 
+void NANOS_loop(void* start, void* end, void* incr, int chunk, int policy, 
                 void (*func) (void *), void *data, void * data_wsd /*data_wsd == &(data->wsd)*/, long data_size, long (*get_data_align)(void),
                 void* empty_data, void (*init_func) (void *, void *))
 {
@@ -279,10 +294,9 @@ void NANOX_loop(void* start, void* end, void* incr, int chunk, int policy,
       if (err != NANOS_OK)
           nanos_handle_error(err);
     }
-
-    func(data);
-    nanos_omp_barrier();
   }
+  func(data);
+  nanos_omp_barrier();    
 }
 
 // The ellipsed arguments depend on the number of sections. The arguments per section are:
@@ -330,8 +344,8 @@ void NANOS_sections(int num_sections, bool must_wait, va_list sections_args)
           {
             1,                  /* mandatory creation => only CUDA requieres mandatory creation */
             0,                  /* tied */
-            0, 0, 0, 0, 0, 0,   /* reserved0..5 */
-            0                   /* priority */
+            0, 0, 0, 0, 0, 0    /* reserved0..5 */
+//             0                   /* priority */
           },
           (*get_data_align)(),
           num_copies,
@@ -389,28 +403,28 @@ void NANOS_sections(int num_sections, bool must_wait, va_list sections_args)
     nanos_omp_barrier();
 }
 
-void NANOX_barrier( void )
+void NANOS_barrier( void )
 {
   nanos_team_barrier();
 }
 
-void NANOX_taskwait( void )
+void NANOS_taskwait( void )
 {
   nanos_wg_t wg = nanos_current_wd();
   nanos_wg_wait_completion(wg, 0);
 }
 
-void NANOX_critical_start( void )
+void NANOS_critical_start( void )
 {
   nanos_set_lock(&_nx_default_critical_lock);
 }
 
-void NANOX_critical_end( void )
+void NANOS_critical_end( void )
 {
   nanos_unset_lock(&_nx_default_critical_lock);
 }
 
-void NANOX_atomic ( int op, int type, void * variable, void * operand )
+void NANOS_atomic ( int op, int type, void * variable, void * operand )
 {
   if ( ( type == 0 ) && ( op == 1 || op == 2 || op == 5 || op == 6 || op == 7) )
   { // variable has integer type and the operation is some kind of the following compound assignments:
@@ -446,8 +460,9 @@ void NANOX_atomic ( int op, int type, void * variable, void * operand )
     
     if (type == 1)
     { // Float type
-      float tmp = *((float *) operand);
-  
+//       float tmp = *((float *) operand);
+      printf("Nanos support for Atomic access to floats is not yet implemented\n");
+      abort();
     }
     else if (type == 2)
     { // Double type
@@ -491,7 +506,7 @@ void NANOX_atomic ( int op, int type, void * variable, void * operand )
   }
 }
 
-bool NANOX_single( void )
+bool NANOS_single( void )
 {
   bool single_guard;
   nanos_err_t err = nanos_single_guard(&single_guard);
@@ -501,12 +516,12 @@ bool NANOX_single( void )
   return single_guard;
 }
 
-bool NANOX_master( void )
+bool NANOS_master( void )
 {
   return (omp_get_thread_num() == 0);
 }
 
-void NANOX_flush( void )
+void NANOS_flush( void )
 {
   __sync_synchronize();
 }

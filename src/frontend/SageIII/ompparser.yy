@@ -43,7 +43,7 @@ static bool addVar(const char* var);
 //Insert expression into some clause
 static bool addExpression(const char* expr);
 
-//Task Dependency Clauses are allowd only when USE_ROSE_NANOX_OPENMP_LIBRARY macro is defined
+//Task Dependency Clauses are allowd only when USE_ROSE_NANOS_OPENMP_LIBRARY macro is defined
 // Otherwise, the clauses must be ignored
 static void treatTaskDependencyClauses(const char* expr);
 
@@ -874,7 +874,7 @@ static bool addExpression(const char* expr) {
 
 static void treatTaskDependencyClauses(const char* clause)
 {
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
     printf("Task dependency clause '%s' will be ignored because defined OpenMP library isn't Nanos++\n", std::string(clause));
 #endif
 }

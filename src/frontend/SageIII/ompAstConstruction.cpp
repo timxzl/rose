@@ -701,7 +701,7 @@ namespace OmpSupport
       case e_private:
       case e_shared:
 // Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
       case e_input:
       case e_output:
       case e_inout:

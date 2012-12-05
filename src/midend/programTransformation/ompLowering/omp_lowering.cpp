@@ -4,6 +4,7 @@
 #include "sageBuilder.h"
 #include "Outliner.hh"
 #include "omp_lowering.h"
+#include "nanos_ompss.h"
 #include "rose_config.h"
 
 using namespace std;
@@ -249,14 +250,14 @@ void gatherReferences( const Rose_STL_Container< SgNode* >& expr, Rose_STL_Conta
     ROSE_ASSERT (globalscope != NULL);
 #ifdef ENABLE_XOMP
     SageInterface::insertHeader("libxomp.h",PreprocessingInfo::after,false,globalscope);
-    SageInterface::insertHeader("libnanox.h",PreprocessingInfo::after,false,globalscope);
+    SageInterface::insertHeader("libnanos.h",PreprocessingInfo::after,false,globalscope);
 #else
     if (rtl_type == e_omni)
       SageInterface::insertHeader("ompcLib.h",PreprocessingInfo::after,false,globalscope);
     else if (rtl_type == e_gomp)
       SageInterface::insertHeader("libgomp_g.h",PreprocessingInfo::after,false,globalscope);
-    else if (rtl_type == e_nanox)
-      SageInterface::insertHeader("libnanox.h", PreprocessingInfo::after,false,globalscope);
+    else if (rtl_type == e_nanos)
+      SageInterface::insertHeader("libnanos.h", PreprocessingInfo::after,false,globalscope);
     else
       ROSE_ASSERT(false);
 #endif
@@ -461,7 +462,7 @@ void gatherReferences( const Rose_STL_Container< SgNode* >& expr, Rose_STL_Conta
     return result;
   }
   
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
   //! Create a stride expression from an existing stride expression based on the loop iteration's order (incremental or decremental)
   // The assumption is orig_stride is just the raw operand of the condition expression of a loop
   // so it has to be adjusted to reflect the real stride: *(-1) if decremental
@@ -676,7 +677,7 @@ static void insert_libxompf_h(SgNode* startNode)
   } 
 }
 
-static SgExpression* build_nanox_empty_struct(SgStatement* omp_stmt, SgScopeStatement* sc, SgType* struct_type, std::string base_name)
+static SgExpression* build_nanos_empty_struct(SgStatement* omp_stmt, SgScopeStatement* sc, SgType* struct_type, std::string base_name)
 {
   SgName empty_struct_name = "empty_" + base_name;
   SgVariableDeclaration* empty_struct_decl = buildVariableDeclaration(empty_struct_name, struct_type, NULL, sc);
@@ -686,7 +687,7 @@ static SgExpression* build_nanox_empty_struct(SgStatement* omp_stmt, SgScopeStat
 
 //! Builds the function that initializes the empty structure with the arguments to the outlined OpenMP parallel or task.
 //! Used only when Nanos++ RTL
-static SgExpression* build_nanox_init_arguments_struct_function(SgStatement* ancestor, std::string& wrapper_name, SgClassDeclaration* struct_decl)
+static SgExpression* build_nanos_init_arguments_struct_function(SgStatement* ancestor, std::string& wrapper_name, SgClassDeclaration* struct_decl)
 {
   SgScopeStatement* ancestor_sc = ancestor->get_scope();
   ROSE_ASSERT (ancestor_sc != NULL);
@@ -761,7 +762,7 @@ static SgExpression* build_nanox_init_arguments_struct_function(SgStatement* anc
   return buildCastExp(buildFunctionRefExp(func_sym), buildPointerType(casting_func_type));
 }
 
-SgExpression* build_nanox_get_alignof(SgStatement* ancestor, std::string& wrapper_name, SgClassDeclaration* struct_decl)
+SgExpression* build_nanos_get_alignof(SgStatement* ancestor, std::string& wrapper_name, SgClassDeclaration* struct_decl)
 {
   SgScopeStatement* ancestor_sc = ancestor->get_scope();
   ROSE_ASSERT (ancestor_sc != NULL);
@@ -792,7 +793,7 @@ SgExpression* build_nanox_get_alignof(SgStatement* ancestor, std::string& wrappe
   return buildFunctionRefExp(func_sym);
 }
 
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
   //! Translate an omp for loop with non-static scheduling clause or with ordered clause ()
   // bb1 is the basic block to insert the translated loop
   // bb1 already has compiler-generated variable declarations for new loop control variables
@@ -1063,7 +1064,7 @@ SgExpression* build_nanox_get_alignof(SgStatement* ancestor, std::string& wrappe
   }
 #endif
 
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
 //! A helper function to generate explicit task for omp loop
 // It calls the ROSE AST outliner internally. 
 // This method is inspired in the method for OpenMP task and parallel regions 'generateOutlinedTask'
@@ -1394,7 +1395,7 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
       is_canonical = isCanonicalDoLoop (do_loop, &orig_index, & orig_lower, &orig_upper, &orig_stride, NULL, &isIncremental, NULL);
     ROSE_ASSERT(is_canonical == true);
     
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
     // step 2. Insert a basic block to replace SgOmpForStatement
     // This newly introduced scope is used to hold loop variables, private variables ,etc
     SgBasicBlock * bb1 = SageBuilder::buildBasicBlock(); 
@@ -1714,10 +1715,10 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
         SgInitializedName* wsd_name = *(wsd_member_name_list.begin());
       SgExpression* param_data_wsd = buildCastExp( buildAddressOfOp(buildDotExp(data, buildVarRefExp(wsd_name, p_scope))), buildPointerType(buildVoidType()));
       SgIntVal* param_arg_size = buildIntVal((syms.size() + 1) * sizeof(void*));
-      SgExpression* param_arg_align = build_nanox_get_alignof(ancestor_st, wrapper_name, struct_decl);
-      SgExpression* empty_data = build_nanox_empty_struct(target, p_scope, struct_decl->get_type(), wrapper_name);
+      SgExpression* param_arg_align = build_nanos_get_alignof(ancestor_st, wrapper_name, struct_decl);
+      SgExpression* empty_data = build_nanos_empty_struct(target, p_scope, struct_decl->get_type(), wrapper_name);
       SgExpression* param_empty_data = buildCastExp(buildAddressOfOp(empty_data), buildPointerType(buildVoidType()));
-      SgExpression* param_init_func = build_nanox_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl);
+      SgExpression* param_init_func = build_nanos_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl);
       
       std::vector<SgExpression*> param_list;
       // Loop boundaries
@@ -1753,7 +1754,7 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
       parameters = buildExprListExp(param_list);
       
       
-      /*extern void XOMP_loop_for_NANOX (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
+      /*extern void XOMP_loop_for_NANOS (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
                                                  long arg_size, long arg_align, void *empty_data, void (* init_func) (void *, void *), void* nanos_team);
        * func: pointer to a function which will be run in parallel for each thread
        * data: pointer to a data segment which will be used as the arguments of func
@@ -1765,7 +1766,7 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
        * init_func: function that initialized 'empty_data' with the values of the members in 'data'
        * ws_policy: schedulin gpolicy that will be used in runtime
        */
-      SgExprStatement* s1 = buildFunctionCallStmt("XOMP_loop_for_NANOX", buildVoidType(), parameters, p_scope);
+      SgExprStatement* s1 = buildFunctionCallStmt("XOMP_loop_for_NANOS", buildVoidType(), parameters, p_scope);
       SageInterface::replaceStatement(target, s1 , true);
 //       cerr << "NEW STMT IS: " << s1->unparseToString() << endl;
     }
@@ -1931,19 +1932,32 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
   result = Outliner::generateFunction(body_block, func_name, syms, pdSyms3, pSyms, struct_decl, g_scope);
   Outliner::insert(result, g_scope, body_block);
   
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
   // Nanos++ parallel blocks requiere some extra statements
   SgBasicBlock* func_body = result->get_definition()->get_body();
   if (target2 != NULL)
   { // If the block is a parallel and not a task
     SgScopeStatement* sc = getEnclosingFunctionDefinition(node)->get_declaration()->get_scope();
     SgFunctionCallExp* get_current_wd_call = buildFunctionCallExp("nanos_current_wd", buildOpaqueType("nanos_wd_t", sc), /* params */ NULL, g_scope);
-    SgExprListExp* params = buildExprListExp(get_current_wd_call);
-    SgStatement* set_wd_stmt = buildFunctionCallStmt("nanos_omp_set_implicit", buildOpaqueType("nanos_err_t", sc), params, g_scope);
-    prependStatement(set_wd_stmt, func_body); 
     
+    // Nanos statements before the function body
+    SgExprListExp* params = buildExprListExp(get_current_wd_call);
+    SgStatement* set_wd_stmt = buildFunctionCallStmt("nanos_omp_set_implicit", buildOpaqueType("nanos_err_t", sc), 
+                                                     params, g_scope);
+    prependStatement(set_wd_stmt, func_body);
+    
+    SgExprListExp* null_params = NULL;
+    SgStatement* enter_team_stmt = buildFunctionCallStmt("nanos_enter_team", buildOpaqueType("nanos_err_t", sc),
+                                                         null_params, g_scope);
+    insertStatementAfter(set_wd_stmt, enter_team_stmt);
+    
+    // Nanos statements after the function body
     SgExprStatement* barrier_call= buildFunctionCallStmt("XOMP_barrier", buildVoidType(), NULL, g_scope);
     appendStatement(barrier_call, func_body);
+    
+    SgStatement* leave_team_stmt = buildFunctionCallStmt("nanos_leave_team", buildOpaqueType("nanos_err_t", sc), 
+                                                         null_params, g_scope);
+    insertStatementAfter(barrier_call, leave_team_stmt);
   }
 #endif
   
@@ -2160,7 +2174,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       else
         parameter2 =  buildAddressOfOp(buildVarRefExp(wrapper_name, p_scope));
 
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
       /*!
        * Initialize the team that will execute the parallel region.
        *    nanos_team_t _nanos_team = (nanos_team_t)0;
@@ -2168,7 +2182,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
        * This must be done in the global scope because different functions need access to the team:
        * 1) The outlined function, requieres to set the current team as the implicit team to run it: 
        *    nanos_omp_set_implicit(nanos_current_wd());
-       * 2) The NANOX parallel function, initiates and finalizes the team.
+       * 2) The NANOS parallel function, initiates and finalizes the team.
        */
       SgFunctionDefinition* englobing_function = getEnclosingFunctionDefinition(node, false);
       SgNode* global_scoped_ancestor = (SgNode*) englobing_function;
@@ -2206,10 +2220,10 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
         if ( parameter_count == 0) // No parameters to be passed at all
         {
           parameter_arg_size = buildIntVal(0);
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
         parameter_arg_align = buildIntVal(0);
 #else
-        parameter_arg_align = build_nanox_get_alignof(ancestor_st, wrapper_name, struct_decl);
+        parameter_arg_align = build_nanos_get_alignof(ancestor_st, wrapper_name, struct_decl);
 #endif
         }
         else
@@ -2218,26 +2232,26 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
           ROSE_ASSERT (data_ref != NULL);
           SgType * data_type = data_ref->get_type();
           parameter_arg_size =  buildSizeOfOp(data_type);
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
         parameter_arg_align = buildIntVal(4);     //  TODO get right alignment
 #else
-        parameter_arg_align = build_nanox_get_alignof(ancestor_st, wrapper_name, struct_decl);
+        parameter_arg_align = build_nanos_get_alignof(ancestor_st, wrapper_name, struct_decl);
 #endif
         }
       }
       
       // Empty struct with the same type as the struc containing the parameters to the outlined function
-      SgExpression* parameter_empty_st = buildAddressOfOp(build_nanox_empty_struct(target, p_scope, struct_decl->get_type(), wrapper_name));
+      SgExpression* parameter_empty_st = buildAddressOfOp(build_nanos_empty_struct(target, p_scope, struct_decl->get_type(), wrapper_name));
       
       // Function that initializes the empty struct
-      SgExpression* parameter_init_func = build_nanox_init_arguments_struct_function(ancestor_st, wrapper_name,  struct_decl);
+      SgExpression* parameter_init_func = build_nanos_init_arguments_struct_function(ancestor_st, wrapper_name,  struct_decl);
       
-      // Parameters to the NANOX function call
+      // Parameters to the NANOS function call
       parameters = buildExprListExp(buildFunctionRefExp(outlined_func), parameter2, ifClauseValue, numThreadsSpecified, 
                                     parameter_arg_size, parameter_arg_align, parameter_empty_st, parameter_init_func);
       
       
-      // extern void XOMP_parallel_start_for_NANOX (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
+      // extern void XOMP_parallel_start_for_NANOS (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
       //                                            long arg_size, long arg_align, void *empty_data, void (* init_func) (void *, void *), void* nanos_team);
       // * func: pointer to a function which will be run in parallel
       // * data: pointer to a data segment which will be used as the arguments of func
@@ -2248,7 +2262,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       // * empty_data: pointer to a data segment with the same type as 'data', but empty.
       //               'empty_data' is used to initialize the team, and 'data' is used to fill the empty struct after the team initialization
       // * init_func: function that initialized 'empty_data' with the values of the members in 'data'
-      s1 = buildFunctionCallStmt("XOMP_parallel_for_NANOX", buildVoidType(), parameters, p_scope); 
+      s1 = buildFunctionCallStmt("XOMP_parallel_for_NANOS", buildVoidType(), parameters, p_scope); 
       SageInterface::replaceStatement(target, s1 , true);
 #else
       parameters = buildExprListExp(buildFunctionRefExp(outlined_func), parameter2, ifClauseValue, numThreadsSpecified);
@@ -2259,7 +2273,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
 
 #ifdef ENABLE_XOMP
 
-  #ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+  #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
     // already done before: We do it in the same block of code because we need to maintain the same name for the team and it is randomly generated
   #else
   
@@ -2290,7 +2304,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
     // add GOMP_parallel_end ();
     
     
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
 // Nanos parallel end is performed in the same function as the function where the parallel region runs
     SgExprStatement * s2;
 
@@ -2375,7 +2389,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       ROSE_ASSERT (isSgOmpSectionStatement(stmt));
     }
    
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
     SgBasicBlock *  bb1 = buildBasicBlock();
     
     // int _section_1 = XOMP_sections_init_next (3);
@@ -2505,13 +2519,13 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
     SgVarRefExp * data_ref = buildVarRefExp(wrapper_name, scope);
     param_list.push_back(buildAddressOfOp(data_ref));
     param_list.push_back(buildSizeOfOp(data_ref->get_type()));
-    param_list.push_back(build_nanox_get_alignof(ancestor_st, wrapper_name, struct_decl));
-    param_list.push_back(buildAddressOfOp(build_nanox_empty_struct(target, scope, struct_decl->get_type(), wrapper_name)));
-    param_list.push_back(build_nanox_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl));
+    param_list.push_back(build_nanos_get_alignof(ancestor_st, wrapper_name, struct_decl));
+    param_list.push_back(buildAddressOfOp(build_nanos_empty_struct(target, scope, struct_decl->get_type(), wrapper_name)));
+    param_list.push_back(build_nanos_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl));
   }
    
   // Replace the sections code by the call to the Nanos RTL Sections routine
-  /*extern void XOMP_sections_for_NANOX (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
+  /*extern void XOMP_sections_for_NANOS (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
   long arg_size, long arg_align, void *empty_data, void (* init_func) (void *, void *), void* nanos_team);
    * func: pointer to a function which will be run in parallel for each thread
    * data: pointer to a data segment which will be used as the arguments of func
@@ -2522,7 +2536,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
    * init_func: function that initialized 'empty_data' with the values of the members in 'data'
    */
   SgExprListExp* parameters = buildExprListExp(param_list);
-  SgExprStatement* s1 = buildFunctionCallStmt("XOMP_sections_for_NANOX", buildVoidType(), parameters, scope);
+  SgExprStatement* s1 = buildFunctionCallStmt("XOMP_sections_for_NANOS", buildVoidType(), parameters, scope);
   SageInterface::replaceStatement(target, s1 , true);
 #endif
   }
@@ -2547,7 +2561,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
     
     replaceStatement(target, body, true);
 
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
     
     SgExprStatement* atomic_stmt = isSgExprStatement(body); 
     if (atomic_stmt == NULL)
@@ -2648,7 +2662,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
     SgExprListExp* params = buildExprListExp(param_op, buildIntVal(var_t), 
                                              buildAddressOfOp(buildVarRefExp(variable->unparseToString(), scope)), 
                                              buildAddressOfOp(buildVarRefExp(var_op_name, scope)));
-    SgExprStatement* func_call_stmt = buildFunctionCallStmt("XOMP_atomic_for_NANOX", buildVoidType(), params, scope);
+    SgExprStatement* func_call_stmt = buildFunctionCallStmt("XOMP_atomic_for_NANOS", buildVoidType(), params, scope);
     SageInterface::replaceStatement(body, func_call_stmt , true);
     
 #else
@@ -2795,10 +2809,10 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
         parameter_data = buildIntVal(0);
         parameter_cpyfn = buildIntVal(0); // no copy function is needed
         parameter_arg_size = buildIntVal(0);
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
         parameter_arg_align = buildIntVal(0);
 #else
-        parameter_arg_align = build_nanox_get_alignof(ancestor_st, wrapper_name, struct_decl);
+        parameter_arg_align = build_nanos_get_alignof(ancestor_st, wrapper_name, struct_decl);
 #endif
       }
       else
@@ -2813,12 +2827,12 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
         //we now use a structure containing pointers or non-pointer typed members to wrap parameters
         parameter_arg_size =  buildSizeOfOp(data_type);
         //  parameter_arg_size = buildIntVal( parameter_count* sizeof(void*));
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
         //  TODO get right alignment
         parameter_arg_align = buildIntVal(4);
 //         parameter_arg_align = buildIntVal(sizeof(void*));
 #else
-        parameter_arg_align = build_nanox_get_alignof(ancestor_st, wrapper_name, struct_decl);
+        parameter_arg_align = build_nanos_get_alignof(ancestor_st, wrapper_name, struct_decl);
 #endif
       }
 
@@ -2908,53 +2922,165 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
     else
     {
       
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
       // Empty struct with the same type as the struc containing the parameters to the outlined function
-      SgExpression* parameter_empty_st = buildAddressOfOp(build_nanox_empty_struct(target, p_scope, struct_decl->get_type(), wrapper_name));
+      SgExpression* parameter_empty_st = buildAddressOfOp(build_nanos_empty_struct(target, p_scope, struct_decl->get_type(), wrapper_name));
 
       // Function that initializes the empty struct
-      SgExpression* parameter_init_func = build_nanox_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl);
+      SgExpression* parameter_init_func = build_nanos_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl);
       
       // Check for dependency clauses
-      SgExprListExp* parameter_input_clause = NULL;
-      SgExprListExp* parameter_output_clause = NULL;
-      SgExprListExp* parameter_inout_clause = NULL;
+      SgExprListExp* dependences_direction = buildExprListExp();
+      SgExprListExp* dependences_data = buildExprListExp();
+      int n_deps = 0;
       if (hasClause(target, V_SgOmpInputClause))
       {
-          std::vector<SgExpression*> all_refs;
           Rose_STL_Container<SgOmpClause*> input_clauses = getClause(target, V_SgOmpInputClause);
           for(Rose_STL_Container<SgOmpClause*>::iterator it = input_clauses.begin(); it != input_clauses.end(); it++)
           {
               SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpInputClause(*it))->get_variables();
-              all_refs.insert(all_refs.end(), refs.begin(), refs.end());
+              for(SgVarRefExpPtrList::iterator it = refs.begin(); it != refs.end(); it++)
+              {
+                  dependences_direction->append_expression(buildIntVal(e_dep_dir_input));
+                  dependences_data->append_expression(*it);
+                  n_deps++;
+              }
           }
-          parameter_input_clause = buildExprListExp(all_refs);
       }
       if (hasClause(target, V_SgOmpOutputClause))
       {
-          std::vector<SgExpression*> all_refs;
           Rose_STL_Container<SgOmpClause*> output_clauses = getClause(target, V_SgOmpOutputClause);
           for(Rose_STL_Container<SgOmpClause*>::iterator it = output_clauses.begin(); it != output_clauses.end(); it++)
           {
               SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpOutputClause(*it))->get_variables();
-              all_refs.insert(all_refs.end(), refs.begin(), refs.end());
+              for(SgVarRefExpPtrList::iterator it = refs.begin(); it != refs.end(); it++)
+              {
+                  dependences_direction->append_expression(buildIntVal(e_dep_dir_output));
+                  dependences_data->append_expression(*it);
+                  n_deps++;
+              }
           }
-          parameter_output_clause = buildExprListExp(all_refs);
       }
       if (hasClause(target, V_SgOmpInoutClause))
       {
-          std::vector<SgExpression*> all_refs;
           Rose_STL_Container<SgOmpClause*> inout_clauses = getClause(target, V_SgOmpInoutClause);
           for(Rose_STL_Container<SgOmpClause*>::iterator it = inout_clauses.begin(); it != inout_clauses.end(); it++)
           {
               SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpInoutClause(*it))->get_variables();
-              all_refs.insert(all_refs.end(), refs.begin(), refs.end());
+              for(SgVarRefExpPtrList::iterator it = refs.begin(); it != refs.end(); it++)
+              {
+                  dependences_direction->append_expression(buildIntVal(e_dep_dir_inout));
+                  dependences_data->append_expression(*it);
+                  n_deps++;
+              }
           }
-          parameter_inout_clause = buildExprListExp(all_refs);
       }
       
-      // Parameters to the NANOX function call
-      parameters = buildExprListExp(buildFunctionRefExp(outlined_func), parameter_data, parameter_arg_size, parameter_arg_align, parameter_if_clause, parameter_untied, parameter_empty_st, parameter_init_func);
+      SgExpression* parameter_num_dependencies = buildIntVal(n_deps);
+      
+      // Build the dependencies direction array
+      SgName deps_direction_array_name(SageInterface::generateUniqueVariableName(p_scope, "deps_direction"));
+      SgArrayType* deps_direction_array_type = buildArrayType(buildIntType());
+      SgExprListExp* deps_direction_initializers = buildExprListExp();
+      SgExpressionPtrList dependences_direction_exprs = dependences_direction->get_expressions();
+      for(SgExpressionPtrList::iterator dep_dir=dependences_direction_exprs.begin(); dep_dir!=dependences_direction_exprs.end(); dep_dir++)
+      {
+          deps_direction_initializers->append_expression(buildAssignInitializer(*dep_dir, buildIntType()));
+      }
+      SgInitializer* deps_direction_array_initializer = buildAggregateInitializer(deps_direction_initializers, deps_direction_array_type);
+      SgVariableDeclaration* deps_direction_array_decl = buildVariableDeclaration(deps_direction_array_name, deps_direction_array_type,
+                                                                                  deps_direction_array_initializer, p_scope);
+      SageInterface::insertStatementBefore(target, deps_direction_array_decl);
+      
+      SgVarRefExp* deps_direction_array_ref = buildVarRefExp(deps_direction_array_name, p_scope);
+      SgExpression* parameter_deps_direction =  buildAddressOfOp(deps_direction_array_ref);
+      
+      // Create the function that will retrieve an specific element of the dependencies direction array to the nanox wrapper
+            // Build the parameters to the function
+      SgFunctionParameterList* get_dep_direction_params = buildFunctionParameterList();
+      SgName deps_direction_param_name("deps_direction");
+      SgInitializedName* deps_direction_array_param = buildInitializedName(deps_direction_param_name, deps_direction_array_type);
+      appendArg(get_dep_direction_params, deps_direction_array_param);
+      SgName deps_direction_subscript_param_name("index");
+      SgInitializedName* deps_direction_subscript_param = buildInitializedName(deps_direction_subscript_param_name, buildIntType());
+      appendArg(get_dep_direction_params, deps_direction_subscript_param);
+            // Build the function definition
+      SgName get_dep_direction_func_name = "get_" + deps_direction_array_name.getString() + "_element";
+      SgFunctionDeclaration* get_dep_direction_func_def = SageBuilder::buildDefiningFunctionDeclaration(get_dep_direction_func_name, buildIntType(), 
+                                                                                                        get_dep_direction_params, ancestor_st->get_scope());
+      SageInterface::setStatic(get_dep_direction_func_def);
+      insertStatementAfter(ancestor_st, get_dep_direction_func_def);
+            // Build the function body
+      SgBasicBlock* get_dep_direction_func_body = get_dep_direction_func_def->get_definition()->get_body();
+      ROSE_ASSERT(get_dep_direction_func_body != NULL);
+      SgPntrArrRefExp* dep_direction = buildPntrArrRefExp(buildVarRefExp(deps_direction_array_param), 
+                                                          buildVarRefExp(deps_direction_subscript_param));
+      appendStatement(buildReturnStmt(dep_direction), get_dep_direction_func_body);
+            // Build the function declaration
+      SgFunctionDeclaration* get_dep_direction_func_decl = buildNondefiningFunctionDeclaration(get_dep_direction_func_def, isSgGlobal(ancestor_st));
+      SageInterface::setStatic(get_dep_direction_func_decl);
+      insertStatementBefore(ancestor_st, get_dep_direction_func_decl);
+      
+      // Create the parameter with the get_dep_direction_func for the XOMP_task_for_NANOS
+      SgFunctionSymbol* get_dep_direction_func_sym = isSgFunctionSymbol(get_dep_direction_func_decl->get_symbol_from_symbol_table());
+      SgFunctionType* get_dep_direction_func_casting_type = buildFunctionType(buildIntType(), buildFunctionParameterTypeList(deps_direction_array_type, buildIntType()));
+      SgExpression* parameter_get_dep_direction = buildCastExp(buildFunctionRefExp(get_dep_direction_func_sym), buildPointerType(get_dep_direction_func_casting_type));
+      
+      // Build the dependencies array
+      SgName deps_data_array_name(SageInterface::generateUniqueVariableName(p_scope, "deps_data"));
+      SgArrayType* deps_data_array_type = buildArrayType(buildPointerType(buildVoidType()));
+      SgExprListExp* deps_data_initializers = buildExprListExp();
+      SgExpressionPtrList dependences_data_exprs = dependences_data->get_expressions();
+      for(SgExpressionPtrList::iterator dep_data=dependences_data_exprs.begin(); dep_data!=dependences_data_exprs.end(); dep_data++)
+      {
+          deps_data_initializers->append_expression(buildAssignInitializer(*dep_data, buildIntType()));
+      }
+      SgInitializer* deps_data_array_initializer = buildAggregateInitializer(deps_data_initializers, deps_data_array_type);
+      SgVariableDeclaration* deps_data_array_decl = buildVariableDeclaration(deps_data_array_name, deps_data_array_type,
+                                                                             deps_data_array_initializer, p_scope);
+      SageInterface::insertStatementBefore(target, deps_data_array_decl);
+      
+      SgVarRefExp* deps_data_array_ref = buildVarRefExp(deps_data_array_name, p_scope);
+      SgExpression* parameter_deps_data =  buildAddressOfOp(deps_data_array_ref);
+      
+      // Create the function that will retrieve an specific element of the dependencies array to the nanox wrapper
+            // Build the parameters to the function
+      SgFunctionParameterList* get_dep_data_params = buildFunctionParameterList();
+      SgName deps_data_param_name("deps_data");
+      SgInitializedName* deps_data_array_param = buildInitializedName(deps_data_param_name, deps_data_array_type);
+      appendArg(get_dep_data_params, deps_data_array_param);
+      SgName deps_data_subscript_param_name("index");
+      SgInitializedName* deps_data_subscript_param = buildInitializedName(deps_data_subscript_param_name, buildIntType());
+      appendArg(get_dep_data_params, deps_data_subscript_param);
+            // Build the function definition
+      SgName get_dep_data_func_name = "get_" + deps_data_array_name.getString() + "_element";
+      SgFunctionDeclaration* get_dep_data_func_def = SageBuilder::buildDefiningFunctionDeclaration(get_dep_data_func_name, buildPointerType(buildVoidType()), 
+              get_dep_data_params, ancestor_st->get_scope());
+      SageInterface::setStatic(get_dep_data_func_def);
+      insertStatementAfter(ancestor_st, get_dep_data_func_def);
+            // Build the function body
+      SgBasicBlock* get_dep_data_func_body = get_dep_data_func_def->get_definition()->get_body();
+      ROSE_ASSERT(get_dep_data_func_body != NULL);
+      SgPntrArrRefExp* dep_data = buildPntrArrRefExp(buildVarRefExp(deps_data_array_param), 
+                                                     buildVarRefExp(deps_data_subscript_param));
+      appendStatement(buildReturnStmt(dep_data), get_dep_data_func_body);
+            // Build the function declaration
+      SgFunctionDeclaration* get_dep_data_func_decl = buildNondefiningFunctionDeclaration(get_dep_data_func_def, isSgGlobal(ancestor_st));
+      SageInterface::setStatic(get_dep_data_func_decl);
+      insertStatementBefore(ancestor_st, get_dep_data_func_decl);
+      
+      // Create the parameter with the get_dep_direction_func for the XOMP_task_for_NANOS
+      SgFunctionSymbol* get_dep_data_func_sym = isSgFunctionSymbol(get_dep_data_func_decl->get_symbol_from_symbol_table());
+      SgFunctionType* get_dep_data_func_casting_type = buildFunctionType(buildPointerType(buildVoidType()), 
+                                                                         buildFunctionParameterTypeList(deps_data_array_type, buildIntType()));
+      SgExpression* parameter_get_dep_data = buildCastExp(buildFunctionRefExp(get_dep_data_func_sym), buildPointerType(get_dep_data_func_casting_type));
+      
+      // Parameters to the NANOS function call
+      SgExpression* array_params[] = { buildFunctionRefExp(outlined_func), parameter_data, parameter_arg_size, parameter_arg_align,
+          parameter_if_clause, parameter_untied, parameter_empty_st, parameter_init_func,
+          parameter_num_dependencies, parameter_deps_direction, parameter_get_dep_direction, parameter_deps_data, parameter_get_dep_data };
+      std::vector<SgExpression*> vector_params(array_params, array_params + sizeof(array_params) / sizeof(SgExpression*) );
+      parameters = buildExprListExp(vector_params);
 #else
       parameters = buildExprListExp(buildFunctionRefExp(outlined_func),
         parameter_data, parameter_cpyfn, parameter_arg_size, parameter_arg_align, parameter_if_clause, parameter_untied);
@@ -2963,8 +3089,8 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
 
 #ifdef ENABLE_XOMP
 
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
-    SgExprStatement * s1 = buildFunctionCallStmt("XOMP_task_for_NANOX", buildVoidType(), parameters, p_scope);
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+    SgExprStatement * s1 = buildFunctionCallStmt("XOMP_task_for_NANOS", buildVoidType(), parameters, p_scope);
 #else
     SgExprStatement * s1 = buildFunctionCallStmt("XOMP_task", buildVoidType(), parameters, p_scope);
 #endif
@@ -4441,7 +4567,7 @@ void lower_omp(SgSourceFile* file)
     insertRTLHeaders(file);
   insertRTLinitAndCleanCode(file);
   
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
     
   // FIXME This should not be here. If the compilation is multifile or it has no main, then it will fail! 
 
@@ -4450,7 +4576,7 @@ void lower_omp(SgSourceFile* file)
   {
     SgScopeStatement* main_sc = main_decl->get_definition()->get_scope(); 
     
-    /*! Initialize the OpenMP NANOX interface 
+    /*! Initialize the OpenMP NANOS interface 
     * __attribute__((weak, section("nanos_init"))) nanos_init_desc_t __section__nanos_init = {
     *   nanos_omp_set_interface,
     *   (void *) 0
