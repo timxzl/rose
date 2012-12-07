@@ -402,6 +402,30 @@ AttachPreprocessingInfoTreeTrav::iterateOverListAndInsertPreviouslyUninsertedEle
                         }
                    }
                }
+               // Sara Royuela (Nov 9th, 2012)
+               // When collecting comment and directives, 
+               // we attach preprocessed info comming from headers without any SgLocated node to the current SgFile
+               else if( sourceFile->get_collectAllCommentsAndDirectives() )
+               {
+                   if (currentPreprocessingInfoPtr -> getTypeOfDirective() == PreprocessingInfo::CpreprocessorIncludeDeclaration) {
+                       string includedFileName = sourceFile -> get_project() -> findIncludedFile(currentPreprocessingInfoPtr);
+                       if( includedFileName.size() > 0 )
+                       {
+                           int fileNameId = Sg_File_Info::getIDFromFilename(includedFileName);
+                           // We only add the preprocessor directives and comments to file only in the case the file only contains preprocessor information
+                           // When this occurs, the file is not present in the map at this point 
+                           if (fileNameId < 0) { 
+                               fileNameId = Sg_File_Info::addFilenameToMap(includedFileName);
+                               ROSEAttributesList* headerAttributes = getListOfAttributes(fileNameId);
+                               if( headerAttributes->size() )
+                               {
+                                   string filename = sourceFile->get_sourceFileNameWithPath();
+                                   sourceFile->get_preprocessorDirectivesAndCommentsList()->addList(filename, headerAttributes);
+                               }
+                           }
+                       }
+                   }   
+               }
                
 #else
             // Removed older equivalent code!
@@ -864,7 +888,6 @@ AttachPreprocessingInfoTreeTrav::evaluateInheritedAttribute (
           SgAggregateInitializer * a_initor = isSgAggregateInitializer (n);
        if (statement != NULL || i_name != NULL || a_initor != NULL)
        {
-
           SgLocatedNode* currentLocNodePtr = NULL;
            int line = 0;
            int col  = 0;
@@ -885,6 +908,7 @@ AttachPreprocessingInfoTreeTrav::evaluateInheritedAttribute (
            printf ("(SgStatement) currentFileNameId = %d \n",currentFileNameId);
            printf ("(SgStatement) currentFileName for currentFileNameId = %s \n",Sg_File_Info::getFilenameFromID(currentFileNameId).c_str());
 #endif
+           
            ROSEAttributesList* currentListOfAttributes = getListOfAttributes(currentFileNameId);
 
            //printf ("currentListOfAttributes = %p \n",currentListOfAttributes);
