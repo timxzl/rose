@@ -1,7 +1,7 @@
 % This is termite_spec.pl, a tree grammar (abstract syntax specification) to
 % be used with term_lint. It defines the structure of Termite terms.
-% Author: Gergo Barany <gergo@complang.tuwien.ac.at>
-
+% Original author: Gergo Barany <gergo@complang.tuwien.ac.at>
+% Maintainer:     Adrian Prantl <adrian@complang.tuwien.ac.at>
 
 % TODO with the grammar itself:
 % - see if there is anything missing (valid terms are not covered)
@@ -484,8 +484,12 @@ size_of_op_annotation ::=
                           preprocessing_info).
 
 value_annotation ::=
-    enum_value_annotation(number_or_string, number_or_string, name, preprocessing_info)
+    enum_value_annotation(number_or_string, number_or_string, enum_type, preprocessing_info)
+    | string_value_annotation(name, name, name, preprocessing_info)
     | value_annotation(number_or_string, preprocessing_info).
+
+enum_type ::=
+    enum_type(name).
 
 binary_op_annotation ::=
     binary_op_annotation(type, preprocessing_info).
