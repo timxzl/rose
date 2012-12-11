@@ -18,8 +18,11 @@ extern "C" {
 
 void NANOS_parallel( void (*) (void *), void *, unsigned, long, long (*) (void), void *, void (*) (void *, void *));
 
-void NANOS_task(void (*) (void *), void (*), long, long (*) (void), bool, unsigned, void *, void (*) (void *, void *), 
-                int, void *, int (*) (int [], int ), void* deps_data, void* (*get_dep_data) (void* [], int ));
+void NANOS_task(void (*) (void *), void (*), 
+                long, long (*) (void), bool, unsigned, 
+                void *, void (*) (void *, void *), 
+                int, int*, void**, 
+                int*, nanos_region_dimension_t**);
 
 void NANOS_loop(void*, void*, void*, int, int, void (*) (void *), void *, void *, long, long (*)(void), void *, void (*) (void *, void *));
 

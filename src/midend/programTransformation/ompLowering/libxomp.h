@@ -15,6 +15,10 @@ extern "C" {
 #include <stdbool.h>
 #include <stdlib.h> // for abort()
 
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+#include "nanos-int.h"
+#endif
+
 //enum omp_rtl_enum {
 //  e_gomp,
 //  e_omni,
@@ -36,7 +40,7 @@ extern void XOMP_terminate (int exitcode);
 // numThreadsSpecified: set to the expression of num_threads clause if the clause exists, or default is 0
 extern void XOMP_parallel_start (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified);
 extern void XOMP_parallel_end (void);
-
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
 // Method for parallel when NANOS library. In addition to the parameters of the regular XOMP call for parallel:
 // data_size: size of the data segment used as argument of 'func'
 // get_data_align: method that will compute the alignment of the data segment used as argument of 'func' at runtime
@@ -45,29 +49,30 @@ extern void XOMP_parallel_end (void);
 // init_func: function that initialized 'empty_data' with the values of the members in 'data'
 extern void XOMP_parallel_for_NANOS (void (*func) (void*), void* data, unsigned ifClauseValue, unsigned numThreadsSpecified,
                                      long data_size, long (*get_data_align) (void), void* empty_data, void (*init_func) (void*, void*));
-// nanos_team: team that has to be finalized
+#endif
 
 /* Initialize sections and return the next section id (starting from 0) to be executed by the current thread */
 extern int XOMP_sections_init_next(int section_count); 
-
 /* Return the next section id (starting from 0) to be executed by the current thread. Return value <0 means no sections left */
 extern int XOMP_sections_next(void); 
-
 /* Called after the current thread is told that all sections are executed. It synchronizes all threads also. */
 extern void XOMP_sections_end(void);
-
 /* Called after the current thread is told that all sections are executed. It does not synchronizes all threads. */
 extern void XOMP_sections_end_nowait(void);
-
-// Method for sections when NANOS library.
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
 extern void XOMP_sections_for_NANOS(int num_sections, bool must_wait, ... );
+#endif
 
 extern void XOMP_task (void (*) (void *), void *, void (*) (void *, void *),
                        long, long, bool, unsigned);
-extern void XOMP_task_for_NANOS(void (*fn) (void *), void *data, long data_size, long (*get_data_align) (void), 
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+extern void XOMP_task_for_NANOS(void (*fn) (void *), void * data, long data_size, long (*get_data_align) (void), 
                                 bool if_clause, unsigned untied, void* empty_data, void (*init_func) (void*, void*),
-                                int num_deps, void * deps_direction, int (*get_dep_direction) (int [], int ), 
-                                void* deps_data, void* (*get_dep_data) (void* [], int ));
+                                int num_deps, int * deps_direction, void ** deps_data, 
+                                int * deps_n_dims, nanos_region_dimension_t ** deps_dims/*,
+                                nanos_region_dimension_t(*)[] deps_dims, 
+                                nanos_region_dimension_t (*get_dep_dims)( nanos_region_dimension_t(*)[], int )*/);
+#endif
 extern void XOMP_taskwait (void);
 
 // scheduler functions, union of runtime library functions
@@ -90,11 +95,11 @@ extern void XOMP_loop_ordered_static_init(int lower, int upper, int stride, int 
 extern void XOMP_loop_ordered_dynamic_init(int lower, int upper, int stride, int chunk_size);
 extern void XOMP_loop_ordered_guided_init(int lower, int upper, int stride, int chunk_size);
 extern void XOMP_loop_ordered_runtime_init(int lower, int upper, int stride);
-
-// Specific method for Nanos++
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
 extern void XOMP_loop_for_NANOS (void* start, void* end, void* incr, int chunk, int policy,
                                  void (*func) (void *), void *data, void * data_wsd, long arg_size, long (*get_arg_align)(void), 
                                  void * empty_data, void (* init_func) (void *, void *)/*, void * ws_policy*/);
+#endif
 
 // if (start), 
 // mostly used because of gomp, omni will just call  XOMP_loop_xxx_next();
@@ -132,7 +137,9 @@ extern bool XOMP_master(void);
 
 extern void XOMP_atomic_start (void);
 extern void XOMP_atomic_end (void);
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
 extern void XOMP_atomic_for_NANOS (int, int, void *, void *);
+#endif
 
 extern void XOMP_loop_end (void);
 extern void XOMP_loop_end_nowait (void);

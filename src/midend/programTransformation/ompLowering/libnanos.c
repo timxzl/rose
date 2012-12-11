@@ -98,11 +98,12 @@ void NANOS_parallel(void (*func) (void *), void *data, unsigned numThreads, long
     nanos_handle_error(err);
 }
 
-void NANOS_task(void (*func) (void *), void *data,
+void NANOS_task(void (*func) (void *), void * data,
                 long data_size, long (*get_data_align) (void), bool if_clause, unsigned untied, 
                 void* empty_data, void (*init_func) (void *, void *),
-                int num_deps, void * deps_direction, int (*get_dep_direction) (int [], int ),
-                void* deps_data, void* (*get_dep_data) (void* [], int ))
+                int num_deps, int * deps_direction, void ** deps_data, 
+                int * deps_n_dims, nanos_region_dimension_t ** deps_dims/*, 
+                nanos_region_dimension_t (*get_dep_dims)( nanos_region_dimension_t(*)[], int )*/ )
 {
   // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
   int num_copies = 0;
@@ -160,40 +161,35 @@ void NANOS_task(void (*func) (void *), void *data,
       nanos_data_access_t data_accesses_array[num_data_accesses];
       data_accesses = &data_accesses_array[num_data_accesses];
       
-      int access, dim;
+      int access;
       for(access=0; access<num_data_accesses; access++)
       {
           // Dimensions of the data access
-//           const int num_dimensions = 1;
-//           nanos_region_dimension_t* dimensions;
-//           dimensions = (nanos_region_dimension_t*) malloc(num_dimensions * sizeof(nanos_region_dimension_t)); 
-//           for(dim=0; dim<num_dimensions; dim++)
-//           {
-//               nanos_region_dimension_t current_dim = {
-//                   sizeof(float **),                         // size of the dimension
-//                   0,                                        // lower bound
-//                   sizeof(float **)                          // accessed length
-//               };
-//               dimensions[dim] = current_dim; 
-//           }
+          const int num_dimensions = deps_n_dims[access];
+          nanos_region_dimension_t* dimensions;
+          dimensions = (nanos_region_dimension_t*) malloc(num_dimensions * sizeof(nanos_region_dimension_t));
+          int dim = 0; 
+          for(dim=0; dim<num_dimensions; dim++)
+          {
+              dimensions[dim] = deps_dims[access][dim]; 
+          }
           
           // Actual data access
-//           nanos_data_access_t current_data_access = {
-//               deps_data[access],               // base address of the accessed range  
-//               {                                         // internal flags
-//                   ( deps_direction[access] == e_dep_dir_input                       // is input dependency
-//                           || deps_direction[access] == e_dep_dir_inout ) ? 1 : 0,
-//                   ( deps_direction[access] == e_dep_dir_output                      // is output dependency
-//                           || deps_direction[access] == e_dep_dir_inout ) ? 1 : 0,
-//                   1,                                                                // can rename
-//                   0,                                                                // is concurrent
-//                   0                                                                 // is commutative
-//               },
-//               num_dimensions,                           // number of dimensions
-//               dimensions,                               // dimensions data
-//               0                                         // offset of the first element
-//           };
-//           data_accesses[access] = current_data_access; 
+          int dep_dir = deps_direction[access];
+          nanos_data_access_t current_data_access = {
+              deps_data[access],               // base address of the accessed range  
+              {                                         // internal flags
+                  ( dep_dir == e_dep_dir_input || dep_dir == e_dep_dir_inout ) ? 1 : 0,     // is input dependency
+                  ( dep_dir == e_dep_dir_output || dep_dir == e_dep_dir_inout ) ? 1 : 0,    // is output dependency
+                  1,                                                                        // can rename
+                  0,                                                                        // is concurrent
+                  0                                                                         // is commutative
+              },
+              num_dimensions,                  // number of dimensions
+              dimensions,                      // dimensions data
+              0                                // offset of the first element
+          };
+          data_accesses[access] = current_data_access; 
       } 
   }
   

@@ -507,11 +507,13 @@ void XOMP_task (void (*fn) (void *), void *data, void (*cpyfn) (void *, void *),
 
 void XOMP_task_for_NANOS(void (*fn) (void *), void *data, long data_size, long (*get_data_align) (void), 
                          bool if_clause, unsigned untied, void* empty_data, void (*init_func) (void*, void*),
-                         int num_deps, void * deps_direction, int (*get_dep_direction) (int [], int ), 
-                         void* deps_data, void* (*get_dep_data) (void* [], int ))
+                         int num_deps, int * deps_direction, void ** deps_data, 
+                         int * deps_n_dims, nanos_region_dimension_t ** deps_dims)
 {
-  NANOS_task(fn, data, data_size, get_data_align, if_clause, untied, empty_data, init_func, 
-             num_deps, deps_direction, get_dep_direction, deps_data, get_dep_data);
+  NANOS_task(fn, data, data_size, get_data_align, if_clause, untied, 
+             empty_data, init_func, 
+             num_deps, deps_direction, deps_data, 
+             deps_n_dims, deps_dims);
 }
 
 #endif

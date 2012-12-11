@@ -677,6 +677,7 @@ static void insert_libxompf_h(SgNode* startNode)
   } 
 }
 
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
 static SgExpression* build_nanos_empty_struct(SgStatement* omp_stmt, SgScopeStatement* sc, SgType* struct_type, std::string base_name)
 {
   SgName empty_struct_name = "empty_" + base_name;
@@ -792,6 +793,7 @@ SgExpression* build_nanos_get_alignof(SgStatement* ancestor, std::string& wrappe
   SgFunctionSymbol* func_sym = isSgFunctionSymbol(func_decl->get_symbol_from_symbol_table());
   return buildFunctionRefExp(func_sym);
 }
+#endif
 
 #ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
   //! Translate an omp for loop with non-static scheduling clause or with ordered clause ()
@@ -2680,6 +2682,191 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
 
 
   //! Translate omp task
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+
+  // Get dependency clauses from 'task'
+  void get_dependency_clauses( SgOmpTaskStatement* task, SgExprListExp* & dependences_direction, SgExprListExp* & dependences_data, int & n_deps )
+  {
+      n_deps = 0;
+      if (hasClause(task, V_SgOmpInputClause))
+      {
+          Rose_STL_Container<SgOmpClause*> input_clauses = getClause(task, V_SgOmpInputClause);
+          for(Rose_STL_Container<SgOmpClause*>::iterator it = input_clauses.begin(); it != input_clauses.end(); it++)
+          {
+              SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpInputClause(*it))->get_variables();
+              for(SgVarRefExpPtrList::iterator it = refs.begin(); it != refs.end(); it++)
+              {
+                  dependences_direction->append_expression(buildIntVal(e_dep_dir_input));
+                  dependences_data->append_expression(*it);
+                  n_deps++;
+              }
+          }
+      }
+      if (hasClause(task, V_SgOmpOutputClause))
+      {
+          Rose_STL_Container<SgOmpClause*> output_clauses = getClause(task, V_SgOmpOutputClause);
+          for(Rose_STL_Container<SgOmpClause*>::iterator it = output_clauses.begin(); it != output_clauses.end(); it++)
+          {
+              SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpOutputClause(*it))->get_variables();
+              for(SgVarRefExpPtrList::iterator it = refs.begin(); it != refs.end(); it++)
+              {
+                  dependences_direction->append_expression(buildIntVal(e_dep_dir_output));
+                  dependences_data->append_expression(*it);
+                  n_deps++;
+              }
+          }
+      }
+      if (hasClause(task, V_SgOmpInoutClause))
+      {
+          Rose_STL_Container<SgOmpClause*> inout_clauses = getClause(task, V_SgOmpInoutClause);
+          for(Rose_STL_Container<SgOmpClause*>::iterator it = inout_clauses.begin(); it != inout_clauses.end(); it++)
+          {
+              SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpInoutClause(*it))->get_variables();
+              for(SgVarRefExpPtrList::iterator it = refs.begin(); it != refs.end(); it++)
+              {
+                  dependences_direction->append_expression(buildIntVal(e_dep_dir_inout));
+                  dependences_data->append_expression(*it);
+                  n_deps++;
+              }
+          }
+      }
+  }
+  
+  // Create the dependency arrays containing
+  //        - the dependencies direction (input, output, inout)
+  //        - the dependencies data (object which is the actual dependency)
+  // The parameters of the function define which of the two arrays is created
+  // This method return a reference to the created array 
+  // Example:
+  //        Input code:
+  //            #pragma omp task inout(x) input(y)
+  //            {}
+  //        Code generated with this method:
+  //            int __deps_direction0__[] = {(0), (2)}; // base_array_name="deps_direction", array_type=int []
+  //            void *__deps_data1__[] = {(y), (x)};    // base_array_name="deps_data", array_type=void* []
+  SgExpression* build_nanos_dependencies_array(SgExprListExp* dependences, std::string & array_name, SgArrayType* array_type,
+          SgOmpTaskStatement* task, SgScopeStatement* scope)
+  {
+      array_name = SageInterface::generateUniqueVariableName(scope, array_name);
+      SgExprListExp* initializers = buildExprListExp();
+      SgExpressionPtrList dependences_exprs = dependences->get_expressions();
+      for(SgExpressionPtrList::iterator dep_dir=dependences_exprs.begin(); dep_dir!=dependences_exprs.end(); dep_dir++)
+      {
+          // FIXME When "*dep_dir" is not pointer nor array, this gives the warning:
+          // "initialization makes pointer from integer without a cast"
+          initializers->append_expression(buildAssignInitializer(*dep_dir, buildPointerType(buildVoidType())));
+      }
+      SgInitializer* initializers_array = buildAggregateInitializer(initializers, array_type);
+      SgVariableDeclaration* array_decl = buildVariableDeclaration(SgName(array_name), array_type, initializers_array, scope);
+      SageInterface::insertStatementBefore(task, array_decl);
+      
+      return buildVarRefExp(array_name, scope);
+  }
+  
+  void build_nanos_dependencies_dimension_array(std::string & all_dims_name, std::string & n_dims_name,
+                                                SgExprListExp* dependences_data, 
+                                                SgOmpTaskStatement* task, SgScopeStatement* scope,
+                                                SgExpression* & all_dims_ref, SgExpression* & n_dims_ref)
+  {
+      // For each dependency, we build an array of 'nanos_region_dimension_t' with n_dim elements
+      //       {
+      //          { size_t /*dimension size*/, size_t /*lower bound accessed*/, size_t /*length accessed*/}, /*Dim 0*/
+      //          ...,
+      //          { size_t /*dimension size*/, size_t /*lower bound accessed*/, size_t /*length accessed*/}  /*Dim N*/
+      //       }
+      SgExprListExp* all_dims_initializers = buildExprListExp();
+      
+      // Build an array containing the number of dimensions of each dependency
+      SgExprListExp* n_dims_initializers = buildExprListExp();
+      
+      SgExpressionPtrList dependences_exprs = dependences_data->get_expressions();
+      int n_deps = 0;
+      for(SgExpressionPtrList::iterator dep_dir=dependences_exprs.begin(); dep_dir!=dependences_exprs.end(); dep_dir++)
+      {
+          // Build the dimensions struct for the current dependence
+          SgType* dep_type = (*dep_dir)->get_type();
+          int n_dims = 0;
+          SgExprListExp* dep_dim_info;
+          if(isSgArrayType(dep_type))
+          {
+              n_dims = isSgArrayType(dep_type)->get_rank();
+              dep_dim_info = isSgArrayType(dep_type)->get_dim_info(); 
+          }
+          else
+          {
+              n_dims = 1;
+              dep_dim_info = buildExprListExp(*dep_dir);
+          }
+          ROSE_ASSERT(dep_dim_info != NULL);
+          SgExpressionPtrList dep_dim_info_exprs = dep_dim_info->get_expressions();
+          SgExprListExp* dep_dims_initializers = buildExprListExp();
+          SgExprListExp* dim_initializers = buildExprListExp();
+          for ( SgExpressionPtrList::iterator dim=dep_dim_info_exprs.begin(); dim!=dep_dim_info_exprs.end(); dim++ )
+          {
+              // First expression is the size of the dimension
+              // FIXME Size can change when depedence type is array or pointer of arrays
+              SgExpression* sizeof_dim = buildSizeOfOp((*dim)->get_type());
+//           if( isSgArrayType(dep_type) ) {
+//               SgArrayType* dep_array_type = isSgArrayType(dep_type);
+//               int n_dims = dep_array_type->get_rank();
+//               for(int i=0; i<n_dims; i++) {
+//                   // sizeof_dim = buildSgMultiplyOp(buildSizeOfOp(dep_array_type), dep_array_type->get_index());
+//               }
+//           }
+//           else if( isSgPointerType(dep_type) ) {
+              //               
+//           }
+//           else {
+//               sizeof_dim = buildSizeOfOp(dep_type);
+//           }
+              dim_initializers->append_expression(buildAssignInitializer(sizeof_dim));
+              // Second expression is the lower bound
+              // FIXME For more than one dimension, this can be different!
+              SgExpression* lower_bound = buildIntVal(0);
+              dim_initializers->append_expression(buildAssignInitializer(lower_bound));
+              // Third expression is the accessed length
+              // Since we don't support array sections, the length will always be equal to the size of the dimension
+              SgTreeCopy tc;
+              SgExpression* accessed_length = isSgExpression(sizeof_dim->copy(tc));
+              dim_initializers->append_expression(buildAssignInitializer(accessed_length));
+              
+              // Create the initializer for the current dimension
+              SgType* dim_type = buildOpaqueType("nanos_region_dimension_t", scope);
+              dep_dims_initializers->append_expression(buildAggregateInitializer(dim_initializers, dim_type));
+          }
+          
+          // Create the current dependence dimension
+          SgType* dep_dims_elem_type = buildArrayType(buildOpaqueType("nanos_region_dimension_t", scope), buildIntVal(n_dims));
+          SgInitializer* dep_initializers_array = buildAggregateInitializer(dep_dims_initializers, dep_dims_elem_type);
+          all_dims_initializers->append_expression(dep_initializers_array);
+          
+          // Add the initializer for the array of number of dimensions
+          n_dims_initializers->append_expression(buildAssignInitializer(buildIntVal(n_dims)));
+          
+          n_deps++;
+      }
+      // Create the array of dimensions
+      all_dims_name = SageInterface::generateUniqueVariableName(scope, all_dims_name);
+      SgType* all_dims_type = buildArrayType(buildArrayType(buildOpaqueType("nanos_region_dimension_t", scope), buildIntVal(n_deps)), 
+                                               NULL /* Different size for each dependency's dimensions array */);
+      SgInitializer* all_dims_initializers_array = buildAggregateInitializer(all_dims_initializers, all_dims_type);
+      SgVariableDeclaration* all_dims_array_decl = buildVariableDeclaration(SgName(all_dims_name), all_dims_type,
+                                                                            all_dims_initializers_array, scope);
+      SageInterface::insertStatementBefore(task, all_dims_array_decl);
+      all_dims_ref = buildVarRefExp(all_dims_name, scope);
+      
+      // Create the array with the number of dimensions
+      n_dims_name = SageInterface::generateUniqueVariableName(scope, n_dims_name);
+      SgType* n_dims_type = buildArrayType(buildIntType(), buildIntVal(n_deps));
+      SgInitializer* n_dims_initializers_array = buildAggregateInitializer(n_dims_initializers, n_dims_type);
+      SgVariableDeclaration* n_dims_array_decl = buildVariableDeclaration(SgName(n_dims_name), n_dims_type,
+                                                                          n_dims_initializers_array, scope);
+      SageInterface::insertStatementBefore(task, n_dims_array_decl);
+      n_dims_ref = buildVarRefExp(n_dims_name, scope);
+  }
+  
+#endif
+  
   /*
   The translation of omp task is similar to the one for omp parallel
   Please remember to call patchUpFirstprivateVariables() before this function to make implicit firstprivate
@@ -2924,156 +3111,43 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       // Function that initializes the empty struct
       SgExpression* parameter_init_func = build_nanos_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl);
       
-      // Check for dependency clauses
+      // Collect dependency clauses
       SgExprListExp* dependences_direction = buildExprListExp();
       SgExprListExp* dependences_data = buildExprListExp();
-      int n_deps = 0;
-      if (hasClause(target, V_SgOmpInputClause))
-      {
-          Rose_STL_Container<SgOmpClause*> input_clauses = getClause(target, V_SgOmpInputClause);
-          for(Rose_STL_Container<SgOmpClause*>::iterator it = input_clauses.begin(); it != input_clauses.end(); it++)
-          {
-              SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpInputClause(*it))->get_variables();
-              for(SgVarRefExpPtrList::iterator it = refs.begin(); it != refs.end(); it++)
-              {
-                  dependences_direction->append_expression(buildIntVal(e_dep_dir_input));
-                  dependences_data->append_expression(*it);
-                  n_deps++;
-              }
-          }
-      }
-      if (hasClause(target, V_SgOmpOutputClause))
-      {
-          Rose_STL_Container<SgOmpClause*> output_clauses = getClause(target, V_SgOmpOutputClause);
-          for(Rose_STL_Container<SgOmpClause*>::iterator it = output_clauses.begin(); it != output_clauses.end(); it++)
-          {
-              SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpOutputClause(*it))->get_variables();
-              for(SgVarRefExpPtrList::iterator it = refs.begin(); it != refs.end(); it++)
-              {
-                  dependences_direction->append_expression(buildIntVal(e_dep_dir_output));
-                  dependences_data->append_expression(*it);
-                  n_deps++;
-              }
-          }
-      }
-      if (hasClause(target, V_SgOmpInoutClause))
-      {
-          Rose_STL_Container<SgOmpClause*> inout_clauses = getClause(target, V_SgOmpInoutClause);
-          for(Rose_STL_Container<SgOmpClause*>::iterator it = inout_clauses.begin(); it != inout_clauses.end(); it++)
-          {
-              SgVarRefExpPtrList refs = isSgOmpVariablesClause(isSgOmpInoutClause(*it))->get_variables();
-              for(SgVarRefExpPtrList::iterator it = refs.begin(); it != refs.end(); it++)
-              {
-                  dependences_direction->append_expression(buildIntVal(e_dep_dir_inout));
-                  dependences_data->append_expression(*it);
-                  n_deps++;
-              }
-          }
-      }
+      int n_deps;
+      get_dependency_clauses( target, dependences_direction, dependences_data, n_deps );
       
       SgExpression* parameter_num_dependencies = buildIntVal(n_deps);
       
       // Build the dependencies direction array
-      SgName deps_direction_array_name(SageInterface::generateUniqueVariableName(p_scope, "deps_direction"));
-      SgArrayType* deps_direction_array_type = buildArrayType(buildIntType());
-      SgExprListExp* deps_direction_initializers = buildExprListExp();
-      SgExpressionPtrList dependences_direction_exprs = dependences_direction->get_expressions();
-      for(SgExpressionPtrList::iterator dep_dir=dependences_direction_exprs.begin(); dep_dir!=dependences_direction_exprs.end(); dep_dir++)
-      {
-          deps_direction_initializers->append_expression(buildAssignInitializer(*dep_dir, buildIntType()));
-      }
-      SgInitializer* deps_direction_array_initializer = buildAggregateInitializer(deps_direction_initializers, deps_direction_array_type);
-      SgVariableDeclaration* deps_direction_array_decl = buildVariableDeclaration(deps_direction_array_name, deps_direction_array_type,
-                                                                                  deps_direction_array_initializer, p_scope);
-      SageInterface::insertStatementBefore(target, deps_direction_array_decl);
-      
-      SgVarRefExp* deps_direction_array_ref = buildVarRefExp(deps_direction_array_name, p_scope);
-      SgExpression* parameter_deps_direction =  buildAddressOfOp(deps_direction_array_ref);
-      
-      // Create the function that will retrieve an specific element of the dependencies direction array to the nanox wrapper
-            // Build the parameters to the function
-      SgFunctionParameterList* get_dep_direction_params = buildFunctionParameterList();
-      SgName deps_direction_param_name("deps_direction");
-      SgInitializedName* deps_direction_array_param = buildInitializedName(deps_direction_param_name, deps_direction_array_type);
-      appendArg(get_dep_direction_params, deps_direction_array_param);
-      SgName deps_direction_subscript_param_name("index");
-      SgInitializedName* deps_direction_subscript_param = buildInitializedName(deps_direction_subscript_param_name, buildIntType());
-      appendArg(get_dep_direction_params, deps_direction_subscript_param);
-            // Build the function definition
-      SgName get_dep_direction_func_name = "get_" + deps_direction_array_name.getString() + "_element";
-      SgFunctionDeclaration* get_dep_direction_func_def = SageBuilder::buildDefiningFunctionDeclaration(get_dep_direction_func_name, buildIntType(), 
-                                                                                                        get_dep_direction_params, ancestor_st->get_scope());
-      SageInterface::setStatic(get_dep_direction_func_def);
-      insertStatementAfter(ancestor_st, get_dep_direction_func_def);
-            // Build the function body
-      SgBasicBlock* get_dep_direction_func_body = get_dep_direction_func_def->get_definition()->get_body();
-      ROSE_ASSERT(get_dep_direction_func_body != NULL);
-      SgPntrArrRefExp* dep_direction = buildPntrArrRefExp(buildVarRefExp(deps_direction_array_param), 
-                                                          buildVarRefExp(deps_direction_subscript_param));
-      appendStatement(buildReturnStmt(dep_direction), get_dep_direction_func_body);
-            // Build the function declaration
-      SgFunctionDeclaration* get_dep_direction_func_decl = buildNondefiningFunctionDeclaration(get_dep_direction_func_def, isSgGlobal(ancestor_st));
-      SageInterface::setStatic(get_dep_direction_func_decl);
-      insertStatementBefore(ancestor_st, get_dep_direction_func_decl);
-      
-      // Create the parameter with the get_dep_direction_func for the XOMP_task_for_NANOS
-      SgFunctionSymbol* get_dep_direction_func_sym = isSgFunctionSymbol(get_dep_direction_func_decl->get_symbol_from_symbol_table());
-      SgFunctionType* get_dep_direction_func_casting_type = buildFunctionType(buildIntType(), buildFunctionParameterTypeList(deps_direction_array_type, buildIntType()));
-      SgExpression* parameter_get_dep_direction = buildCastExp(buildFunctionRefExp(get_dep_direction_func_sym), buildPointerType(get_dep_direction_func_casting_type));
+      std::string direction_array_name = "deps_direction";
+      SgType* direction_array_element_type = buildIntType();
+      SgArrayType* direction_array_type = buildArrayType(direction_array_element_type);
+      SgExpression* parameter_deps_direction = 
+              build_nanos_dependencies_array(dependences_direction, direction_array_name, direction_array_type, 
+                                             target, p_scope);
       
       // Build the dependencies array
-      SgName deps_data_array_name(SageInterface::generateUniqueVariableName(p_scope, "deps_data"));
-      SgArrayType* deps_data_array_type = buildArrayType(buildPointerType(buildVoidType()));
-      SgExprListExp* deps_data_initializers = buildExprListExp();
-      SgExpressionPtrList dependences_data_exprs = dependences_data->get_expressions();
-      for(SgExpressionPtrList::iterator dep_data=dependences_data_exprs.begin(); dep_data!=dependences_data_exprs.end(); dep_data++)
-      {
-          deps_data_initializers->append_expression(buildAssignInitializer(*dep_data, buildIntType()));
-      }
-      SgInitializer* deps_data_array_initializer = buildAggregateInitializer(deps_data_initializers, deps_data_array_type);
-      SgVariableDeclaration* deps_data_array_decl = buildVariableDeclaration(deps_data_array_name, deps_data_array_type,
-                                                                             deps_data_array_initializer, p_scope);
-      SageInterface::insertStatementBefore(target, deps_data_array_decl);
+      std::string data_array_name = "deps_data";
+      SgType* data_array_element_type = buildPointerType(buildVoidType());
+      SgArrayType* data_array_type = buildArrayType(data_array_element_type);
+      SgExpression* parameter_deps_data = 
+              build_nanos_dependencies_array(dependences_data, data_array_name, data_array_type, 
+                                             target, p_scope);
       
-      SgVarRefExp* deps_data_array_ref = buildVarRefExp(deps_data_array_name, p_scope);
-      SgExpression* parameter_deps_data =  buildAddressOfOp(deps_data_array_ref);
-      
-      // Create the function that will retrieve an specific element of the dependencies array to the nanox wrapper
-            // Build the parameters to the function
-      SgFunctionParameterList* get_dep_data_params = buildFunctionParameterList();
-      SgName deps_data_param_name("deps_data");
-      SgInitializedName* deps_data_array_param = buildInitializedName(deps_data_param_name, deps_data_array_type);
-      appendArg(get_dep_data_params, deps_data_array_param);
-      SgName deps_data_subscript_param_name("index");
-      SgInitializedName* deps_data_subscript_param = buildInitializedName(deps_data_subscript_param_name, buildIntType());
-      appendArg(get_dep_data_params, deps_data_subscript_param);
-            // Build the function definition
-      SgName get_dep_data_func_name = "get_" + deps_data_array_name.getString() + "_element";
-      SgFunctionDeclaration* get_dep_data_func_def = SageBuilder::buildDefiningFunctionDeclaration(get_dep_data_func_name, buildPointerType(buildVoidType()), 
-              get_dep_data_params, ancestor_st->get_scope());
-      SageInterface::setStatic(get_dep_data_func_def);
-      insertStatementAfter(ancestor_st, get_dep_data_func_def);
-            // Build the function body
-      SgBasicBlock* get_dep_data_func_body = get_dep_data_func_def->get_definition()->get_body();
-      ROSE_ASSERT(get_dep_data_func_body != NULL);
-      SgPntrArrRefExp* dep_data = buildPntrArrRefExp(buildVarRefExp(deps_data_array_param), 
-                                                     buildVarRefExp(deps_data_subscript_param));
-      appendStatement(buildReturnStmt(dep_data), get_dep_data_func_body);
-            // Build the function declaration
-      SgFunctionDeclaration* get_dep_data_func_decl = buildNondefiningFunctionDeclaration(get_dep_data_func_def, isSgGlobal(ancestor_st));
-      SageInterface::setStatic(get_dep_data_func_decl);
-      insertStatementBefore(ancestor_st, get_dep_data_func_decl);
-      
-      // Create the parameter with the get_dep_direction_func for the XOMP_task_for_NANOS
-      SgFunctionSymbol* get_dep_data_func_sym = isSgFunctionSymbol(get_dep_data_func_decl->get_symbol_from_symbol_table());
-      SgFunctionType* get_dep_data_func_casting_type = buildFunctionType(buildPointerType(buildVoidType()), 
-                                                                         buildFunctionParameterTypeList(deps_data_array_type, buildIntType()));
-      SgExpression* parameter_get_dep_data = buildCastExp(buildFunctionRefExp(get_dep_data_func_sym), buildPointerType(get_dep_data_func_casting_type));
+      // Build the dependencies dimension array
+      std::string dims_array_name = "deps_dimensions";
+      std::string n_dims_array_name = "deps_n_dimensions";
+      SgExpression * parameter_deps_dims, * parameter_n_dims;
+      build_nanos_dependencies_dimension_array(dims_array_name, n_dims_array_name, dependences_data, 
+                                               target, p_scope, 
+                                               parameter_deps_dims, parameter_n_dims);
       
       // Parameters to the NANOS function call
       SgExpression* array_params[] = { buildFunctionRefExp(outlined_func), parameter_data, parameter_arg_size, parameter_arg_align,
           parameter_if_clause, parameter_untied, parameter_empty_st, parameter_init_func,
-          parameter_num_dependencies, parameter_deps_direction, parameter_get_dep_direction, parameter_deps_data, parameter_get_dep_data };
+          parameter_num_dependencies, parameter_deps_direction, 
+          parameter_deps_data, parameter_n_dims, parameter_deps_dims };
       std::vector<SgExpression*> vector_params(array_params, array_params + sizeof(array_params) / sizeof(SgExpression*) );
       parameters = buildExprListExp(vector_params);
 #else
