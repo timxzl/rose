@@ -1833,7 +1833,7 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
   // Variable handling is done after Outliner::preprocess() to ensure a basic block for the body,
   // but before calling the actual outlining 
   // This simplifies the outlining since firstprivate, private variables are replaced 
-  //with their local copies before outliner is used 
+  // with their local copies before outliner is used 
   transOmpVariables (target, body_block);
 
   ASTtools::VarSymSet_t pSyms, fpSyms,reductionSyms, pdSyms;
@@ -1871,12 +1871,8 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
   set_difference (pdSyms2.begin(), pdSyms2.end(),
       p_syms.begin(), p_syms.end(),
       std::inserter(pdSyms3, pdSyms3.begin()));
- 
   // lastprivate and reduction variables cannot be excluded  since write access to their shared copies
 
-// Sara Royuela 13/11/2012
-// This code is not used at all
-#if 0
   // Sara Royuela 24/04/2012
   // When unpacking array variables in the outlined function, it is needed to have access to the size of the array.
   // When this size is a variable (or a operation containing variables), this variable must be added to the arguments of the outlined function.
@@ -1919,7 +1915,6 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
     const SgVariableSymbol* s = *i;
     syms.insert(s);
   }
-#endif
   
   // data structure used to wrap parameters
   if (SageInterface::is_Fortran_language())
