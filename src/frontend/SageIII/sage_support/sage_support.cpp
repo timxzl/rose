@@ -4310,6 +4310,16 @@ SgProject::compileOutput()
         {
        // printf ("In Project::compileOutput(): Compiling numberOfFiles() = %d \n",numberOfFiles());
 
+            // Sara Royuela (Dec 3rd, 2012): Check if the backend compiler is apropriate when using GOMP runtime library
+#ifdef USE_ROSE_GOMP_OPENMP_LIBRARY
+            // The backend compiler must be gcc/g++
+            ROSE_ASSERT( std::string(BACKEND_C_COMPILER_NAME_WITH_PATH).find( "gcc" ) != string::npos );
+            ROSE_ASSERT( std::string(BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH) == "g++" );
+        
+            // The gcc version must be 4.4 or later
+            ROSE_ASSERT( BACKEND_CXX_COMPILER_MAJOR_VERSION_NUMBER >= 4 && BACKEND_CXX_COMPILER_MINOR_VERSION_NUMBER >= 4 );
+#endif
+            
 // case 2: compilation  for each file
        // Typical case
           for (i=0; i < numberOfFiles(); i++)
@@ -4580,8 +4590,15 @@ int SgProject::link ( const std::vector<std::string>& argv, std::string linkerNa
 //     There will be no SgFile at all in this case but we still want to append relevant linking options for OpenMP
      if( SageInterface::getProject()->get_openmp_linking())
      {
+         
+         // Sara Royuela 12/10/2012:  Add GCC version check
+#if (__GNUC__ < 4 || \
+    (__GNUC__ == 4 && (__GNUC_MINOR__ < 4)))
+#warning "GNU version lower than expected"    
+        printf("GCC version must be 4.4.0 or later when linking with GOMP OpenMP Runtime Library\n");
+        ROSE_ASSERT(false);
+#endif
 
-#ifdef USE_ROSE_GOMP_OPENMP_LIBRARY
        // add libxomp.a , Liao 6/12/2010
        string xomp_lib_path(ROSE_INSTALLATION_PATH);
        ROSE_ASSERT (xomp_lib_path.size() != 0);
