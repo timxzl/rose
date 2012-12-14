@@ -102,8 +102,7 @@ void NANOS_task(void (*func) (void *), void * data,
                 long data_size, long (*get_data_align) (void), bool if_clause, unsigned untied, 
                 void* empty_data, void (*init_func) (void *, void *),
                 int num_deps, int * deps_direction, void ** deps_data, 
-                int * deps_n_dims, nanos_region_dimension_t ** deps_dims/*, 
-                nanos_region_dimension_t (*get_dep_dims)( nanos_region_dimension_t(*)[], int )*/ )
+                int * deps_n_dims, nanos_region_dimension_t ** deps_dims)
 {
   // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
   int num_copies = 0;
@@ -197,14 +196,14 @@ void NANOS_task(void (*func) (void *), void * data,
   { // Submit the task to the existing actual working group
     (*init_func)(empty_data, data);
 
-    err = nanos_submit(wd, num_data_accesses, (nanos_data_access_t *) 0, (nanos_team_t) 0);
+    err = nanos_submit(wd, num_data_accesses, data_accesses, (nanos_team_t) 0);
     if (err != NANOS_OK) 
       nanos_handle_error (err);
   }
   else
   { // The task must be run immediately
     err = nanos_create_wd_and_run_compact(&_const_def.base, &dyn_props, data_size, data, num_data_accesses,
-                                          (nanos_data_access_t *) 0, (nanos_copy_data_t *) 0, (void *) 0);
+                                          data_accesses, (nanos_copy_data_t *) 0, (void *) 0);
     if (err != NANOS_OK) 
       nanos_handle_error (err);
   }

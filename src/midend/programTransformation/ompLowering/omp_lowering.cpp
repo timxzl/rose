@@ -759,7 +759,8 @@ static SgExpression* build_nanos_init_arguments_struct_function(SgStatement* anc
       
   SgFunctionSymbol* func_sym = isSgFunctionSymbol(func_decl->get_symbol_from_symbol_table());
   SgFunctionType* casting_func_type = buildFunctionType(buildVoidType(), 
-        buildFunctionParameterTypeList(buildPointerType(buildVoidType()), buildPointerType(buildVoidType())));
+        buildFunctionParameterTypeList(buildPointerType(buildVoidType()),                       
+                                       buildPointerType(buildVoidType())));
   return buildCastExp(buildFunctionRefExp(func_sym), buildPointerType(casting_func_type));
 }
 
@@ -1718,8 +1719,8 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
       SgExpression* param_data_wsd = buildCastExp( buildAddressOfOp(buildDotExp(data, buildVarRefExp(wsd_name, p_scope))), buildPointerType(buildVoidType()));
       SgIntVal* param_arg_size = buildIntVal((syms.size() + 1) * sizeof(void*));
       SgExpression* param_arg_align = build_nanos_get_alignof(ancestor_st, wrapper_name, struct_decl);
-      SgExpression* empty_data = build_nanos_empty_struct(target, p_scope, struct_decl->get_type(), wrapper_name);
-      SgExpression* param_empty_data = buildCastExp(buildAddressOfOp(empty_data), buildPointerType(buildVoidType()));
+      SgExpression* empty_data = buildAddressOfOp(build_nanos_empty_struct(target, p_scope, struct_decl->get_type(), wrapper_name));
+      SgExpression* param_empty_data = buildCastExp(empty_data, buildPointerType(buildVoidType()));
       SgExpression* param_init_func = build_nanos_init_arguments_struct_function(ancestor_st, wrapper_name, struct_decl);
       
       std::vector<SgExpression*> param_list;
@@ -1855,7 +1856,7 @@ SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections
 
   // Assume all parameters need to be passed by reference/pointers first
   std::copy(syms.begin(), syms.end(), std::inserter(pdSyms,pdSyms.begin()));
-
+  
   //exclude firstprivate variables: they are read only in fact
   //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
   SgInitializedNamePtrList fp_vars = collectClauseVariables (target, V_SgOmpFirstprivateClause);
@@ -2779,6 +2780,9 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       // Build an array containing the number of dimensions of each dependency
       SgExprListExp* n_dims_initializers = buildExprListExp();
       
+      // Create the 'nanos_region_dimension_t' in the Global scope, so it is only created once
+      SgType* region_dim_type = buildOpaqueType("nanos_region_dimension_t", getGlobalScope(task));
+      
       SgExpressionPtrList dependences_exprs = dependences_data->get_expressions();
       int n_deps = 0;
       for(SgExpressionPtrList::iterator dep_dir=dependences_exprs.begin(); dep_dir!=dependences_exprs.end(); dep_dir++)
@@ -2831,12 +2835,11 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
               dim_initializers->append_expression(buildAssignInitializer(accessed_length));
               
               // Create the initializer for the current dimension
-              SgType* dim_type = buildOpaqueType("nanos_region_dimension_t", scope);
-              dep_dims_initializers->append_expression(buildAggregateInitializer(dim_initializers, dim_type));
+              dep_dims_initializers->append_expression(buildAggregateInitializer(dim_initializers, region_dim_type));
           }
           
           // Create the current dependence dimension
-          SgType* dep_dims_elem_type = buildArrayType(buildOpaqueType("nanos_region_dimension_t", scope), buildIntVal(n_dims));
+          SgType* dep_dims_elem_type = buildArrayType(region_dim_type, buildIntVal(n_dims));
           SgInitializer* dep_initializers_array = buildAggregateInitializer(dep_dims_initializers, dep_dims_elem_type);
           all_dims_initializers->append_expression(dep_initializers_array);
           
@@ -2847,7 +2850,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       }
       // Create the array of dimensions
       all_dims_name = SageInterface::generateUniqueVariableName(scope, all_dims_name);
-      SgType* all_dims_type = buildArrayType(buildArrayType(buildOpaqueType("nanos_region_dimension_t", scope), buildIntVal(n_deps)), 
+      SgType* all_dims_type = buildArrayType(buildArrayType(region_dim_type, buildIntVal(n_deps)), 
                                                NULL /* Different size for each dependency's dimensions array */);
       SgInitializer* all_dims_initializers_array = buildAggregateInitializer(all_dims_initializers, all_dims_type);
       SgVariableDeclaration* all_dims_array_decl = buildVariableDeclaration(SgName(all_dims_name), all_dims_type,
@@ -2890,7 +2893,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
     ROSE_ASSERT(node != NULL);
     SgOmpTaskStatement* target = isSgOmpTaskStatement(node);
     ROSE_ASSERT (target != NULL);
-
+    
     // Liao 1/24/2011
     // For Fortran code, we have to insert EXTERNAL OUTLINED_FUNC into 
     // the function body containing the parallel region
@@ -4596,6 +4599,12 @@ int patchUpFirstprivateVariables(SgFile*  file)
       vv.push_back(V_SgOmpPrivateClause);
       vv.push_back(V_SgOmpSharedClause);
       vv.push_back(V_SgOmpFirstprivateClause);
+// Sara Royuela: Variables in task dependency clauses are always shared
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+      vv.push_back(V_SgOmpInputClause);
+      vv.push_back(V_SgOmpOutputClause);
+      vv.push_back(V_SgOmpInoutClause);
+#endif
       if (isInClauseVariableList(init_var, target ,vv)) 
         continue;
       // Skip variables which are class/structure members: part of another variable

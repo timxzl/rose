@@ -102,6 +102,8 @@ void XOMP_terminate (int exitcode)
 {
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY
 #elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+    // All tasks must finish before terminating the library
+    XOMP_taskwait();
 #else   
   _ompc_terminate (exitcode);
 #endif    
