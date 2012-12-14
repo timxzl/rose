@@ -2764,6 +2764,24 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       return buildVarRefExp(array_name, scope);
   }
   
+  void fill_dimension_info(SgExpression* dim_size, SgExprListExp*& dep_dims_initializers )
+  {
+      SgExprListExp* dim_initializers = buildExprListExp();
+      
+      dim_initializers->append_expression(buildAssignInitializer(dim_size));
+              // Second expression is the lower bound
+      SgExpression* lower_bound = buildIntVal(0);
+      dim_initializers->append_expression(buildAssignInitializer(lower_bound));
+              // Third expression is the accessed length
+              // Since we don't support array sections, the length will always be equal to the size of the dimension
+      SgTreeCopy tc;
+      SgExpression* accessed_length = isSgExpression(dim_size->copy(tc));
+      dim_initializers->append_expression(buildAssignInitializer(accessed_length));
+              
+              // Create the initializer for the current dimension
+      dep_dims_initializers->append_expression(buildAggregateInitializer(dim_initializers, NULL /*type*/));
+  }
+  
   void build_nanos_dependencies_dimension_array(std::string & all_dims_name, std::string & n_dims_name,
                                                 SgExprListExp* dependences_data, 
                                                 SgOmpTaskStatement* task, SgScopeStatement* scope,
@@ -2789,53 +2807,38 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       {
           // Build the dimensions struct for the current dependence
           SgType* dep_type = (*dep_dir)->get_type();
+          SgType* base_type;
           int n_dims = 0;
-          SgExprListExp* dep_dim_info;
+          std::vector<SgExpression*> dimensions;
           if(isSgArrayType(dep_type))
           {
-              n_dims = isSgArrayType(dep_type)->get_rank();
-              dep_dim_info = isSgArrayType(dep_type)->get_dim_info(); 
+              SgType* dim_type = dep_type;
+              while(isSgArrayType(dim_type))
+              {
+                  n_dims++;
+                  dimensions.push_back(isSgArrayType(dim_type)->get_index());
+                  dim_type = isSgArrayType(dim_type)->get_base_type();
+              }
+              base_type = dim_type;
           }
           else
           {
               n_dims = 1;
-              dep_dim_info = buildExprListExp(*dep_dir);
+              dimensions.push_back(buildIntVal(1));
+              base_type = dep_type;
           }
-          ROSE_ASSERT(dep_dim_info != NULL);
-          SgExpressionPtrList dep_dim_info_exprs = dep_dim_info->get_expressions();
+      
           SgExprListExp* dep_dims_initializers = buildExprListExp();
-          SgExprListExp* dim_initializers = buildExprListExp();
-          for ( SgExpressionPtrList::iterator dim=dep_dim_info_exprs.begin(); dim!=dep_dim_info_exprs.end(); dim++ )
+          // First dimension is expressed in (the contiguous one) must be expressed in bytes
+          SgExpression* dim_size = buildMultiplyOp(buildSizeOfOp(base_type), dimensions.back());
+          fill_dimension_info(dim_size, dep_dims_initializers);
+          // The other dimensions are expressed in elements
+          dimensions.pop_back();
+          while(!dimensions.empty())
           {
-              // First expression is the size of the dimension
-              // FIXME Size can change when depedence type is array or pointer of arrays
-              SgExpression* sizeof_dim = buildSizeOfOp((*dim)->get_type());
-//           if( isSgArrayType(dep_type) ) {
-//               SgArrayType* dep_array_type = isSgArrayType(dep_type);
-//               int n_dims = dep_array_type->get_rank();
-//               for(int i=0; i<n_dims; i++) {
-//                   // sizeof_dim = buildSgMultiplyOp(buildSizeOfOp(dep_array_type), dep_array_type->get_index());
-//               }
-//           }
-//           else if( isSgPointerType(dep_type) ) {
-              //               
-//           }
-//           else {
-//               sizeof_dim = buildSizeOfOp(dep_type);
-//           }
-              dim_initializers->append_expression(buildAssignInitializer(sizeof_dim));
-              // Second expression is the lower bound
-              // FIXME For more than one dimension, this can be different!
-              SgExpression* lower_bound = buildIntVal(0);
-              dim_initializers->append_expression(buildAssignInitializer(lower_bound));
-              // Third expression is the accessed length
-              // Since we don't support array sections, the length will always be equal to the size of the dimension
-              SgTreeCopy tc;
-              SgExpression* accessed_length = isSgExpression(sizeof_dim->copy(tc));
-              dim_initializers->append_expression(buildAssignInitializer(accessed_length));
-              
-              // Create the initializer for the current dimension
-              dep_dims_initializers->append_expression(buildAggregateInitializer(dim_initializers, region_dim_type));
+              dim_size = dimensions.back();
+              fill_dimension_info(dim_size, dep_dims_initializers);
+              dimensions.pop_back();
           }
           
           // Create the current dependence dimension
