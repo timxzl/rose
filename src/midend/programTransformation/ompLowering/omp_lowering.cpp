@@ -2746,22 +2746,49 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
   //            int __deps_direction0__[] = {(0), (2)}; // base_array_name="deps_direction", array_type=int []
   //            void *__deps_data1__[] = {(y), (x)};    // base_array_name="deps_data", array_type=void* []
   SgExpression* build_nanos_dependencies_array(SgExprListExp* dependences, std::string & array_name, SgArrayType* array_type,
-          SgOmpTaskStatement* task, SgScopeStatement* scope)
+          SgOmpTaskStatement* task, SgScopeStatement* scope, bool build_data)
   {
       array_name = SageInterface::generateUniqueVariableName(scope, array_name);
       SgExprListExp* initializers = buildExprListExp();
       SgExpressionPtrList dependences_exprs = dependences->get_expressions();
-      for(SgExpressionPtrList::iterator dep_dir=dependences_exprs.begin(); dep_dir!=dependences_exprs.end(); dep_dir++)
+      if(build_data)
       {
-          // FIXME When "*dep_dir" is not pointer nor array, this gives the warning:
-          // "initialization makes pointer from integer without a cast"
-          initializers->append_expression(buildAssignInitializer(*dep_dir, buildPointerType(buildVoidType())));
+          for(SgExpressionPtrList::iterator dep=dependences_exprs.begin(); dep!=dependences_exprs.end(); dep++)
+          {
+              initializers->append_expression(buildAssignInitializer(buildAddressOfOp(*dep), buildPointerType(buildVoidType())));
+          }          
       }
+      else
+      {
+          for(SgExpressionPtrList::iterator dep=dependences_exprs.begin(); dep!=dependences_exprs.end(); dep++)
+          {
+              initializers->append_expression(buildAssignInitializer(*dep, buildPointerType(buildVoidType())));
+          } 
+      }
+
       SgInitializer* initializers_array = buildAggregateInitializer(initializers, array_type);
       SgVariableDeclaration* array_decl = buildVariableDeclaration(SgName(array_name), array_type, initializers_array, scope);
       SageInterface::insertStatementBefore(task, array_decl);
       
       return buildVarRefExp(array_name, scope);
+  }
+  
+  void fill_dimension_info(SgExpression* dim_size, SgExprListExp*& dep_dims_initializers )
+  {
+      SgExprListExp* dim_initializers = buildExprListExp();
+      
+      dim_initializers->append_expression(buildAssignInitializer(dim_size));
+              // Second expression is the lower bound
+      SgExpression* lower_bound = buildIntVal(0);
+      dim_initializers->append_expression(buildAssignInitializer(lower_bound));
+              // Third expression is the accessed length
+              // Since we don't support array sections, the length will always be equal to the size of the dimension
+      SgTreeCopy tc;
+      SgExpression* accessed_length = isSgExpression(dim_size->copy(tc));
+      dim_initializers->append_expression(buildAssignInitializer(accessed_length));
+              
+              // Create the initializer for the current dimension
+      dep_dims_initializers->append_expression(buildAggregateInitializer(dim_initializers, NULL /*type*/));
   }
   
   void build_nanos_dependencies_dimension_array(std::string & all_dims_name, std::string & n_dims_name,
@@ -2785,57 +2812,42 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       
       SgExpressionPtrList dependences_exprs = dependences_data->get_expressions();
       int n_deps = 0;
-      for(SgExpressionPtrList::iterator dep_dir=dependences_exprs.begin(); dep_dir!=dependences_exprs.end(); dep_dir++)
+      for(SgExpressionPtrList::iterator dep=dependences_exprs.begin(); dep!=dependences_exprs.end(); dep++)
       {
           // Build the dimensions struct for the current dependence
-          SgType* dep_type = (*dep_dir)->get_type();
+          SgType* dep_type = (*dep)->get_type();
+          SgType* base_type;
           int n_dims = 0;
-          SgExprListExp* dep_dim_info;
+          std::vector<SgExpression*> dimensions;
           if(isSgArrayType(dep_type))
           {
-              n_dims = isSgArrayType(dep_type)->get_rank();
-              dep_dim_info = isSgArrayType(dep_type)->get_dim_info(); 
+              SgType* dim_type = dep_type;
+              while(isSgArrayType(dim_type))
+              {
+                  n_dims++;
+                  dimensions.push_back(isSgArrayType(dim_type)->get_index());
+                  dim_type = isSgArrayType(dim_type)->get_base_type();
+              }
+              base_type = dim_type;
           }
           else
           {
               n_dims = 1;
-              dep_dim_info = buildExprListExp(*dep_dir);
+              dimensions.push_back(buildIntVal(1));
+              base_type = dep_type;
           }
-          ROSE_ASSERT(dep_dim_info != NULL);
-          SgExpressionPtrList dep_dim_info_exprs = dep_dim_info->get_expressions();
+      
           SgExprListExp* dep_dims_initializers = buildExprListExp();
-          SgExprListExp* dim_initializers = buildExprListExp();
-          for ( SgExpressionPtrList::iterator dim=dep_dim_info_exprs.begin(); dim!=dep_dim_info_exprs.end(); dim++ )
+          // First dimension is expressed in (the contiguous one) must be expressed in bytes
+          SgExpression* dim_size = buildMultiplyOp(buildSizeOfOp(base_type), dimensions.back());
+          fill_dimension_info(dim_size, dep_dims_initializers);
+          // The other dimensions are expressed in elements
+          dimensions.pop_back();
+          while(!dimensions.empty())
           {
-              // First expression is the size of the dimension
-              // FIXME Size can change when depedence type is array or pointer of arrays
-              SgExpression* sizeof_dim = buildSizeOfOp((*dim)->get_type());
-//           if( isSgArrayType(dep_type) ) {
-//               SgArrayType* dep_array_type = isSgArrayType(dep_type);
-//               int n_dims = dep_array_type->get_rank();
-//               for(int i=0; i<n_dims; i++) {
-//                   // sizeof_dim = buildSgMultiplyOp(buildSizeOfOp(dep_array_type), dep_array_type->get_index());
-//               }
-//           }
-//           else if( isSgPointerType(dep_type) ) {
-              //               
-//           }
-//           else {
-//               sizeof_dim = buildSizeOfOp(dep_type);
-//           }
-              dim_initializers->append_expression(buildAssignInitializer(sizeof_dim));
-              // Second expression is the lower bound
-              // FIXME For more than one dimension, this can be different!
-              SgExpression* lower_bound = buildIntVal(0);
-              dim_initializers->append_expression(buildAssignInitializer(lower_bound));
-              // Third expression is the accessed length
-              // Since we don't support array sections, the length will always be equal to the size of the dimension
-              SgTreeCopy tc;
-              SgExpression* accessed_length = isSgExpression(sizeof_dim->copy(tc));
-              dim_initializers->append_expression(buildAssignInitializer(accessed_length));
-              
-              // Create the initializer for the current dimension
-              dep_dims_initializers->append_expression(buildAggregateInitializer(dim_initializers, region_dim_type));
+              dim_size = dimensions.back();
+              fill_dimension_info(dim_size, dep_dims_initializers);
+              dimensions.pop_back();
           }
           
           // Create the current dependence dimension
@@ -3128,7 +3140,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       SgArrayType* direction_array_type = buildArrayType(direction_array_element_type);
       SgExpression* parameter_deps_direction = 
               build_nanos_dependencies_array(dependences_direction, direction_array_name, direction_array_type, 
-                                             target, p_scope);
+                                             target, p_scope, false);
       
       // Build the dependencies array
       std::string data_array_name = "deps_data";
@@ -3136,7 +3148,35 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       SgArrayType* data_array_type = buildArrayType(data_array_element_type);
       SgExpression* parameter_deps_data = 
               build_nanos_dependencies_array(dependences_data, data_array_name, data_array_type, 
-                                             target, p_scope);
+                                             target, p_scope, true);
+      // Build a function that returns a data_dependency expression for each
+//       SgExpressionPtrList dep_data_exprs = dependences_data->get_expressions();
+//       for(SgExpressionPtrList::iterator dep=dep_data_exprs.begin(); dep!=dep_data_exprs.end(); dep++)
+//       {
+//           SgName func_name = "get_" + (*dep)->unparseToString() + "_data";
+//           SgType* data_type = (*dep)->get_type();
+//           // Declare the function
+//           SgFunctionParameterList* params = buildFunctionParameterList();
+//           SgName param_name ="dep_data"; 
+//           SgInitializedName* data_param = buildInitializedName(param_name, buildPointerType(buildVoidType()));
+//           appendArg(params, data_param);
+//           SgFunctionDeclaration* func_def = buildDefiningFunctionDeclaration (
+//                   func_name, data_type, params, ancestor_st->get_scope());
+//           SageInterface::setStatic(func_def);
+//           insertStatementAfter(ancestor_st, func_def);
+//           
+//           // Create the body of the function
+//           SgBasicBlock* func_body = func_def->get_definition()->get_body();
+//           ROSE_ASSERT (func_body != NULL);
+//           SgStatement* return_data = buildReturnStmt(buildCastExp(
+//                   buildVarRefExp(param_name, func_body), data_type));
+//           appendStatement(return_data, func_body);
+//           
+//           // Define the function
+//           SgFunctionDeclaration* func_decl = SageBuilder::buildNondefiningFunctionDeclaration (func_def, isSgGlobal(ancestor_st));
+//           SageInterface::setStatic(func_decl);
+//           insertStatementBefore(ancestor_st, func_decl);
+//       }
       
       // Build the dependencies dimension array
       std::string dims_array_name = "deps_dimensions";
