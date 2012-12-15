@@ -3140,7 +3140,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       SgArrayType* direction_array_type = buildArrayType(direction_array_element_type);
       SgExpression* parameter_deps_direction = 
               build_nanos_dependencies_array(dependences_direction, direction_array_name, direction_array_type, 
-                                             target, p_scope, false);
+                                             target, p_scope, false /*building data_deps*/);
       
       // Build the dependencies array
       std::string data_array_name = "deps_data";
@@ -3148,36 +3148,8 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       SgArrayType* data_array_type = buildArrayType(data_array_element_type);
       SgExpression* parameter_deps_data = 
               build_nanos_dependencies_array(dependences_data, data_array_name, data_array_type, 
-                                             target, p_scope, true);
-      // Build a function that returns a data_dependency expression for each
-//       SgExpressionPtrList dep_data_exprs = dependences_data->get_expressions();
-//       for(SgExpressionPtrList::iterator dep=dep_data_exprs.begin(); dep!=dep_data_exprs.end(); dep++)
-//       {
-//           SgName func_name = "get_" + (*dep)->unparseToString() + "_data";
-//           SgType* data_type = (*dep)->get_type();
-//           // Declare the function
-//           SgFunctionParameterList* params = buildFunctionParameterList();
-//           SgName param_name ="dep_data"; 
-//           SgInitializedName* data_param = buildInitializedName(param_name, buildPointerType(buildVoidType()));
-//           appendArg(params, data_param);
-//           SgFunctionDeclaration* func_def = buildDefiningFunctionDeclaration (
-//                   func_name, data_type, params, ancestor_st->get_scope());
-//           SageInterface::setStatic(func_def);
-//           insertStatementAfter(ancestor_st, func_def);
-//           
-//           // Create the body of the function
-//           SgBasicBlock* func_body = func_def->get_definition()->get_body();
-//           ROSE_ASSERT (func_body != NULL);
-//           SgStatement* return_data = buildReturnStmt(buildCastExp(
-//                   buildVarRefExp(param_name, func_body), data_type));
-//           appendStatement(return_data, func_body);
-//           
-//           // Define the function
-//           SgFunctionDeclaration* func_decl = SageBuilder::buildNondefiningFunctionDeclaration (func_def, isSgGlobal(ancestor_st));
-//           SageInterface::setStatic(func_decl);
-//           insertStatementBefore(ancestor_st, func_decl);
-//       }
-      
+                                             target, p_scope, true /*building data_deps*/);
+                                             
       // Build the dependencies dimension array
       std::string dims_array_name = "deps_dimensions";
       std::string n_dims_array_name = "deps_n_dimensions";
