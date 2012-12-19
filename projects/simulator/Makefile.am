@@ -18,7 +18,8 @@ warn_no_tests:
 #  DOCUMENTATION, CONFIGURATION, ETC
 ###############################################################################################################################
 
-EXTRA_DIST += README test_status.txt internal_tests.conf syscall_tests.conf pthread_tests.conf RSIM.dxy
+EXTRA_DIST += README test_status.txt internal_tests.conf syscall_tests.conf pthread_tests.conf RSIM.dxy \
+	USED_HEADER_FILES.C demos/MultiDomainDemo.h demos/RiscTracingPolicy.h
 
 ###############################################################################################################################
 #  SIMULATOR LIBRARY
@@ -34,7 +35,6 @@ libRSIM_la_SOURCES =				\
 	RSIM_Futex.C				\
 	RSIM_Linux32.C				\
 	RSIM_Process.C				\
-	RSIM_SemanticPolicy.C			\
 	RSIM_SignalHandling.C			\
 	RSIM_Simulator.C			\
 	RSIM_Thread.C				\
@@ -47,7 +47,9 @@ include_HEADERS +=				\
 	RSIM_Futex.h				\
 	RSIM_Linux32.h				\
 	RSIM_Process.h				\
-	RSIM_SemanticPolicy.h			\
+	RSIM_SemanticsSettings.h		\
+	RSIM_SemanticsInner.h			\
+	RSIM_SemanticsOuter.h			\
 	RSIM_SignalHandling.h			\
 	RSIM_Simulator.h			\
 	RSIM_Templates.h			\
@@ -58,6 +60,21 @@ $(libRSIM_la_SOURCES:.C=.o): %.o: %.h
 $(libRSIM_la_SOURCES:.C=.lo): %.lo: %.h
 
 ###############################################################################################################################
+# CLIENT LIBRARY
+###############################################################################################################################
+
+EXTRA_DIST += RSIM_Client.c RSIM_Client.h
+MOSTLYCLEANFILES += librsim_client.a
+librsim_client.a: RSIM_Client.o
+	@echo "  LINK32  $@"
+	$(AR) rcs $@ $^
+
+MOSTLYCLEANFILES += RSIM_Client.o
+RSIM_Client.o: RSIM_Client.c RSIM_Client.h
+	@echo "  CC32   $@"
+	: ; $(CC) $(CFLAGS32) -Wall -o $@ -c $<
+
+###############################################################################################################################
 #  PROGRAMS
 ###############################################################################################################################
 
@@ -65,7 +82,6 @@ $(libRSIM_la_SOURCES:.C=.lo): %.lo: %.h
 # Do not install RSIM_Private.h -- it is only used during compilation.
 EXTRA_DIST += RSIM_Private.h
 noinst_PROGRAMS += x86sim
-include_HEADERS += x86sim.h
 x86sim_SOURCES = x86sim.C
 x86sim_CPPFLAGS = $(ROSE_INCLUDES) -DX86_VDSO_PATH_1='"$(srcdir)"' -DX86_VDSO_PATH_2='"$(include_dir)"'
 x86sim_LDADD = $(BOOST_LDFLAGS) libRSIM.la $(LIBS_WITH_RPATH) $(ROSE_LIBS) 
@@ -205,7 +221,35 @@ demo8_SOURCES = demos/demo8.C
 demo8_CPPFLAGS = $(ROSE_INCLUDES)
 demo8_LDADD = $(BOOST_LDFLAGS) libRSIM.la $(LIBS_WITH_RPATH) $(ROSE_LIBS)
 
+#------------------------------------------------------------------------------------------------------------------------------
+# Example of running a multi-domain semantic analysis to find places where symbolic semantics becomes too complex.
+noinst_PROGRAMS += SymbolicBomb
+SymbolicBomb_SOURCES = demos/SymbolicBomb.C
+SymbolicBomb_CPPFLAGS = $(ROSE_INCLUDES)
+SymbolicBomb_LDADD = $(BOOST_LDFLAGS) libRSIM.la $(LIBS_WITH_RPATH) $(ROSE_LIBS)
 
+#------------------------------------------------------------------------------------------------------------------------------
+# Example of running an interval analysis in lock step with the simulator
+noinst_PROGRAMS += Intervals
+Intervals_SOURCES = demos/Intervals.C
+Intervals_CPPFLAGS = $(ROSE_INCLUDES)
+Intervals_LDADD = $(BOOST_LDFLAGS) libRSIM.la $(LIBS_WITH_RPATH) $(ROSE_LIBS)
+
+#------------------------------------------------------------------------------------------------------------------------------
+# Example of using an SMT solver in lock step with the simulator
+noinst_PROGRAMS += smt_example
+smt_example_SOURCES = demos/smt_example.C
+smt_example_CPPFLAGS = $(ROSE_INCLUDES)
+smt_example_LDADD = $(BOOST_LDFLAGS) libRSIM.la $(LIBS_WITH_RPATH) $(ROSE_LIBS)
+
+#------------------------------------------------------------------------------------------------------------------------------
+# Multi-domain demo that enables/disables sub-domains and converts values from one sub-domain to another.  This is meant to
+# serve as an example for Andreas and Earl that they can modify to suit their needs.
+noinst_PROGRAMS += MultiWithConversion
+EXTRA_DIST += demos/MultiWithConversion.h demos/MultiWithConversionTpl.h demos/RobinTpl.h
+MultiWithConversion_SOURCES = demos/MultiWithConversion.C
+MultiWithConversion_CPPFLAGS = $(ROSE_INCLUDES)
+MultiWithConversion_LDADD = $(BOOST_LDFLAGS) libRSIM.la $(LIBS_WITH_RPATH) $(ROSE_LIBS)
 
 ###############################################################################################################################
 #  SUPPORT PROGRAMS FOR PAPERS
@@ -373,13 +417,14 @@ ptrace_jmp_SOURCES = papers/ptrace_jmp.C
 ptrace_jmp_CPPFLAGS = $(ROSE_INCLUDES)
 ptrace_jmp_LDADD = $(LIBS_WITH_RPATH) $(ROSE_LIBS)
 
-
 ###############################################################################################################################
 #  INTERNAL SIMULATOR TESTS
 ###############################################################################################################################
 
 INTERNAL_TEST_TARGETS =
 
+#------------------------------------------------------------------------------------------------------------------------------
+# Futex tests
 noinst_PROGRAMS += testFutex
 testFutex_SOURCES = testFutex.C
 testFutex_CPPFLAGS = $(ROSE_INCLUDES)
@@ -397,12 +442,40 @@ if ENABLE_I386
 INTERNAL_TEST_TARGETS += testFutex.passed
 testFutex.passed: testFutex testFutexInput $(srcdir)/internal_tests.conf
 	@$(RTH_RUN) SIMULATOR=./testFutex SPECIMEN=./testFutexInput $(srcdir)/internal_tests.conf $@
+endif
+MOSTLYCLEANFILES += testFutex.{passed,failed,out,err}
+
+#------------------------------------------------------------------------------------------------------------------------------
+# Transaction tests
+
+# The executable
+EXTRA_DIST += local_tests/client_transactions.c
+MOSTLYCLEANFILES += client_transactions
+client_transactions: local_tests/client_transactions.c librsim_client.a
+	@echo "  CC32    $@"
+	@$(CC) $(CFLAGS32) -o $@ -I$(srcdir) $< -L. -lrsim_client
+
+# The test
+if ENABLE_I386
+EXTRA_DIST += client_transactions.conf
+INTERNAL_TEST_TARGETS += client_transactions.passed
+client_transactions.passed: client_transactions x86sim $(srcdir)/client_transactions.conf
+	@$(RTH_RUN) SIMULATOR=./x86sim SPECIMEN=./client_transactions ANSWER=$(srcdir)/local_tests/client_transactions.ans \
+	    $(srcdir)/client_transactions.conf $@
+endif
+MOSTLYCLEANFILES += client_transactions.{passed,failed,out,err}
+
+#------------------------------------------------------------------------------------------------------------------------------
+# all internal tests
+
+if ENABLE_I386
 else
 INTERNAL_TEST_TARGETS += warn_no_tests
 endif
 
-MOSTLYCLEANFILES += $(INTERNAL_TEST_TARGETS) testFutex.passed testFutex.failed testFutex.out testFutex.err
 check-internal: $(INTERNAL_TEST_TARGETS)
+MOSTLYCLEANFILES += $(INTERNAL_TEST_TARGETS)
+
 
 
 ###############################################################################################################################
@@ -934,6 +1007,23 @@ else
 SYS_TEST_TARGETS = warn_no_tests
 endif
 
+# Some of the tests create files name "tfile_%d_%d" where the two numbers are a serial number and a PID. About 5000 of
+# these files are created in total and many of them are not placed in the specified temporary directories. Therefore
+# we have to remove them with a wildcard instead. Sorry if you had your own files with similar names (we tried to be careful).
+MOSTLYCLEANFILES += 						   \
+	rm -f tfile_[0-9]_[0-9][0-9][0-9]			   \
+	rm -f tfile_[0-9]_[0-9][0-9][0-9][0-9]			   \
+	rm -f tfile_[0-9]_[0-9][0-9][0-9][0-9][0-9]		   \
+	rm -f tfile_[0-9][0-9]_[0-9][0-9][0-9]			   \
+	rm -f tfile_[0-9][0-9]_[0-9][0-9][0-9][0-9]		   \
+	rm -f tfile_[0-9][0-9]_[0-9][0-9][0-9][0-9][0-9]	   \
+	rm -f tfile_[0-9][0-9][0-9]_[0-9][0-9][0-9]		   \
+	rm -f tfile_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]	   \
+	rm -f tfile_[0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9]	   \
+	rm -f tfile_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9]	   \
+	rm -f tfile_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9]	   \
+	rm -f tfile_[0-9][0-9][0-9][0-9]_[0-9][0-9][0-9][0-9][0-9]
+
 # Cleanup targets. We can't put all the generated files in MOSTLYCLEANFILES because the list gets too long to pass
 # as arguments to "rm" (deficiency in automake).  Therefore we'll create a *.clean target for each test and have
 # clean-local depend on it.
@@ -941,7 +1031,6 @@ SYS_TEST_CLEANUPS = $(addsuffix .clean, $(SYS_TEST_INPUTS))
 .PHONY: $(SYS_TEST_CLEANUPS)
 $(SYS_TEST_CLEANUPS):
 	rm -f $(foreach ext, passed failed err out, $(patsubst %.clean, %, $@).$(ext))
-
 
 # Main syscall testing target, on which "make check" depends.
 check-syscalls:  $(SYS_TEST_TARGETS)

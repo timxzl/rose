@@ -180,9 +180,10 @@ public:
         return true;
     }
 
-    /* Flag having an undefined value. */
-    VerifierValue<1> undefined_() {
-        return false;
+    /* Undefined value. */
+    template<size_t Len>
+    VerifierValue<Len> undefined_() {
+        return 0;
     }
 
     /* A constant */
@@ -959,7 +960,7 @@ int main(int argc, char *argv[]) {
     Verifier verifier(&dbg);
 
 #ifndef USE_ROSE
-    X86InstructionSemantics<Verifier, VerifierValue> semantics(verifier);
+    BinaryAnalysis::InstructionSemantics::X86InstructionSemantics<Verifier, VerifierValue> semantics(verifier);
 #endif
 
     dbg.cont(); /* Advance to the first breakpoint. */
@@ -1012,7 +1013,7 @@ int main(int argc, char *argv[]) {
             dump_registers(stderr, dbg.registers());
             dbg.cont();
             continue;
-        } catch (const X86InstructionSemantics<Verifier, VerifierValue>::Exception &e) {
+        } catch (const BinaryAnalysis::InstructionSemantics::X86InstructionSemantics<Verifier, VerifierValue>::Exception &e) {
             fprintf(stderr, "%s: %s\n", e.mesg.c_str(), unparseInstructionWithAddress(e.insn).c_str());
         }
 #endif

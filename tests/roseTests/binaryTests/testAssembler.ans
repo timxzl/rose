@@ -3,25 +3,27 @@
 
 ==================== Interpretation Listing ====================
 
-va 0x08048000 + 0x00000034 = 0x08048034 r-xp at base aaa  + 0x00000000 buffer2.bin(LOAD#2)
-va 0x08048034 + 0x000000e0 = 0x08048114 r-xp at base aab  + 0x00000000 buffer2.bin(PHDR#0)
-va 0x08048114 + 0x00000013 = 0x08048127 r--p at base aac  + 0x00000000 buffer2.bin(.interp)
-va 0x08048127 + 0x00000001 = 0x08048128 r-xp at base aaa  + 0x00000127 buffer2.bin(LOAD#2)
-va 0x08048128 + 0x00000020 = 0x08048148 r--p at base aad  + 0x00000000 buffer2.bin(.note.ABI-tag)
-va 0x08048148 + 0x00000130 = 0x08048278 r--- at base aae  + 0x00000148 buffer2.bin(.dynstr+.dynsym+.gnu.version+.gnu.versio...
-va 0x08048278 + 0x00000017 = 0x0804828f r-x- at base aae  + 0x00000278 buffer2.bin(.init)
-va 0x0804828f + 0x00000001 = 0x08048290 r-xp at base aaa  + 0x0000028f buffer2.bin(LOAD#2)
-va 0x08048290 + 0x0000021e = 0x080484ae r-x- at base aae  + 0x00000290 buffer2.bin(.fini+.plt+.text)
-va 0x080484ae + 0x00000002 = 0x080484b0 r-xp at base aaa  + 0x000004ae buffer2.bin(LOAD#2)
-va 0x080484b0 + 0x0000000c = 0x080484bc r--- at base aae  + 0x000004b0 buffer2.bin(.eh_frame+.rodata)
-va 0x080484bc + 0x00000b44 = 0x08049000 r-xp at base aaa  + 0x000004bc buffer2.bin(LOAD#2)
-va 0x08049000 + 0x000004bc = 0x080494bc rw-p at base aaf  + 0x00000000 buffer2.bin(LOAD#3)
-va 0x080494bc + 0x00000014 = 0x080494d0 rw-- at base aae  + 0x000004bc buffer2.bin(.ctors+.dtors+.jcr)
-va 0x080494d0 + 0x000000c8 = 0x08049598 rw-p at base aag  + 0x00000000 buffer2.bin(.dynamic)
-va 0x08049598 + 0x00000024 = 0x080495bc rw-- at base aae  + 0x00000598 buffer2.bin(.data+.got+.got.plt)
-va 0x080495bc + 0x00000a44 = 0x0804a000 rw-p at anon null + 0x00000000 buffer2.bin(.bss+LOAD#3)
+va 0x08048000 + 0x00000034 = 0x08048034 r-xp at buffer aab   + 0x00000000 buffer2.bin(LOAD#2)
+va 0x08048034 + 0x000000e0 = 0x08048114 r-xp at buffer aad   + 0x00000000 buffer2.bin(PHDR#0)
+va 0x08048114 + 0x00000013 = 0x08048127 r--p at buffer aaf   + 0x00000000 buffer2.bin(.interp)
+va 0x08048127 + 0x00000001 = 0x08048128 r-xp at buffer aab   + 0x00000127 buffer2.bin(LOAD#2)
+va 0x08048128 + 0x00000020 = 0x08048148 r--p at buffer aah   + 0x00000000 buffer2.bin(.note.ABI-tag)
+va 0x08048148 + 0x00000130 = 0x08048278 r--- at buffer aba   + 0x00000148 buffer2.bin(.dynstr+.dynsym+.gnu.version+.gnu.versio...
+va 0x08048278 + 0x00000017 = 0x0804828f r-x- at buffer abc   + 0x00000278 buffer2.bin(.init)
+va 0x0804828f + 0x00000001 = 0x08048290 r-xp at buffer aab   + 0x0000028f buffer2.bin(LOAD#2)
+va 0x08048290 + 0x0000021e = 0x080484ae r-x- at buffer abi   + 0x00000290 buffer2.bin(.fini+.plt+.text)
+va 0x080484ae + 0x00000002 = 0x080484b0 r-xp at buffer aab   + 0x000004ae buffer2.bin(LOAD#2)
+va 0x080484b0 + 0x0000000c = 0x080484bc r--- at buffer abm   + 0x000004b0 buffer2.bin(.eh_frame+.rodata)
+va 0x080484bc + 0x00000b44 = 0x08049000 r-xp at buffer aab   + 0x000004bc buffer2.bin(LOAD#2)
+va 0x08049000 + 0x000004bc = 0x080494bc rw-p at buffer aak   + 0x00000000 buffer2.bin(LOAD#3)
+va 0x080494bc + 0x00000014 = 0x080494d0 rw-- at buffer abs   + 0x000004bc buffer2.bin(.ctors+.dtors+.jcr)
+va 0x080494d0 + 0x000000c8 = 0x08049598 rw-p at buffer aam   + 0x00000000 buffer2.bin(.dynamic)
+va 0x08049598 + 0x00000024 = 0x080495bc rw-- at buffer aby   + 0x00000598 buffer2.bin(.data+.got+.got.plt)
+va 0x080495bc + 0x00000004 = 0x080495c0 rw-p at anon aca     + 0x00000000 buffer2.bin(.bss)
+va 0x080495c0 + 0x00000a40 = 0x0804a000 rw-p at anon aaj     + 0x00000004 buffer2.bin(LOAD#3)
 
 0x08048278: ================================== Function (function call, symbol, pattern) <_init>
+
 0x08048278: 55                      |U       | F08048278 E1....    push   ebp
 0x08048279: 89 e5                   |..      |                     mov    ebp, esp
 0x0804827b: 83 ec 08                |...     |                     sub    esp, 0x08
@@ -39,12 +41,14 @@ va 0x080495bc + 0x00000a44 = 0x0804a000 rw-p at anon null + 0x00000000 buffer2.b
 0x0804829f: 00                      |.       | F08048278 ..M001  17 bytes untyped data beginning at 0x0804828f
 
 0x080482a0: ================================== Function (function call, import) <malloc@plt>
+
 0x080482a0: ff 25 a8 95 04 08       |.%....  | F080482a0 E1....    jmp    DWORD PTR ds:[0x080495a8<.got.plt+0x0c>]
 
 0x080482a6: 68 00 00 00 00 e9 e0 ff |h.......|
 0x080482ae: ff ff                   |..      | F080482a0 ..M001  10 bytes untyped data beginning at 0x080482a6
 
 0x080482b0: ================================== Function (function call, import) <__libc_start_main@plt>
+
 0x080482b0: ff 25 ac 95 04 08       |.%....  | F080482b0 E1....    jmp    DWORD PTR ds:[0x080495ac<.got.plt+0x10>]
 
 0x080482b6: 68 08 00 00 00 e9 d0 ff |h.......|
@@ -52,6 +56,7 @@ va 0x080495bc + 0x00000a44 = 0x0804a000 rw-p at anon null + 0x00000000 buffer2.b
 
 0x080482c0: ================================== Function (entry point, symbol) <_start>
 0x080482c0: Function does not return to caller.
+
 0x080482c0: 31 ed                   |1.      | F080482c0 E1....    xor    ebp, ebp
 0x080482c2: 5e                      |^       |                     pop    esi
 0x080482c3: 89 e1                   |..      |                     mov    ecx, esp
@@ -71,6 +76,7 @@ va 0x080495bc + 0x00000a44 = 0x0804a000 rw-p at anon null + 0x00000000 buffer2.b
 0x080482e2: 90 90                   |..      | F080482c0 N.....  2-byte padding beginning at 0x080482e2
 
 0x080482e4: ================================== Function (function call, symbol, pattern) <call_gmon_start>
+
 0x080482e4: 55                      |U       | F080482e4 E1....    push   ebp
 0x080482e5: 89 e5                   |..      |                     mov    ebp, esp
 0x080482e7: 53                      |S       |                     push   ebx
@@ -93,6 +99,7 @@ va 0x080495bc + 0x00000a44 = 0x0804a000 rw-p at anon null + 0x00000000 buffer2.b
 0x0804830d: 90 90 90                |...     | F080482e4 N.....  11-byte padding beginning at 0x08048305
 
 0x08048310: ================================== Function (function call, symbol, pattern) <__do_global_dtors_aux>
+
 0x08048310: 55                      |U       | F08048310 E1....    push   ebp
 0x08048311: 89 e5                   |..      |                     mov    ebp, esp
 0x08048313: 83 ec 08                |...     |                     sub    esp, 0x08
@@ -118,6 +125,7 @@ va 0x080495bc + 0x00000a44 = 0x0804a000 rw-p at anon null + 0x00000000 buffer2.b
 0x0804833f: 90                      |.       | F08048310 ..M001  1 byte untyped data beginning at 0x0804833f
 
 0x08048340: ================================== Function (function call, symbol, pattern) <frame_dummy>
+
 0x08048340: 55                      |U       | F08048340 E1....    push   ebp
 0x08048341: 89 e5                   |..      |                     mov    ebp, esp
 0x08048343: 83 ec 08                |...     |                     sub    esp, 0x08
@@ -138,11 +146,13 @@ va 0x080495bc + 0x00000a44 = 0x0804a000 rw-p at anon null + 0x00000000 buffer2.b
 0x08048363: 90                      |.       | F08048340 ..M001  1 byte untyped data beginning at 0x08048363
 
 0x08048364: ================================== Function (symbol) <main>
+
 0x08048364: 8d 4c 24 04             |.L$.    | F08048364 E1....    lea    ecx, [esp + 0x04]
 0x08048368: 83 e4 f0                |...     |                     and    esp, 0xf0<-0x10>
 0x0804836b: ff 71 fc                |.q.     |                     push   DWORD PTR ds:[ecx + 0xfc<-0x04>]
 
 0x0804836e: ================================== Function (pattern) unknown name
+
 0x0804836e: 55                      |U       | F0804836e E1....    push   ebp
 0x0804836f: 89 e5                   |..      |                     mov    ebp, esp
 0x08048371: 51                      |Q       |                     push   ecx
@@ -175,6 +185,7 @@ va 0x080495bc + 0x00000a44 = 0x0804a000 rw-p at anon null + 0x00000000 buffer2.b
 0x080483bf: c3                      |.       |                     ret    
 
 0x080483c0: ================================== Function (symbol, pattern) <__libc_csu_init>
+
 0x080483c0: 55                      |U       | F080483c0 E1....    push   ebp
 0x080483c1: 89 e5                   |..      |                     mov    ebp, esp
 0x080483c3: 57                      |W       |                     push   edi
@@ -217,6 +228,7 @@ va 0x080495bc + 0x00000a44 = 0x0804a000 rw-p at anon null + 0x00000000 buffer2.b
 0x08048412: 89 f6                   |..      | F080483c0 ..M001  2 bytes untyped data beginning at 0x08048412
 
 0x08048414: ================================== Function (symbol, pattern) <__libc_csu_fini>
+
 0x08048414: 55                      |U       | F08048414 E1....    push   ebp
 0x08048415: 89 e5                   |..      |                     mov    ebp, esp
 0x08048417: 57                      |W       |                     push   edi
@@ -253,6 +265,7 @@ va 0x080495bc + 0x00000a44 = 0x0804a000 rw-p at anon null + 0x00000000 buffer2.b
 0x0804845e: 90 90                   |..      | F08048414 N.....  10-byte padding beginning at 0x08048456
 
 0x08048460: ================================== Function (function call, symbol, pattern) <__do_global_ctors_aux>
+
 0x08048460: 55                      |U       | F08048460 E1....    push   ebp
 0x08048461: 89 e5                   |..      |                     mov    ebp, esp
 0x08048463: 53                      |S       |                     push   ebx
@@ -281,6 +294,7 @@ va 0x080495bc + 0x00000a44 = 0x0804a000 rw-p at anon null + 0x00000000 buffer2.b
 0x08048491: 90 90 90                |...     | F08048460 N.....  3-byte padding beginning at 0x08048491
 
 0x08048494: ================================== Function (function call, symbol, pattern) <_fini>
+
 0x08048494: 55                      |U       | F08048494 E1....    push   ebp
 0x08048495: 89 e5                   |..      |                     mov    ebp, esp
 0x08048497: 53                      |S       |                     push   ebx

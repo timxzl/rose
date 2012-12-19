@@ -2,7 +2,9 @@
 // the automake manual request that we use <> instead of ""
 #include <rose_config.h>
 
+#ifndef __STDC_FORMAT_MACROS
 #define __STDC_FORMAT_MACROS
+#endif
 #include <inttypes.h>
 
 // DQ (3/22/2009): Added MSVS support for ROSE.
@@ -341,6 +343,18 @@ StringUtility::listToString ( const list<int> & X, bool separateStrings )
 
      return returnString;
    }
+
+std::list<std::string>
+StringUtility:: tokenize ( std::string X, char delim ) {
+    std::list<std::string> l;
+    std::string token;
+    std::istringstream iss(X);
+    while (getline(iss, token, delim)) {
+        l.push_back(token);
+    }
+    return l;
+}
+
 // DQ (8/31/2009): This now compiles properly (at least for analysis, it might still fail for the code generation).
 // #ifdef USE_ROSE   
 #if 0
@@ -480,9 +494,9 @@ StringUtility::addrToString(uint64_t value, size_t nbits, bool is_signed)
 }
 
 string
-StringUtility::removeRedundentSubstrings ( string X )
+StringUtility::removeRedundentSubstrings ( string X ) // sic
    {
-  // Convert the string into a list of strings and separate out the redundent entries
+  // Convert the string into a list of strings and separate out the redundant entries
      list<string> XStringList = StringUtility::stringToList(X);
      XStringList.sort();
      XStringList.unique();
@@ -518,9 +532,9 @@ isMarker ( char c )
    }
 
 string
-StringUtility::removePseudoRedundentSubstrings ( string X )
+StringUtility::removePseudoRedundentSubstrings ( string X ) // sic
    {
-  // Convert the string into a list of strings and separate out the redundent entries
+  // Convert the string into a list of strings and separate out the redundant entries
      list<string> XStringList = StringUtility::stringToList(X);
 
 #if 0
@@ -1350,7 +1364,7 @@ StringUtility::stripFileSuffixFromFileName ( const string & fileNameWithSuffix )
 //
 //Rama: I am not sure if this mechanism can deal with files ending with .
 //Like "test."
-//I am not clear about the purpose of the function too. So, not modyfying it.
+//I am not clear about the purpose of the function too. So, not modifying it.
 string
 StringUtility::fileNameSuffix ( const string & fileNameWithSuffix )
    {
@@ -1481,6 +1495,70 @@ StringUtility::convertToLowerCase( const string & inputString )
      return returnString;
    }
 
+std::string
+StringUtility::prefixLines(const std::string &lines, const std::string &prefix, bool prefixAtFront, bool prefixAtBack)
+{
+    if (lines.empty())
+        return "";
 
+    std::string retval = prefixAtFront ? prefix : "";
+    size_t at=0;
+    while (at<lines.size()) {
+        size_t lfpos = lines.find_first_of("\r\n", at);
+        lfpos = lines.find_first_not_of("\r\n", lfpos);
+        retval += lines.substr(at, lfpos-at);
+        if (lfpos<lines.size())
+            retval += prefix;
+        at = lfpos;
+    }
 
+    if (prefixAtBack && isLineTerminated(lines))
+        retval += prefix;
+    return retval;
+}
 
+bool
+StringUtility::isLineTerminated(const std::string &s)
+{
+    return !s.empty() && ('\n'==s[s.size()-1] || '\r'==s[s.size()-1]);
+}
+
+std::string
+StringUtility::makeOneLine(const std::string &s, std::string replacement)
+{
+    std::string result, spaces;
+    bool eat_spaces = false;
+    for (size_t i=0; i<s.size(); ++i) {
+        if ('\n'==s[i] || '\r'==s[i]) {
+            spaces = result.empty() ? "" : replacement;
+            eat_spaces = true;
+        } else if (isspace(s[i])) {
+            if (!eat_spaces)
+                spaces += s[i];
+        } else {
+            result += spaces + s[i];
+            spaces = "";
+            eat_spaces = false;
+        }
+    }
+    if (!eat_spaces)
+        result += spaces;
+    return result;
+}
+
+void
+StringUtility::add_to_reason_string(std::string &result, bool isset, bool do_pad,
+                                    const std::string &abbr, const std::string &full)
+{
+    if (isset) {
+        if (do_pad) {
+            result += abbr;
+        } else {
+            if (result.size()>0) result += ", ";
+            result += full;
+        }
+    } else if (do_pad) {
+        for (size_t i=0; i<abbr.size(); ++i)
+            result += ".";
+    }
+}

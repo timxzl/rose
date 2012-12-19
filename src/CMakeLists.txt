@@ -102,6 +102,7 @@ set( STORAGECLASSES_SRC
       ${CMAKE_SOURCE_DIR}/src/util/stringSupport/FileNameClassifier.C
       ${CMAKE_SOURCE_DIR}/src/util/rose_getline.C
       ${CMAKE_BINARY_DIR}/src/util/rose_paths.C
+      ${CMAKE_SOURCE_DIR}/src/util/rose_strtoull.C
       ${CMAKE_SOURCE_DIR}/src/util/stringSupport/escape.C
       ${CMAKE_SOURCE_DIR}/src/util/graphs/TypedFusion.C
       ${CMAKE_SOURCE_DIR}/src/util/graphs/DGBaseGraphImpl.C
@@ -239,18 +240,8 @@ set(rose_support_src
 
 set(roseDisassemblers_SRC
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/InstructionEnumsX86.h
-   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Expressions.C
-   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Partitioner.C 
-   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/PStatistics.C 
-   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/IPDParser.C 
-   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Registers.C
-   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Disassembler.C 
-   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/DisassemblerArm.C 
-   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/DisassemblerPowerpc.C 
-   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/DisassemblerX86.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Assembler.C 
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/AssemblerX86.C 
-   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/AssemblerX86Init.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/AssemblerX86Init1.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/AssemblerX86Init2.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/AssemblerX86Init3.C
@@ -260,6 +251,23 @@ set(roseDisassemblers_SRC
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/AssemblerX86Init7.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/AssemblerX86Init8.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/AssemblerX86Init9.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/AssemblerX86Init.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/DisassemblerArm.C 
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Disassembler.C 
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/DisassemblerPowerpc.C 
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/DisassemblerX86.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Expressions.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/IPDParser.C 
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/IPDUnparser.C 
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Partitioner.C 
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/PStatistics.C 
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Registers.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmArmInstruction.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmBlock.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmFunction.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmInstruction.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmPowerpcInstruction.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmX86Instruction.C
    )
 
 set (unparser_SRC
@@ -496,10 +504,11 @@ ${CMAKE_SOURCE_DIR}/src/midend/binaryAnalyses/dataflowanalyses/RoseBin_DefUseAna
 ${CMAKE_SOURCE_DIR}/src/midend/binaryAnalyses/instructionSemantics/findConstants.C
 ${CMAKE_SOURCE_DIR}/src/midend/binaryAnalyses/instructionSemantics/FindRegisterDefs.C
 ${CMAKE_SOURCE_DIR}/src/midend/binaryAnalyses/instructionSemantics/InsnSemanticsExpr.C
+${CMAKE_SOURCE_DIR}/src/midend/binaryAnalyses/instructionSemantics/IntervalSemantics.C
+${CMAKE_SOURCE_DIR}/src/midend/binaryAnalyses/instructionSemantics/PartialSymbolicSemantics.C
 ${CMAKE_SOURCE_DIR}/src/midend/binaryAnalyses/instructionSemantics/SMTSolver.C
 ${CMAKE_SOURCE_DIR}/src/midend/binaryAnalyses/instructionSemantics/SymbolicSemantics.C
 ${CMAKE_SOURCE_DIR}/src/midend/binaryAnalyses/instructionSemantics/YicesSolver.C
-${CMAKE_SOURCE_DIR}/src/midend/binaryAnalyses/instructionSemantics/VirtualMachineSemantics.C
 )
 
 
@@ -777,11 +786,12 @@ ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/astPostProcessing.C
      ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/resolveFortranReferences.C 
      ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/insertFortranContainsStatement.C 
      ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/markLhsValues.C 
-     ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/fixupUseAndUsingDeclarations.C 
+     ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/fixupUseAndUsingDeclarations.C
      ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/buildStatementNumbering.C
-     ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/fixupCxxSymbolTablesToSupportAliasingSymbols.C 
+     ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/fixupCxxSymbolTablesToSupportAliasingSymbols.C
      ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/normalizeTypedefSequenceLists.C
      ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/fixupConstantFoldedValues.C
+     ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/astPostProcessing/fixupSelfReferentialMacros.C
    )
 
 

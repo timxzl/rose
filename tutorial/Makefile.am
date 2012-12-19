@@ -1,7 +1,11 @@
 include $(top_srcdir)/config/Makefile.for.ROSE.includes.and.libs
 
 # Add Projects that are associated with capabilities that belong to ROSE here
-SUBDIRS = outliner intelPin binaryAnalysis
+SUBDIRS = outliner intelPin
+
+if ROSE_BUILD_BINARY_ANALYSIS_SUPPORT
+SUBDIRS += binaryAnalysis
+endif
 
 # TOO (2/16/2011): Errors with Tensilica's Xtensa compilers as alternative backend compilers. We can
 # gradually enable these tests at a later stage if necessary.
@@ -15,9 +19,12 @@ INCLUDES = $(ROSE_INCLUDES)
 
 ROSE_FLAGS = --edg:no_warnings -w
 
+
+
 noinst_HEADERS = \
    coverage_funcsC.h \
    inputCode_collectComments.h
+   #yices_c.h
 
 # Liao 5/7/2010  We want to have a few installable programs as tools for users
 bin_PROGRAMS = \
@@ -25,7 +32,12 @@ bin_PROGRAMS = \
    defuseAnalysis \
    livenessAnalysis \
    interproceduralCFG \
-   virtualCFG \
+   virtualCFG
+
+if ROSE_HAVE_YICES
+bin_PROGRAMS += \
+   yicesTutorialExample
+endif
    #traverseBinCFG \
    #traverseSourceCFG 
 
@@ -47,15 +59,10 @@ NOINST_TUTORIAL_EXAMPLES = \
    addVariableDeclaration \
    addVariableDeclaration2 \
    AST_PDF_Generator \
-   astFileIO_GenerateBinaryFile \
    astFileIO_ReadMultipleASTs \
    ASTGraphGenerator \
    ASTGraphGeneratorCustomized \
    bin_example \
-   binaryAnalysisExample \
-   binaryAnalysis_symbolTable \
-   binaryFileRead \
-   binaryFileWrite \
    sb_callgraphAnalysis \
    buildCFG \
    buildVFA \
@@ -126,6 +133,15 @@ NOINST_TUTORIAL_EXAMPLES = \
    wholeGraphAST \
    wholeGraphFilterOnPersistantAttributes
 
+if ROSE_BUILD_BINARY_ANALYSIS_SUPPORT
+NOINST_TUTORIAL_EXAMPLES += \
+   astFileIO_GenerateBinaryFile \
+   binaryAnalysisExample \
+   binaryAnalysis_symbolTable \
+   binaryFileRead \
+   binaryFileWrite
+endif
+
 # DQ (3/21/2009): Separate those that compile under Cygwin from those that don't.
 if ROSE_BUILD_OS_IS_CYGWIN
   noinst_PROGRAMS = $(NOINST_TUTORIAL_EXAMPLES)
@@ -152,6 +168,9 @@ wholeASTGraphGenerator_SOURCES = wholeASTGraphGenerator.C
 
 identityTranslator_SOURCES = identityTranslator.C
 
+if ROSE_HAVE_YICES
+yicesTutorialExample_SOURCES = yicesTutorialExample.C
+endif
 lineReplacement_SOURCES = lineReplacement.C
 
 queryLibraryExample_SOURCES = queryLibraryExample.C
@@ -534,6 +553,10 @@ loopOptimizationOutputFiles = \
 
 testLoopOptimization: loopProcessor $(loopOptimizationOutputFiles)
 
+if ROSE_HAVE_YICES
+yicesTutorialExampleOutputFiles = \
+    yicesInputExample.C
+endif
 testInheritedAttributeTraversal: inheritedAttributeTraversal
 	$(VALGRIND) ./inheritedAttributeTraversal -c $(srcdir)/inputCode_ExampleTraversals_1.C
 
@@ -599,6 +622,10 @@ testAddArbitraryTextForUnparser:
 testCollectComments: collectComments
 	./collectComments -rose:collectAllCommentsAndDirectives -I$(srcdir) -c $(srcdir)/inputCode_collectComments.C
 
+if ROSE_HAVE_YICES
+testYicesTutorialExample: yicesTutorialExample
+	./yicesTutorialExample -I$(srcdir) -c $(srcdir)/yicesInputExample.C
+endif
 testCollectCommentsSkipHeaders: collectComments
 	./collectComments -I$(srcdir) -c $(srcdir)/inputCode_collectComments.C
 
@@ -1228,6 +1255,8 @@ callGraph.pdf: buildCallGraph
 	@echo "Generate call graph from processing of input code (callGraph) ..."
 	./buildCallGraph $(ROSE_FLAGS) -c $(srcdir)/inputCode_BuildCG.C
 	$(top_srcdir)/scripts/dotgenLetterPDF inputCode_BuildCG.C_callGraph.dot callGraph.pdf
+# Liao, add a non-trival test input 
+	./buildCallGraph $(ROSE_FLAGS) -c $(srcdir)/bt_onefile.c
 if ROSE_USE_GRAPHVIZ_DOT
 #	DQ (10/19/2009): Added error checking to (catches lack of "dot" in path).
 	if ! test -e callGraph.pdf; then exit 1; fi
@@ -1414,7 +1443,8 @@ inputCode_dwarfAnalysis.out: dwarfInstructionAddressToSourceLineAnalysis inputCo
 
 # Note that we have made multiple copies of "inputCode_ExampleTraversals.C"
 # so that the processing could be done in parallel with out collisions.
-EXTRA_DIST = CMakeLists.txt \
+EXTRA_DIST = \
+   CMakeLists.txt \
    inputCode_1.C \
    inputCode_BuildCFG.C \
    inputCode_InstrumentationTranslator.C \
@@ -1509,7 +1539,18 @@ EXTRA_DIST = CMakeLists.txt \
    inputCode_seedBugsExample_arrayIndexing.C \
    inputCode_dwarfAnalysis.C \
    inputCode_reductionRecognition.C \
-   livenessAnalysis-2.C
+   livenessAnalysis-2.C \
+   bt_onefile.c \
+   dfa_cpa.pdf \
+   dfa_ex.pdf \
+   transformation_cfg.pdf \
+   transformation_srcode.pdf \
+   lattice_cpa.pdf \
+   code_replacement_transformation.pdf
+
+if ROSE_HAVE_YICES
+    EXTRA_DIST += yicesInputExample.C
+endif
 
 # disabled this one due to problem with copy mechanism, Liao
 #   inputCode_varSubstCopy.C 

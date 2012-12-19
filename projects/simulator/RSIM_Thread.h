@@ -7,7 +7,8 @@
  *  a new real thread to simulate it; when the simulated thread exits, the real thread also exits.  Therefore, the methods
  *  defined for the RSIM_Thread class are intended to be called by only one thread at a time per RSIM_Thread object.
  *
- *  The RSIM_Thread object contains an RSIM_SemanticPolicy object which defines how instructions are executed. */
+ *  The RSIM_Thread object contains an instruction semantics policy object which defines how instructions are executed and
+ *  contains the register state for the thread. */
 
 class RSIM_Thread {
 public:
@@ -214,27 +215,53 @@ public:
 
     /** Install a callback object.
      *
-     *  This is just a convenient way of installing a callback object.  It appends it to the BEFORE slot of the appropriate
-     *  queue.
+     *  This is just a convenient way of installing a callback object.  It appends it to the BEFORE slot (by default) of the
+     *  appropriate queue.
      *
      *  @{ */  // ******* Similar functions in RSIM_Simulator and RSIM_Process ******
-    void install_callback(RSIM_Callbacks::InsnCallback *cb) {
-        callbacks.add_insn_callback(RSIM_Callbacks::BEFORE, cb);
+    void install_callback(RSIM_Callbacks::InsnCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.add_insn_callback(when, cb);
     }
-    void install_callback(RSIM_Callbacks::MemoryCallback *cb) {
-        callbacks.add_memory_callback(RSIM_Callbacks::BEFORE, cb);
+    void install_callback(RSIM_Callbacks::MemoryCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.add_memory_callback(when, cb);
     }
-    void install_callback(RSIM_Callbacks::SyscallCallback *cb) {
-        callbacks.add_syscall_callback(RSIM_Callbacks::BEFORE, cb);
+    void install_callback(RSIM_Callbacks::SyscallCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.add_syscall_callback(when, cb);
     }
-    void install_callback(RSIM_Callbacks::SignalCallback *cb) {
-        callbacks.add_signal_callback(RSIM_Callbacks::BEFORE, cb);
+    void install_callback(RSIM_Callbacks::SignalCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.add_signal_callback(when, cb);
     }
-    void install_callback(RSIM_Callbacks::ThreadCallback *cb) {
-        callbacks.add_thread_callback(RSIM_Callbacks::BEFORE, cb);
+    void install_callback(RSIM_Callbacks::ThreadCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.add_thread_callback(when, cb);
     }
-    void install_callback(RSIM_Callbacks::ProcessCallback *cb) {
-        callbacks.add_process_callback(RSIM_Callbacks::BEFORE, cb);
+    void install_callback(RSIM_Callbacks::ProcessCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.add_process_callback(when, cb);
+    }
+    /** @} */
+
+    /** Remove a callback object.
+     *
+     *  This is just a convenient way of removing callback objects.  It removes up to one instance of the callback from the
+     *  thread.  The comparison to find a callback object is by callback address.
+     *
+     * @{ */
+    void remove_callback(RSIM_Callbacks::InsnCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.remove_insn_callback(when, cb);
+    }
+    void remove_callback(RSIM_Callbacks::MemoryCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.remove_memory_callback(when, cb);
+    }
+    void remove_callback(RSIM_Callbacks::SyscallCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.remove_syscall_callback(when, cb);
+    }
+    void remove_callback(RSIM_Callbacks::SignalCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.remove_signal_callback(when, cb);
+    }
+    void remove_callback(RSIM_Callbacks::ThreadCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.remove_thread_callback(when, cb);
+    }
+    void remove_callback(RSIM_Callbacks::ProcessCallback *cb, RSIM_Callbacks::When when=RSIM_Callbacks::BEFORE) {
+        callbacks.remove_process_callback(when, cb);
     }
     /** @} */
 
@@ -312,7 +339,7 @@ public:
      *  sets the value which will eventually be returned.
      *
      *  @{ */
-    void syscall_return(const RSIM_SEMANTIC_VTYPE<32> &value);
+    void syscall_return(const RSIM_SEMANTICS_VTYPE<32> &value);
     void syscall_return(int value);
     /** @} */
 
@@ -579,8 +606,8 @@ protected:
 public: //FIXME
     template<class guest_dirent_t> int getdents_syscall(int fd, uint32_t dirent_va, size_t sz);
     
-    mutable RSIM_SemanticPolicy policy;         /* Mutable because some policies aren't careful about using const "this" ptrs. */
-    RSIM_Semantics semantics;
+    mutable RSIM_SEMANTICS_POLICY policy;       /* Mutable because some policies aren't careful about using const "this" ptrs. */
+    RSIM_Semantics::Dispatcher semantics;
 
 
     /* Stuff related to threads */

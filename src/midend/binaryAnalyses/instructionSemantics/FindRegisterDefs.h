@@ -3,6 +3,7 @@
 
 #include "x86InstructionSemantics.h"
 #include "integerOps.h"
+#include "Registers.h"
 
 /** A policy for x86InstructionSemantics.
  *
@@ -247,9 +248,10 @@ public:
         return ValueType<1>::defined();
     }
 
-    /** Undefined Boolean */
-    ValueType<1> undefined_() const {
-        return ValueType<1>::undefined();
+    /** Undefined value */
+    template <size_t Len>
+    ValueType<Len> undefined_() const {
+        return ValueType<Len>::undefined();
     }
 
     /** Used to build a known constant. */
