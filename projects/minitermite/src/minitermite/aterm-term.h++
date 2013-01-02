@@ -1,10 +1,13 @@
-#ifndef __STRATEGO_TERM_HPP__
-#define __STRATEGO_TERM_HPP__
+#ifndef __ATERM_TERM_HPP__
+#define __ATERM_TERM_HPP__
 #include <term.h++>
+
+// TODO: We could link against libaterm and use that to create the
+//       term representation in memory.
 
 namespace term {
 
-  class StrategoTerm : virtual public STLTerm {
+  class ATermTerm : virtual public STLTerm {
    /// Properly quote and escape an atom if necessary
   public:
     static void quote(std::ostream& r, const std::string atom) {
@@ -25,13 +28,10 @@ namespace term {
      }
    }
   };
-  class StrategoAtom : virtual public STLAtom {
+  class ATermAtom : virtual public STLAtom {
   public:
-    StrategoAtom(const std::string name = "#ERROR", bool escapedRepresentation = true) :
+    ATermAtom(const std::string name = "#ERROR", bool escapedRepresentation = true) :
       STLAtom(name, escapedRepresentation) { };
-    virtual void quote(std::ostream& r, const std::string atom) const {
-      STLTerm::quote(r, atom);
-    }
     /// return the string
     std::string getRepresentation() const {
       std::ostringstream oss;
@@ -40,14 +40,47 @@ namespace term {
     }
     /// dump term representation to an ostream
     virtual void dump(std::ostream& s) const {
-      s << "\"";
-      escape(s, mName);
-      s << "\"";
+      quote(s, mName);
     }
 
+    /// Properly quote and escape an atom if necessary
+    static void quote(std::ostream& r, const std::string atom) {
+      if (atom.length() == 0) {
+	r << "''";
+      } else if (((atom.length() > 0) && (!islower(atom[0])) && (!isdigit(atom[0])))
+		|| needs_quotes(atom)) {
+	r << "'";
+	escape(r, atom);
+	r << "'";
+      } else if (is_reserved_operator(atom)) {
+	r << "(";
+	escape(r, atom);
+	r << ")";
+      } else {
+	escape(r, atom);
+      }
+    }
+
+    // true if the pattern can be unified with the term
+    bool matches(std::string pattern) { return false; assert(false && "not implemented"); }
+
   protected:
+
+    static bool needs_quotes(const std::string s) {
+      if (s.length() == 0) 
+	return true;
+
+      for (std::string::const_iterator c = s.begin();
+	   c != s.end(); ++c) {
+
+	if (!islower(*c) && !isupper(*c) && !(*c == '_'))
+	  return true;
+      }
+      return false;
+    }
+
     // Escape non-printable characters
-      static void escape(std::ostream& r, std::string s) {
+    static void escape(std::ostream& r, std::string s) {
       for (unsigned int i = 0; i < s.length(); ++i) {
 	unsigned char c = s[i];
 	switch (c) {
@@ -70,7 +103,7 @@ namespace term {
 	      << std::setfill('0') 
 	      << std::setw(3) 
 	      << (unsigned int)c; // \nnn Character with octal value nnn
-	  } else {
+	   } else {
 	    r << c;
 	  }
 	}
@@ -81,68 +114,68 @@ namespace term {
   };
 
   /// Representation of a compound prolog term.
-  class StrategoCompTerm : public STLCompTerm {
+  class ATermCompTerm : public STLCompTerm {
   public:
     virtual void quote1(std::ostream& r, const std::string atom) const {
       // get around diamond inheritance woes
-      StrategoTerm::quote(r, atom);
+      ATermTerm::quote(r, atom);
     }
     /// Creates a compound term with the given name. no subterms added yet.
-    StrategoCompTerm(const std::string name = "#ERROR") : STLCompTerm(name) {};
+    ATermCompTerm(const std::string name = "#ERROR") : STLCompTerm(name) {};
 
-    StrategoCompTerm(const std::string name, Term* t1)
+    ATermCompTerm(const std::string name, Term* t1)
       : STLCompTerm(name,t1)
     { }
 
-    StrategoCompTerm(const std::string name, Term* t1, Term* t2) 
+    ATermCompTerm(const std::string name, Term* t1, Term* t2) 
       : STLCompTerm(name,t1,t2)
     { }
 
-    StrategoCompTerm(const std::string name, 
+    ATermCompTerm(const std::string name, 
 		Term* t1, Term* t2, Term* t3) 
       : STLCompTerm(name,t1,t2,t3)
     { }
 
-    StrategoCompTerm(const std::string name, 
+    ATermCompTerm(const std::string name, 
 		Term* t1, Term* t2, Term* t3, 
 		Term* t4) 
       : STLCompTerm(name,t1,t2,t3,t4)
     { }
 
-    StrategoCompTerm(const std::string name, 
+    ATermCompTerm(const std::string name, 
 		Term* t1, Term* t2, Term* t3, 
 		Term* t4, Term* t5) 
       : STLCompTerm(name,t1,t2,t3,t4,t5)
     { }
 
-    StrategoCompTerm(const std::string name, 
+    ATermCompTerm(const std::string name, 
 		Term* t1, Term* t2, Term* t3,
 		Term* t4, Term* t5, Term* t6) 
       : STLCompTerm(name,t1,t2,t3,t4,t5,t6)
     { }
 
-    StrategoCompTerm(const std::string name, 
+    ATermCompTerm(const std::string name, 
 		Term* t1, Term* t2, Term* t3, 
 		Term* t4, Term* t5, Term* t6, 
 		Term* t7)
       : STLCompTerm(name,t1,t2,t3,t4,t5,t6,t7)
     { }
 
-    StrategoCompTerm(const std::string name, 
+    ATermCompTerm(const std::string name, 
 		Term* t1, Term* t2, Term* t3, 
 		Term* t4, Term* t5, Term* t6, 
 		Term* t7, Term* t8)
       : STLCompTerm(name,t1,t2,t3,t4,t5,t6,t7,t8)
     { }
 
-    StrategoCompTerm(const std::string name, 
+    ATermCompTerm(const std::string name, 
 		Term* t1, Term* t2, Term* t3, 
 		Term* t4, Term* t5, Term* t6, 
 		Term* t7, Term* t8, Term* t9)
       : STLCompTerm(name,t1,t2,t3,t4,t5,t6,t7,t8,t9)
     { }
   
-    StrategoCompTerm(const std::string name, 
+    ATermCompTerm(const std::string name, 
 		Term* t1, Term* t2, Term* t3, 
 		Term* t4, Term* t5, Term* t6, 
 		Term* t7, Term* t8, Term* t9,
@@ -152,12 +185,12 @@ namespace term {
   };
 
   /**
-   * Create terms in Stratego/XT format.
+   * Create terms in ATerm format.
    */
-  class StrategoTermFactory : public STLTermFactory {
+  class ATermTermFactory : public STLTermFactory {
     /// create a new atom
     Atom* makeAtom(const std::string& name, bool escape) const 
-    { return new StrategoAtom(name, escape); };
+    { return new ATermAtom(name, escape); };
 
     /// create a new int
     Int* makeInt(const int value) const { return new STLInt(value); }
@@ -174,55 +207,55 @@ namespace term {
     //  Yes, I do know about variadic functions.
     CompTerm* makeCompTerm(const std::string& name, 
 			   term::Term* t1) const
-    { return new StrategoCompTerm(name, t1); }
+    { return new ATermCompTerm(name, t1); }
 
     CompTerm* makeCompTerm(const std::string& name, 
 			   term::Term* t1, term::Term* t2) const
-    { return new StrategoCompTerm(name, t1, t2); }
+    { return new ATermCompTerm(name, t1, t2); }
 
     CompTerm* makeCompTerm(const std::string& name, 
 			   term::Term* t1, term::Term* t2, term::Term* t3) const
-    { return new StrategoCompTerm(name, t1, t2, t3); }
+    { return new ATermCompTerm(name, t1, t2, t3); }
 
     CompTerm* makeCompTerm(const std::string& name, 
 			   term::Term* t1, term::Term* t2, term::Term* t3,
 			   term::Term* t4) const
-    { return new StrategoCompTerm(name, t1, t2, t3, t4); }
+    { return new ATermCompTerm(name, t1, t2, t3, t4); }
 
     CompTerm* makeCompTerm(const std::string& name, 
 			   term::Term* t1, term::Term* t2, term::Term* t3,
 			   term::Term* t4, term::Term* t5) const
-    { return new StrategoCompTerm(name, t1, t2, t3, t4, t5); }
+    { return new ATermCompTerm(name, t1, t2, t3, t4, t5); }
 
     CompTerm* makeCompTerm(const std::string& name, 
 			   term::Term* t1, term::Term* t2, term::Term* t3,
 			   term::Term* t4, term::Term* t5, term::Term* t6) const
-    { return new StrategoCompTerm(name, t1, t2, t3, t4, t5, t6); }
+    { return new ATermCompTerm(name, t1, t2, t3, t4, t5, t6); }
 
     CompTerm* makeCompTerm(const std::string& name, 
 			   term::Term* t1, term::Term* t2, term::Term* t3,
 			   term::Term* t4, term::Term* t5, term::Term* t6,
 			   term::Term* t7) const
-    { return new StrategoCompTerm(name, t1, t2, t3, t4, t5, t6, t7); }
+    { return new ATermCompTerm(name, t1, t2, t3, t4, t5, t6, t7); }
 
     CompTerm* makeCompTerm(const std::string& name, 
 			   term::Term* t1, term::Term* t2, term::Term* t3,
 			   term::Term* t4, term::Term* t5, term::Term* t6,
 			   term::Term* t7, term::Term* t8) const
-    { return new StrategoCompTerm(name, t1, t2, t3, t4, t5, t6, t7, t8); }
+    { return new ATermCompTerm(name, t1, t2, t3, t4, t5, t6, t7, t8); }
 
     CompTerm* makeCompTerm(const std::string& name, 
 			   term::Term* t1, term::Term* t2, term::Term* t3,
 			   term::Term* t4, term::Term* t5, term::Term* t6,
 			   term::Term* t7, term::Term* t8, term::Term* t9) const
-    { return new StrategoCompTerm(name, t1, t2, t3, t4, t5, t6, t7, t8, t9); }
+    { return new ATermCompTerm(name, t1, t2, t3, t4, t5, t6, t7, t8, t9); }
 
     CompTerm* makeCompTerm(const std::string& name, 
 			   term::Term* t1, term::Term* t2, term::Term* t3,
 			   term::Term* t4, term::Term* t5, term::Term* t6,
 			   term::Term* t7, term::Term* t8, term::Term* t9,
 			   term::Term* t10) const
-    { return new StrategoCompTerm(name, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10); }
+    { return new ATermCompTerm(name, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10); }
   };
 }
 #endif
