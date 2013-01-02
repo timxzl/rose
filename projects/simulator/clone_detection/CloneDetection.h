@@ -1,11 +1,14 @@
-// Template definitions for Andreas and Earl
-// Don't forget to apply the demos/MultiWithConversion.patch before compiling, or else none of this stuff ever gets called!
-// These functions are called from demos/MultiWithConversionTpl.h, but I'm splitting them into this file so you guys can find
-// the parts you need to modify.
+// This header has the high-level clone-detection semantics functions.  One does not typically need a deep understanding of the
+// simulator in order to modify this file (Andreas and Earl).
+//
+// Don't forget to apply the clone_detection/CloneDetection.patch before compiling, or else none of this stuff ever gets
+// called!  These functions are mostly called from clone_detection/CloneDetectionTpl.h, but I'm splitting them into this file
+// so you guys can find the parts you need to modify.
 
 #include "rose_getline.h"
 
-namespace Robin {
+namespace CloneDetection {
+namespace HighLevel {
 
 /** Convert a value to the concrete domain.
  *
@@ -46,14 +49,26 @@ convert_to_symbolic(const ValueType<nBits> &value)
     return SYMBOLIC_VALUE<nBits>();
 }
 
-/** Called once when analysis starts. */
+/** Return the next input value from the queue of possible inputs. */
+template <size_t nBits>
+RSIM_SEMANTICS_VTYPE<nBits>
+next_input_value(InputValues *inputs, RTS_Message *m)
+{
+    RSIM_SEMANTICS_VTYPE<nBits> retval(inputs->next_integer());
+    if (m) {
+        std::ostringstream ss;
+        ss <<retval;
+        m->mesg("CloneDetection::HighLevel: using integer input #%zu: %s", inputs->integers_consumed(), ss.str().c_str());
+    }
+    return retval;
+}
+
+/** Called once when analysis starts. This is called at the start of every analyzed function. The @p target_va is the virtual
+ *  address for the function's entry point. Registers and memory have already been (partly) initialized by this time. */
 template<class Policy>
 void
 analysis_starting(Policy *policy, rose_addr_t target_va)
 {
-    // Choose an arbitrary concrete value for the initial stack pointer
-    RSIM_SEMANTICS_VTYPE<32> esp(0x80000000); // stack grows down
-    policy->writeRegister("esp", esp);
 }
 
 /** Determines domains in which an x86 instruction executes.
@@ -68,7 +83,6 @@ template<class Policy>
 unsigned
 domains_for_instruction(Policy *policy, SgAsmx86Instruction *insn)
 {
-    using namespace MultiDomainDemo; // where things like SYMBOLIC are defined. See MultiWithConversion.h
     unsigned retval = 0;
 
     if (true) {
@@ -125,7 +139,7 @@ domains_for_instruction(Policy *policy, SgAsmx86Instruction *insn)
         // can gain access to all the simulator callback lists (which are still executing in the CONCRETE domain).
         RSIM_Thread *thread = policy->get_policy(CONCRETE).thread;
         RSIM_Process *proc = thread->get_process();
-        policy->trace()->mesg("This is Robin: thread %d of %s\n", thread->get_tid(), proc->get_exename().c_str());
+        policy->trace()->mesg("This is CloneDetection thread %d of %s\n", thread->get_tid(), proc->get_exename().c_str());
 
 
         // You can also use this function to do other per-instruction work, like showing how much the SMT solver's been used.
@@ -165,7 +179,7 @@ ite_merge(Policy *policy, const ValueType<1> &cond, const ValueType<nBits> &a, c
         x = (25214903917ull*x+11) % 0x0000ffffffffffffull;  // 48 bits
         bool bit = 0 != (x &        0x0000010000000000ull); // arbitrary bit; higher order bits have longer periods
         std::ostringstream ss;
-        ss <<"Robin: ite_merge: choosing " <<(bit?"first":"second") <<" alternative: " <<(bit?a:b);
+        ss <<"CloneDetection::HighLevel: ite_merge: choosing " <<(bit?"first":"second") <<" alternative: " <<(bit?a:b);
         policy->trace()->mesg("%s", ss.str().c_str());
         return bit ? a : b;
 
@@ -189,7 +203,7 @@ ite_merge(Policy *policy, const ValueType<1> &cond, const ValueType<nBits> &a, c
             take = strtol(buf, NULL, 0);
 
         std::ostringstream ss;
-        ss <<"Robin: ite_merge: choosing " <<(take?"first":"second") <<" alternative: " <<(take?a:b);
+        ss <<"CloneDetection::HighLevel: ite_merge: choosing " <<(take?"first":"second") <<" alternative: " <<(take?a:b);
         policy->trace()->mesg("%s", ss.str().c_str());
         return take ? a : b;
 
@@ -201,15 +215,13 @@ ite_merge(Policy *policy, const ValueType<1> &cond, const ValueType<nBits> &a, c
 
 /** Gets called after every x86 instruction.
  *
- *  Allows Robin to do things after an instruction is executed.  The machine state is available through the CONCRETE component
- *  of the multi domain policy passed in as the @p policy argument.  The @p insn argument is the instruction that was just
- *  executed. */
+ *  Allows the HighLevel to do things after an instruction is executed.  The machine state is available through the CONCRETE
+ *  component of the multi domain policy passed in as the @p policy argument.  The @p insn argument is the instruction that was
+ *  just executed. */
 template<class Policy>
 void
 after_instruction(Policy *policy, SgAsmx86Instruction *insn)
 {
-    using namespace MultiDomainDemo; // where things like SYMBOLIC are defined. See MultiWithConversion.h
-
     // Print the machine state
     std::ostringstream ss;
     bool abbreviated = false; // if true, then show only the active domains
@@ -218,8 +230,6 @@ after_instruction(Policy *policy, SgAsmx86Instruction *insn)
                           policy->name, unparseInstruction(insn).c_str(),
                           StringUtility::prefixLines(ss.str(), "    ").c_str());
 }
-    
 
-    
-    
+} // namespace
 } // namespace
