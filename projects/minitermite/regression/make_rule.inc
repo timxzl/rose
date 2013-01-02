@@ -239,7 +239,6 @@ regression/c_driver.sh: Makefile
 if ROSE_HAVE_SWI_PROLOG
 	@echo '$(TERMLINT) $${NAME}-1.term || exit 9' >> $@
 	@echo '$(TERMLINT) $${NAME}-3.term || exit 10' >> $@
-	@echo '$(TERMLINT) $${NAME}-7.term || exit 11' >> $@
 endif
 
 regression/cxx_driver.sh: Makefile
@@ -263,7 +262,6 @@ regression/cxx_driver.sh: Makefile
 if ROSE_HAVE_SWI_PROLOG
 	@echo '$(TERMLINT) $${NAME}-1.term || exit 9' >> $@
 	@echo '$(TERMLINT) $${NAME}-3.term || exit 10' >> $@
-	@echo '$(TERMLINT) $${NAME}-7.term || exit 11' >> $@
 endif
 
 regression/f90_driver.sh: Makefile
@@ -287,7 +285,6 @@ regression/f90_driver.sh: Makefile
 if ROSE_HAVE_SWI_PROLOG
 	@echo '$(TERMLINT) $${NAME}-1.term || exit 9' >> $@
 	@echo '$(TERMLINT) $${NAME}-3.term || exit 10' >> $@
-	@echo '$(TERMLINT) $${NAME}-7.term || exit 11' >> $@
 endif
 
 # disable gfortran-based syntax checking until ROSE can compile with gfortran >= 4.7
@@ -315,7 +312,6 @@ regression/f03_driver.sh: Makefile
 if ROSE_HAVE_SWI_PROLOG
 	@echo '$(TERMLINT) $${NAME}-1.term || exit 9' >> $@
 	@echo '$(TERMLINT) $${NAME}-3.term || exit 10' >> $@
-	@echo '$(TERMLINT) $${NAME}-7.term || exit 11' >> $@
 endif
 
 regression/f77_driver.sh: Makefile
@@ -344,5 +340,4 @@ regression/f77_driver.sh: Makefile
 if ROSE_HAVE_SWI_PROLOG
 	@echo '$(TERMLINT) $${NAME}-1.term || exit 9' >> $@
 	@echo '$(TERMLINT) $${NAME}-3.term || exit 10' >> $@
-	@echo '$(TERMLINT) $${NAME}-7.term || exit 11' >> $@
 endif
