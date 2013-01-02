@@ -1,18 +1,20 @@
-// See MultiWithConversion.h for documentation                                          __THIS_HEADER_IS_USED__
-// This header is included at the end of RSIM_Templates.h
+// See CloneDetectionSemantics.h for documentation                                      __THIS_HEADER_IS_USED__
+// This header is included at the end of RSIM_Templates.h and is intended to be
+// modified by someone that understands how the simulator works. Higher level
+// functions are in CloneDetection.h
 
 #include "YicesSolver.h"
-#include "RobinTpl.h"
+#include "CloneDetection.h"
 
-namespace MultiDomainDemo {
+namespace CloneDetection {
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 void
 Policy<State, ValueType>::init()
 {
     // We can't call anything here that uses the policy's RSIM_Thread because the thread is not fully initialized yet.
-    name = "MultiDomainDemo::Policy";
-    std::cerr <<"RSIM is using MultiDomainDemo::Policy (see demos/MultiWithConversion.h)\n";
+    name = "CloneDetection::Policy";
+    std::cerr <<"RSIM is using CloneDetection::Policy (see clone_detection/CloneDetectionSemantics.h)\n";
 
     // By default, disable all our sub-domains.  Only allow the simulator's domain to be active.
     this->set_active_policies(CONCRETE.mask);
@@ -29,25 +31,38 @@ Policy<State, ValueType>::init()
 #endif
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 RTS_Message *
 Policy<State, ValueType>::trace()
 {
     return this->get_policy(CONCRETE).thread->tracing(TRACE_MISC);
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 void
-Policy<State, ValueType>::trigger(rose_addr_t target_va)
+Policy<State, ValueType>::trigger(rose_addr_t target_va, InputValues *inputs)
 {
-    trace()->mesg("%s: triggered; enabling all sub-domains; branching to 0x%"PRIx64, name, target_va);
     this->set_active_policies(CONCRETE.mask | INTERVAL.mask | SYMBOLIC.mask);
     triggered = true;
+
+    // Reset analysis state (mem stored by MultiSemantics and the register read/written state)
+    inputs->reset();
+    this->inputs = inputs;
+    state.reset_for_analysis();
+
+    // Initialize some registers.  Obviously, the EIP register needs to be set, but we also set the ESP and EBP to known (but
+    // arbitrary) values so we can detect when the function returns.
     this->writeRegister("eip", RSIM_SEMANTICS_VTYPE<32>(target_va));
-    Robin::analysis_starting(this, target_va);
+    RSIM_SEMANTICS_VTYPE<32> esp(INITIAL_STACK); // stack grows down
+    this->writeRegister("esp", esp);
+    RSIM_SEMANTICS_VTYPE<32> ebp(INITIAL_STACK);
+    this->writeRegister("ebp", ebp);
+
+    // Give Andreas a chance to do something.
+    HighLevel::analysis_starting(this, target_va);
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 void
 Policy<State, ValueType>::startInstruction(SgAsmInstruction *insn_)
 {
@@ -66,7 +81,7 @@ Policy<State, ValueType>::startInstruction(SgAsmInstruction *insn_)
         this->writeRegister("eip", RSIM_SEMANTICS_VTYPE<32>(insn->get_address()));
 
         // Activate domains based on instruction.
-        unsigned activated = Robin::domains_for_instruction(this, insn);
+        unsigned activated = HighLevel::domains_for_instruction(this, insn);
         assert(activated!=0); // perhaps this should be how we finish an analysis
         this->set_active_policies(activated);
         std::string domains;
@@ -82,8 +97,8 @@ Policy<State, ValueType>::startInstruction(SgAsmInstruction *insn_)
         if (!this->is_active(CONCRETE)) {
             static bool warned = false;
             if (!warned) {
-                std::cerr <<name <<": turning off the CONCRETE state can have some unintended consequences. For\n"
-                          <<"    instance, the concrete EIP value is used in most tracing messages.\n";
+                trace()->mesg("%s: turning off the CONCRETE state can have some unintended consequences. For", name);
+                trace()->mesg("%s:   instance, the concrete EIP value is used in most tracing messages.\n", name);
                 warned = true;
             }
         }
@@ -91,18 +106,36 @@ Policy<State, ValueType>::startInstruction(SgAsmInstruction *insn_)
     Super::startInstruction(insn_);
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 void
 Policy<State, ValueType>::finishInstruction(SgAsmInstruction *insn)
 {
     if (triggered) {
+        SgAsmx86Instruction *insn_x86 = isSgAsmx86Instruction(insn);
+        assert(insn_x86!=NULL);
+
         // The CONCRETE domain is driving the fetch-execute loop, so we probably need to make sure that the EIP's concrete value
         // points to the next instruction.  If we evaluated insn without the concrete domain, then EIP would never have been
         // updated.
         CONCRETE_VALUE<32> eip = convert_to_concrete(this->template readRegister<32>("eip"));
         this->get_policy(CONCRETE).writeRegister("eip", eip);
 
-        Robin::after_instruction(this, isSgAsmx86Instruction(insn));
+        // Special handling for function calls.  Instead of calling the function, we treat the function as returning a new
+        // input value to the function being analyzed.  We make the following assumptions:
+        //    * Function calls are via CALL instruction
+        //    * The called function always returns
+        //    * The called function's return value is in the EAX register
+        //    * The caller cleans up any arguments that were passed via stack
+        if (x86_call==insn_x86->get_kind()) {
+            trace()->mesg("%s: special handling for function call (fall through and return via EAX)", name);
+            RSIM_SEMANTICS_VTYPE<32> call_fallthrough_va = this->add(this->template number<32>(insn->get_address()),
+                                                                     this->template number<32>(insn->get_size()));
+            this->writeRegister("eip", call_fallthrough_va);
+            this->writeRegister("eax", HighLevel::next_input_value<32>(this->inputs, trace()));
+        }
+
+        // Give Andreas a chance to do his thing.
+        HighLevel::after_instruction(this, isSgAsmx86Instruction(insn));
 
         // The simulator needs to execute in the concrete domain between instructions. For instance, RSIM_Thread::main() needs
         // to obtain a concrete value for the EIP register by calling the semantic policy's readRegister() method.
@@ -112,7 +145,7 @@ Policy<State, ValueType>::finishInstruction(SgAsmInstruction *insn)
     Super::finishInstruction(insn);
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 template<size_t nBits>
 ValueType<nBits>
 Policy<State, ValueType>::xor_(const ValueType<nBits> &a, const ValueType<nBits> &b)
@@ -141,7 +174,7 @@ Policy<State, ValueType>::xor_(const ValueType<nBits> &a, const ValueType<nBits>
     return retval;
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 template<size_t nBits>
 ValueType<nBits>
 Policy<State, ValueType>::ite(const ValueType<1> &cond, const ValueType<nBits> &a, const ValueType<nBits> &b)
@@ -179,12 +212,12 @@ Policy<State, ValueType>::ite(const ValueType<1> &cond, const ValueType<nBits> &
             return b;
         } else {
             assert(can_be_true || can_be_false);
-            return Robin::ite_merge(this, new_cond, a, b);
+            return HighLevel::ite_merge(this, new_cond, a, b);
         }
     }
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 size_t
 Policy<State, ValueType>::symbolic_state_complexity()
 {
@@ -207,7 +240,7 @@ Policy<State, ValueType>::symbolic_state_complexity()
     return visitor.nnodes;
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 template<size_t nBits>
 ValueType<nBits>
 Policy<State, ValueType>::readRegister(const char *regname)
@@ -216,7 +249,7 @@ Policy<State, ValueType>::readRegister(const char *regname)
     return this->template readRegister<nBits>(reg);
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 template<size_t nBits>
 ValueType<nBits>
 Policy<State, ValueType>::readRegister(const RegisterDescriptor &reg)
@@ -229,7 +262,7 @@ Policy<State, ValueType>::readRegister(const RegisterDescriptor &reg)
     ValueType<nBits> retval;
     try {
         switch (nBits) {
-            case 1:
+            case 1: {
                 // Only FLAGS/EFLAGS bits have a size of one.  Other registers cannot be accessed at this granularity.
                 if (reg.get_major()!=x86_regclass_flags)
                     throw Exception("bit access only valid for FLAGS/EFLAGS register");
@@ -237,10 +270,17 @@ Policy<State, ValueType>::readRegister(const RegisterDescriptor &reg)
                     throw Exception("register not implemented in semantic policy");
                 if (reg.get_nbits()!=1)
                     throw Exception("semantic policy supports only single-bit flags");
-                retval = this->template unsignedExtend<1, nBits>(state.registers.flag[reg.get_offset()]);
+                bool never_accessed = 0 == state.register_rw_state.flag[reg.get_offset()].state;
+                state.register_rw_state.flag[reg.get_offset()].state |= HAS_BEEN_READ;
+                if (never_accessed) {
+                    retval = HighLevel::next_input_value<nBits>(this->inputs, trace());
+                } else {
+                    retval = this->template unsignedExtend<1, nBits>(state.registers.flag[reg.get_offset()]);
+                }
                 break;
+            }
 
-            case 8:
+            case 8: {
                 // Only general-purpose registers can be accessed at a byte granularity, and we can access only the low-order
                 // byte or the next higher byte.  For instance, "al" and "ah" registers.
                 if (reg.get_major()!=x86_regclass_gpr)
@@ -248,37 +288,62 @@ Policy<State, ValueType>::readRegister(const RegisterDescriptor &reg)
                 if (reg.get_minor()>=state.registers.n_gprs)
                     throw Exception("register not implemented in semantic policy");
                 assert(reg.get_nbits()==8); // we had better be asking for a one-byte register (e.g., "ah", not "ax")
-                switch (reg.get_offset()) {
-                    case 0:
-                        retval = this->template extract<0, nBits>(state.registers.gpr[reg.get_minor()]);
-                        break;
-                    case 8:
-                        retval = this->template extract<8, 8+nBits>(state.registers.gpr[reg.get_minor()]);
-                        break;
-                    default:
-                        throw Exception("invalid one-byte access offset");
+                bool never_accessed = 0==state.register_rw_state.gpr[reg.get_minor()].state;
+                state.register_rw_state.gpr[reg.get_minor()].state |= HAS_BEEN_READ;
+                if (never_accessed) {
+                    retval = HighLevel::next_input_value<nBits>(this->inputs, trace());
+                } else {
+                    switch (reg.get_offset()) {
+                        case 0:
+                            retval = this->template extract<0, nBits>(state.registers.gpr[reg.get_minor()]);
+                            break;
+                        case 8:
+                            retval = this->template extract<8, 8+nBits>(state.registers.gpr[reg.get_minor()]);
+                            break;
+                        default:
+                            throw Exception("invalid one-byte access offset");
+                    }
                 }
                 break;
+            }
 
-            case 16:
+            case 16: {
                 if (reg.get_nbits()!=16)
                     throw Exception("invalid 2-byte register");
                 if (reg.get_offset()!=0)
                     throw Exception("policy does not support non-zero offsets for word granularity register access");
                 switch (reg.get_major()) {
-                    case x86_regclass_segment:
+                    case x86_regclass_segment: {
                         if (reg.get_minor()>=state.registers.n_segregs)
                             throw Exception("register not implemented in semantic policy");
-                        retval = this->template unsignedExtend<16, nBits>(state.registers.segreg[reg.get_minor()]);
+                        bool never_accessed = 0==state.register_rw_state.segreg[reg.get_minor()].state;
+                        state.register_rw_state.segreg[reg.get_minor()].state |= HAS_BEEN_READ;
+                        if (never_accessed) {
+                            retval = HighLevel::next_input_value<nBits>(this->inputs, trace());
+                        } else {
+                            retval = this->template unsignedExtend<16, nBits>(state.registers.segreg[reg.get_minor()]);
+                        }
                         break;
-                    case x86_regclass_gpr:
+                    }
+                    case x86_regclass_gpr: {
                         if (reg.get_minor()>=state.registers.n_gprs)
                             throw Exception("register not implemented in semantic policy");
-                        retval = this->template extract<0, nBits>(state.registers.gpr[reg.get_minor()]);
+                        bool never_accessed = 0==state.register_rw_state.gpr[reg.get_minor()].state;
+                        state.register_rw_state.segreg[reg.get_minor()].state |= HAS_BEEN_READ;
+                        if (never_accessed) {
+                            retval = HighLevel::next_input_value<nBits>(this->inputs, trace());
+                        } else {
+                            retval = this->template extract<0, nBits>(state.registers.gpr[reg.get_minor()]);
+                        }
                         break;
-                    case x86_regclass_flags:
+                    }
+
+                    case x86_regclass_flags: {
                         if (reg.get_minor()!=0 || state.registers.n_flags<16)
                             throw Exception("register not implemented in semantic policy");
+                        // FIXME: we need to grab flags from HighLevel::next_input_value if they've never been read or written
+                        for (size_t i=0; i<state.register_rw_state.n_flags; ++i)
+                            state.register_rw_state.flag[i].state |= HAS_BEEN_READ;
                         retval = this->template unsignedExtend<16, nBits>(concat(state.registers.flag[0],
                                                                           concat(state.registers.flag[1],
                                                                           concat(state.registers.flag[2],
@@ -296,36 +361,62 @@ Policy<State, ValueType>::readRegister(const RegisterDescriptor &reg)
                                                                           concat(state.registers.flag[14],
                                                                                  state.registers.flag[15]))))))))))))))));
                         break;
+                    }
                     default:
                         throw Exception("word access not valid for this register type");
                 }
                 break;
+            }
 
-            case 32:
+            case 32: {
                 if (reg.get_offset()!=0)
                     throw Exception("policy does not support non-zero offsets for double word granularity register access");
                 switch (reg.get_major()) {
-                    case x86_regclass_gpr:
+                    case x86_regclass_gpr: {
                         if (reg.get_minor()>=state.registers.n_gprs)
                             throw Exception("register not implemented in semantic policy");
-                        retval = this->template unsignedExtend<32, nBits>(state.registers.gpr[reg.get_minor()]);
+                        bool never_accessed = 0==state.register_rw_state.gpr[reg.get_minor()].state;
+                        state.register_rw_state.gpr[reg.get_minor()].state |= HAS_BEEN_READ;
+                        if (never_accessed) {
+                            retval = HighLevel::next_input_value<nBits>(this->inputs, trace());
+                        } else {
+                            retval = this->template unsignedExtend<32, nBits>(state.registers.gpr[reg.get_minor()]);
+                        }
                         break;
-                    case x86_regclass_ip:
+                    }
+                    case x86_regclass_ip: {
                         if (reg.get_minor()!=0)
                             throw Exception("register not implemented in semantic policy");
-                        retval = this->template unsignedExtend<32, nBits>(state.registers.ip);
+                        bool never_accessed = 0==state.register_rw_state.ip.state;
+                        state.register_rw_state.ip.state |= HAS_BEEN_READ;
+                        if (never_accessed) {
+                            retval = HighLevel::next_input_value<nBits>(this->inputs, trace());
+                        } else {
+                            retval = this->template unsignedExtend<32, nBits>(state.registers.ip);
+                        }
                         break;
-                    case x86_regclass_segment:
+                    }
+                    case x86_regclass_segment: {
                         if (reg.get_minor()>=state.registers.n_segregs || reg.get_nbits()!=16)
                             throw Exception("register not implemented in semantic policy");
-                        retval = this->template unsignedExtend<16, nBits>(state.registers.segreg[reg.get_minor()]);
+                        bool never_accessed = 0==state.register_rw_state.segreg[reg.get_minor()].state;
+                        state.register_rw_state.segreg[reg.get_minor()].state |= HAS_BEEN_READ;
+                        if (never_accessed) {
+                            retval = HighLevel::next_input_value<nBits>(this->inputs, trace());
+                        } else {
+                            retval = this->template unsignedExtend<16, nBits>(state.registers.segreg[reg.get_minor()]);
+                        }
                         break;
+                    }
                     case x86_regclass_flags: {
                         if (reg.get_minor()!=0 || state.registers.n_flags<32)
                             throw Exception("register not implemented in semantic policy");
                         if (reg.get_nbits()!=32)
                             throw Exception("register is not 32 bits");
-                        retval = this->template unsignedExtend<32, nBits>(concat(readRegister<16>("flags"), // no-op sign extension
+                        // FIXME: we need to grab flags from HighLevel if they have never been read or written
+                        for (size_t i=0; i<state.register_rw_state.n_flags; ++i)
+                            state.register_rw_state.flag[i].state |= HAS_BEEN_READ;
+                        retval = this->template unsignedExtend<32, nBits>(concat(readRegister<16>("flags"),
                                                                           concat(state.registers.flag[16],
                                                                           concat(state.registers.flag[17],
                                                                           concat(state.registers.flag[18],
@@ -348,7 +439,7 @@ Policy<State, ValueType>::readRegister(const RegisterDescriptor &reg)
                         throw Exception("double word access not valid for this register type");
                 }
                 break;
-
+            }
             default:
                 throw Exception("invalid register access width");
         }
@@ -365,11 +456,11 @@ Policy<State, ValueType>::readRegister(const RegisterDescriptor &reg)
     if (this->is_active(SYMBOLIC) && !retval.is_valid(SYMBOLIC))
         retval.set_subvalue(SYMBOLIC, convert_to_symbolic(retval));
 
-    this->writeRegister(reg, retval);
+    this->writeRegister(reg, retval, HAS_BEEN_READ);
     return retval;
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 template<size_t nBits>
 void
 Policy<State, ValueType>::writeRegister(const char *regname, const ValueType<nBits> &value)
@@ -378,10 +469,10 @@ Policy<State, ValueType>::writeRegister(const char *regname, const ValueType<nBi
     this->template writeRegister(reg, value);
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 template<size_t nBits>
 void
-Policy<State, ValueType>::writeRegister(const RegisterDescriptor &reg, const ValueType<nBits> &value) {
+Policy<State, ValueType>::writeRegister(const RegisterDescriptor &reg, const ValueType<nBits> &value, unsigned update_access) {
     if (!triggered)
         return Super::template writeRegister<nBits>(reg, value);
 
@@ -390,7 +481,7 @@ Policy<State, ValueType>::writeRegister(const RegisterDescriptor &reg, const Val
     Super::template writeRegister<nBits>(reg, value); // also store the value in the subpolicies' states so they have it.
     try {
         switch (nBits) {
-            case 1:
+            case 1: {
                 // Only FLAGS/EFLAGS bits have a size of one.  Other registers cannot be accessed at this granularity.
                 if (reg.get_major()!=x86_regclass_flags)
                     throw Exception("bit access only valid for FLAGS/EFLAGS register");
@@ -399,9 +490,11 @@ Policy<State, ValueType>::writeRegister(const RegisterDescriptor &reg, const Val
                 if (reg.get_nbits()!=1)
                     throw Exception("semantic policy supports only single-bit flags");
                 state.registers.flag[reg.get_offset()] = this->template unsignedExtend<nBits, 1>(value);
+                state.register_rw_state.flag[reg.get_offset()].state |= update_access;
                 break;
+            }
 
-            case 8:
+            case 8: {
                 // Only general purpose registers can be accessed at byte granularity, and only for offsets 0 and 8.
                 if (reg.get_major()!=x86_regclass_gpr)
                     throw Exception("byte access only valid for general purpose registers.");
@@ -423,27 +516,33 @@ Policy<State, ValueType>::writeRegister(const RegisterDescriptor &reg, const Val
                     default:
                         throw Exception("invalid byte access offset");
                 }
+                state.register_rw_state.gpr[reg.get_minor()].state |= update_access;
                 break;
+            }
 
-            case 16:
+            case 16: {
                 if (reg.get_nbits()!=16)
                     throw Exception("invalid 2-byte register");
                 if (reg.get_offset()!=0)
                     throw Exception("policy does not support non-zero offsets for word granularity register access");
                 switch (reg.get_major()) {
-                    case x86_regclass_segment:
+                    case x86_regclass_segment: {
                         if (reg.get_minor()>=state.registers.n_segregs)
                             throw Exception("register not implemented in semantic policy");
                         state.registers.segreg[reg.get_minor()] = this->template unsignedExtend<nBits, 16>(value);
+                        state.register_rw_state.segreg[reg.get_minor()].state |= update_access;
                         break;
-                    case x86_regclass_gpr:
+                    }
+                    case x86_regclass_gpr: {
                         if (reg.get_minor()>=state.registers.n_gprs)
                             throw Exception("register not implemented in semantic policy");
                         state.registers.gpr[reg.get_minor()] =
                             concat(this->template unsignedExtend<nBits, 16>(value),
                                    this->template extract<16, 32>(state.registers.gpr[reg.get_minor()]));
+                        state.register_rw_state.gpr[reg.get_minor()].state |= update_access;
                         break;
-                    case x86_regclass_flags:
+                    }
+                    case x86_regclass_flags: {
                         if (reg.get_minor()!=0 || state.registers.n_flags<16)
                             throw Exception("register not implemented in semantic policy");
                         state.registers.flag[0]  = this->template extract<0,  1 >(value);
@@ -462,27 +561,35 @@ Policy<State, ValueType>::writeRegister(const RegisterDescriptor &reg, const Val
                         state.registers.flag[13] = this->template extract<13, 14>(value);
                         state.registers.flag[14] = this->template extract<14, 15>(value);
                         state.registers.flag[15] = this->template extract<15, 16>(value);
+                        for (size_t i=0; i<state.register_rw_state.n_flags; ++i)
+                            state.register_rw_state.flag[i].state |= update_access;
                         break;
+                    }
                     default:
                         throw Exception("word access not valid for this register type");
                 }
                 break;
+            }
 
-            case 32:
+            case 32: {
                 if (reg.get_offset()!=0)
                     throw Exception("policy does not support non-zero offsets for double word granularity register access");
                 switch (reg.get_major()) {
-                    case x86_regclass_gpr:
+                    case x86_regclass_gpr: {
                         if (reg.get_minor()>=state.registers.n_gprs)
                             throw Exception("register not implemented in semantic policy");
                         state.registers.gpr[reg.get_minor()] = this->template signExtend<nBits, 32>(value);
+                        state.register_rw_state.gpr[reg.get_minor()].state |= update_access;
                         break;
-                    case x86_regclass_ip:
+                    }
+                    case x86_regclass_ip: {
                         if (reg.get_minor()!=0)
                             throw Exception("register not implemented in semantic policy");
                         state.registers.ip = this->template unsignedExtend<nBits, 32>(value);
+                        state.register_rw_state.ip.state |= update_access;
                         break;
-                    case x86_regclass_flags:
+                    }
+                    case x86_regclass_flags: {
                         if (reg.get_minor()!=0 || state.registers.n_flags<32)
                             throw Exception("register not implemented in semantic policy");
                         if (reg.get_nbits()!=32)
@@ -504,11 +611,15 @@ Policy<State, ValueType>::writeRegister(const RegisterDescriptor &reg, const Val
                         state.registers.flag[29] = this->template extract<29, 30>(value);
                         state.registers.flag[30] = this->template extract<30, 31>(value);
                         state.registers.flag[31] = this->template extract<31, 32>(value);
+                        for (size_t i=0; i<state.register_rw_state.n_flags; ++i)
+                            state.register_rw_state.flag[i].state |= update_access;
                         break;
+                    }
                     default:
                         throw Exception("double word access not valid for this register type");
                 }
                 break;
+            }
 
             default:
                 throw Exception("invalid register access width");
@@ -520,7 +631,7 @@ Policy<State, ValueType>::writeRegister(const RegisterDescriptor &reg, const Val
     this->set_active_policies(active_policies);
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 template<size_t nBits>
 ValueType<nBits>
 Policy<State, ValueType>::readMemory(X86SegmentRegister sr, ValueType<32> addr, const ValueType<1> &cond)
@@ -531,27 +642,36 @@ Policy<State, ValueType>::readMemory(X86SegmentRegister sr, ValueType<32> addr, 
     unsigned active_policies = this->get_active_policies();
     SMTSolver *solver = this->get_policy(SYMBOLIC).get_solver();
     SYMBOLIC_VALUE<32> a0 = convert_to_symbolic(addr);
+    bool uninitialized_read = false; // set to true by any mem_read_byte() that has no data
         
     // Read a multi-byte value from memory in little-endian order.
     assert(8==nBits || 16==nBits || 32==nBits);
-    ValueType<32> dword = this->concat(state.mem_read_byte(sr, a0, active_policies, solver), ValueType<24>(0));
+    ValueType<32> dword = this->concat(state.mem_read_byte(sr, a0, active_policies, solver, &uninitialized_read),
+                                       ValueType<24>(0));
     if (nBits>=16) {
         SYMBOLIC_VALUE<32> a1 = this->get_policy(SYMBOLIC).add(a0, SYMBOLIC_VALUE<32>(1));
         dword = this->or_(dword, this->concat(ValueType<8>(0),
-                                              this->concat(state.mem_read_byte(sr, a1, active_policies, solver),
+                                              this->concat(state.mem_read_byte(sr, a1, active_policies, solver,
+                                                                               &uninitialized_read),
                                                            ValueType<16>(0))));
     }
     if (nBits>=24) {
         SYMBOLIC_VALUE<32> a2 = this->get_policy(SYMBOLIC).add(a0, SYMBOLIC_VALUE<32>(2));
         dword = this->or_(dword, this->concat(ValueType<16>(0),
-                                              this->concat(state.mem_read_byte(sr, a2, active_policies, solver),
+                                              this->concat(state.mem_read_byte(sr, a2, active_policies, solver,
+                                                                               &uninitialized_read),
                                                            ValueType<8>(0))));
     }
     if (nBits>=32) {
         SYMBOLIC_VALUE<32> a3 = this->get_policy(SYMBOLIC).add(a0, SYMBOLIC_VALUE<32>(3));
-        dword = this->or_(dword, this->concat(ValueType<24>(0), state.mem_read_byte(sr, a3, active_policies, solver)));
+        dword = this->or_(dword, this->concat(ValueType<24>(0), state.mem_read_byte(sr, a3, active_policies, solver,
+                                                                                    &uninitialized_read)));
     }
+
     ValueType<nBits> retval = this->template extract<0, nBits>(dword);
+    if (uninitialized_read)
+        retval = this->template number<nBits>(inputs->next_integer());
+
     if (this->get_policy(CONCRETE).tracing(TRACE_MEM)->get_file()) {
         std::ostringstream ss;
         ss <<"  readMemory<" <<nBits <<">(" <<segregToString(sr) <<", " <<addr <<") -> " <<retval;
@@ -560,11 +680,11 @@ Policy<State, ValueType>::readMemory(X86SegmentRegister sr, ValueType<32> addr, 
     return retval;
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 template<size_t nBits>
 void
 Policy<State, ValueType>::writeMemory(X86SegmentRegister sr, ValueType<32> addr,
-                                      const ValueType<nBits> &data, const ValueType<1> &cond)
+                                      const ValueType<nBits> &data, const ValueType<1> &cond, unsigned rw_state)
 {
     if (!triggered)
         return Super::template writeMemory<nBits>(sr, addr, data, cond);
@@ -579,25 +699,25 @@ Policy<State, ValueType>::writeMemory(X86SegmentRegister sr, ValueType<32> addr,
     // Add the address/value pair to the mixed-semantics memory state, one byte at a time in little-endian order.
     assert(8==nBits || 16==nBits || 32==nBits);
     ValueType<8> b0 = this->template extract<0, 8>(data);
-    state.mem_write_byte(sr, a0, b0);
+    state.mem_write_byte(sr, a0, b0, rw_state);
     if (nBits>=16) {
         SYMBOLIC_VALUE<32> a1 = this->get_policy(SYMBOLIC).add(a0, SYMBOLIC_VALUE<32>(1));
         ValueType<8> b1 = this->template extract<8, 16>(data);
-        state.mem_write_byte(sr, a1, b1);
+        state.mem_write_byte(sr, a1, b1, rw_state);
     }
     if (nBits>=24) {
         SYMBOLIC_VALUE<32> a2 = this->get_policy(SYMBOLIC).add(a0, SYMBOLIC_VALUE<32>(2));
         ValueType<8> b2 = this->template extract<16, 24>(data);
-        state.mem_write_byte(sr, a2, b2);
+        state.mem_write_byte(sr, a2, b2, rw_state);
     }
     if (nBits>=32) {
         SYMBOLIC_VALUE<32> a3 = this->get_policy(SYMBOLIC).add(a0, SYMBOLIC_VALUE<32>(3));
         ValueType<8> b3 = this->template extract<24, 32>(data);
-        state.mem_write_byte(sr, a3, b3);
+        state.mem_write_byte(sr, a3, b3, rw_state);
     }
 }
 
-MULTI_DOMAIN_TEMPLATE
+CLONE_DETECTION_TEMPLATE
 void
 Policy<State, ValueType>::print(std::ostream &o, bool abbreviated) const
 {
@@ -625,16 +745,17 @@ State<ValueType>::may_alias(const SYMBOLIC_VALUE<32> &addr1, const SYMBOLIC_VALU
 
 template <template <size_t> class ValueType>
 void
-State<ValueType>::mem_write_byte(X86SegmentRegister sr, const SYMBOLIC_VALUE<32> &addr, const ValueType<8> &value)
+State<ValueType>::mem_write_byte(X86SegmentRegister sr, const SYMBOLIC_VALUE<32> &addr, const ValueType<8> &value,
+                                 unsigned rw_state)
 {
     MemoryCells &cells = x86_segreg_ss==sr ? stack_cells : data_cells;
-    cells.push_front(MemoryCell(addr, value));
+    cells.push_front(MemoryCell(addr, value, rw_state));
 }
 
 template <template <size_t> class ValueType>
 ValueType<8>
 State<ValueType>::mem_read_byte(X86SegmentRegister sr, const SYMBOLIC_VALUE<32> &addr, unsigned active_policies,
-                                SMTSolver *solver/*=NULL*/)
+                                SMTSolver *solver/*=NULL*/, bool *uninitialized_read/*out*/)
 {
     ValueType<8> retval;
     MemoryCells &cells = x86_segreg_ss==sr ? stack_cells : data_cells;
@@ -642,17 +763,19 @@ State<ValueType>::mem_read_byte(X86SegmentRegister sr, const SYMBOLIC_VALUE<32> 
     // Find all values that could be returned.  I.e., those stored at addresses that might be equal to 'addr'
     std::vector<ValueType<8> > found;
     for (typename MemoryCells::iterator ci=cells.begin(); ci!=cells.end(); ++ci) {
-        if (may_alias(addr, ci->first, solver)) {
-            found.push_back(ci->second);
-            if (must_alias(addr, ci->first, solver))
+        if (may_alias(addr, ci->addr, solver)) {
+            ci->rw_state |= HAS_BEEN_READ;
+            found.push_back(ci->val);
+            if (must_alias(addr, ci->addr, solver))
                 break;
         }
     }
 
-    // If we're in the concrete domain, return a random found value (or a random value if none found)
+    // If we're in the concrete domain, return a random found value
     if (0 != (active_policies & CONCRETE.mask)) {
         if (found.empty()) {
             retval.set_subvalue(CONCRETE, CONCRETE_VALUE<8>(rand()%256));
+            *uninitialized_read = true;
         } else {
             retval.set_subvalue(CONCRETE, convert_to_concrete(found[rand()%found.size()]));
         }
@@ -663,6 +786,7 @@ State<ValueType>::mem_read_byte(X86SegmentRegister sr, const SYMBOLIC_VALUE<32> 
     if (0 != (active_policies & INTERVAL.mask)) {
         if (found.empty()) {
             retval.set_subvalue(INTERVAL, INTERVAL_VALUE<8>()); // any 8-bit value
+            *uninitialized_read = true;
         } else {
             BinaryAnalysis::InstructionSemantics::Intervals intervals;
             for (size_t i=0; i<found.size(); ++i) {
@@ -680,6 +804,7 @@ State<ValueType>::mem_read_byte(X86SegmentRegister sr, const SYMBOLIC_VALUE<32> 
     if (0 != (active_policies & SYMBOLIC.mask)) {
         if (found.empty()) {
             retval.set_subvalue(SYMBOLIC, SYMBOLIC_VALUE<8>());
+            *uninitialized_read = true;
         } else if (1==found.size()) {
             retval.set_subvalue(SYMBOLIC, found[0].get_subvalue(SYMBOLIC));
         } else {
@@ -703,8 +828,43 @@ State<ValueType>::mem_read_byte(X86SegmentRegister sr, const SYMBOLIC_VALUE<32> 
     }
 
     // Write the value back to memory so the next read returns the same thing (and returns faster)
-    cells.push_front(MemoryCell(addr, retval));
+    cells.push_front(MemoryCell(addr, retval, HAS_BEEN_READ));
     return retval;
+}
+
+template <template <size_t> class ValueType>
+Outputs<ValueType> *
+State<ValueType>::get_outputs() const
+{
+    Outputs<ValueType> *outputs = new Outputs<ValueType>;
+    for (size_t i=0; i<registers.n_gprs; ++i) {
+        if (0 != (register_rw_state.gpr[i].state & HAS_BEEN_WRITTEN) && x86_gpr_sp!=i && x86_gpr_bp!=i) {
+#if 1 /*DEBUGGING [Robb Matzke 2012-12-20]*/
+            std::cerr <<"ROBB: output for " <<gprToString((X86GeneralPurposeRegister)i) <<" = " <<registers.gpr[i] <<"\n";
+#endif
+            outputs->values32.push_back(registers.gpr[i]);
+        }
+    }
+
+    for (MemoryCells::const_iterator ci=stack_cells.begin(); ci!=stack_cells.end(); ++ci) {
+        if (0 != (ci->rw_state & HAS_BEEN_WRITTEN)) {
+#if 1 /*DEBUGGING [Robb Matzke 2012-12-20]*/
+            std::cerr <<"ROBB: output for stack address " <<ci->addr <<"\n";
+#endif
+            outputs->values8.push_back(ci->val);
+        }
+    }
+
+    for (MemoryCells::const_iterator ci=data_cells.begin(); ci!=data_cells.end(); ++ci) {
+        if (0 != (ci->rw_state & HAS_BEEN_WRITTEN)) {
+#if 1 /*DEBUGGING [Robb Matzke 2012-12-20]*/
+            std::cerr <<"ROBB: output for data address " <<ci->addr <<"\n";
+#endif
+            outputs->values8.push_back(ci->val);
+        }
+    }
+
+    return outputs;
 }
 
 template <template <size_t> class ValueType>
@@ -760,9 +920,37 @@ State<ValueType>::print(std::ostream &o, unsigned domains) const
                 o <<"    skipping " <<cells.size()-(ncells-1) <<" more memory cells for brevity's sake...\n";
                 break;
             }
-            o <<"    address symbolic: " <<ci->first <<"\n";
-            show_value(o, "      value ", ci->second, domains);
+            o <<"         cell access:"
+              <<(0==(ci->rw_state & HAS_BEEN_READ)?"":" read")
+              <<(0==(ci->rw_state & HAS_BEEN_WRITTEN)?"":" written")
+              <<(0==(ci->rw_state & (HAS_BEEN_READ|HAS_BEEN_WRITTEN))?" none":"")
+              <<"\n"
+              <<"    address symbolic: " <<ci->addr <<"\n";
+            show_value(o, "      value ", ci->val, domains);
         }
+    }
+}
+
+template <template <size_t> class ValueType>
+void
+Outputs<ValueType>::print(std::ostream &o, const std::string &title, const std::string &prefix) const
+{
+    if (!title.empty())
+        o <<title <<"\n";
+    for (typename std::list<ValueType<8> >::const_iterator vi=values8.begin(); vi!=values8.end(); ++vi)
+        o <<prefix <<*vi <<"\n";
+    for (typename std::list<ValueType<32> >::const_iterator vi=values32.begin(); vi!=values32.end(); ++vi)
+        o <<prefix <<*vi <<"\n";
+}
+
+template <template <size_t> class ValueType>
+void
+Outputs<ValueType>::print(RTS_Message *m, const std::string &title, const std::string &prefix) const
+{
+    if (m && m->get_file()) {
+        std::ostringstream ss;
+        print(ss, title, prefix);
+        m->mesg("%s", ss.str().c_str());
     }
 }
 
@@ -776,8 +964,8 @@ convert_to_concrete(const ValueType<nBits> &v)
         return CONCRETE_VALUE<nBits>(v.get_subvalue(INTERVAL).get_intervals().min());
     if (v.is_valid(SYMBOLIC) && v.get_subvalue(SYMBOLIC).is_known())
         return CONCRETE_VALUE<nBits>(v.get_subvalue(SYMBOLIC).known_value());
-    CONCRETE_VALUE<nBits> retval = Robin::convert_to_concrete(v);
-    std::cerr <<"Robin: converted " <<v <<" to concrete " <<retval <<"\n";
+    CONCRETE_VALUE<nBits> retval = HighLevel::convert_to_concrete(v);
+    std::cerr <<"CloneDetection::HighLevel: converted " <<v <<" to concrete " <<retval <<"\n";
     return retval;
 }
 
@@ -789,8 +977,8 @@ convert_to_interval(const ValueType<nBits> &v)
         return v.get_subvalue(INTERVAL);
     if (v.is_valid(CONCRETE))
         return INTERVAL_VALUE<nBits>(v.get_subvalue(CONCRETE).known_value());
-    INTERVAL_VALUE<nBits> retval = Robin::convert_to_interval(v);
-    std::cerr <<"Robin: converted " <<v <<" to interval " <<retval <<"\n";
+    INTERVAL_VALUE<nBits> retval = HighLevel::convert_to_interval(v);
+    std::cerr <<"CloneDetection::HighLevel: converted " <<v <<" to interval " <<retval <<"\n";
     return retval;
 }
 
@@ -804,8 +992,8 @@ convert_to_symbolic(const ValueType<nBits> &v)
         return SYMBOLIC_VALUE<nBits>(v.get_subvalue(CONCRETE).known_value());
     if (v.is_valid(INTERVAL) && 1==v.get_subvalue(INTERVAL).get_intervals().size())
         return SYMBOLIC_VALUE<nBits>(v.get_subvalue(INTERVAL).get_intervals().min());
-    SYMBOLIC_VALUE<nBits> retval = Robin::convert_to_symbolic(v);
-    std::cerr <<"Robin: converted " <<v <<" to symbolic " <<retval <<"\n";
+    SYMBOLIC_VALUE<nBits> retval = HighLevel::convert_to_symbolic(v);
+    std::cerr <<"CloneDetection::HighLevel: converted " <<v <<" to symbolic " <<retval <<"\n";
     return retval;
 }
 
