@@ -42,7 +42,7 @@ namespace term {
     /// Properly quote and escape an atom if necessary
     static void quote(std::ostream& r, const std::string atom) {
       if (atom.length() == 0) {
-	r << "\"";
+	r << "\"\"";
       } else if (((atom.length() > 0) && (!islower(atom[0])) && (!isdigit(atom[0])))
 		|| needs_quotes(atom)) {
 	r << "\"";

@@ -4,4 +4,6 @@ void f() {
   printf(""); // \BEL
   printf("0A");
   printf("0\n");
+  printf("'");
+  { char c = '"'; }
 }
