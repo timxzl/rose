@@ -3080,7 +3080,7 @@ TermToRose::abort_unless(bool condition,std::string message) {
 /** create bit deque from List*/
 template < typename enumType  >
 SgBitVector*
-TermToRose::createBitVector(Term* t, std::map<std::string, enumType> names) {
+TermToRose::createBitVector(Term* t, boost::unordered_map<std::string, enumType> names) {
   /*cast the argument to the list and extract elements*/
   EXPECT_TERM(List*, l, t);
   deque<Term*>* succs = l->getSuccs();

@@ -25,7 +25,7 @@ using namespace term;
 void usage(const char* me) 
 {
   cout << "Usage: " << me
-  <<" [FRONTEND OPTIONS] [--dot] [--pdf] src1.c src2.cpp src3.f ... [-o termfile.pl]\n"
+  <<" [FRONTEND OPTIONS] [--dot] [--pdf] src1.c src2.cpp src3.f ... [-o file.term]\n"
   <<"  Parse one or more source files and convert them into a TERMITE file."
        << "\n  Header files will be included in the term representation.\n\n"
 
@@ -35,8 +35,8 @@ void usage(const char* me)
        << "  --rose-help\n"
        << "    Display the help for the C/C++/Fortran frontend.\n\n"
 
-       << "  -o, --output <termfile.pl>\n"
-       << "    Write the output to <termifile.pl> instead of stdout.\n\n"
+       << "  -o, --output <file.term>\n"
+       << "    Write the output to <file.term> instead of stdout.\n\n"
 
        << "  --dot\n"
        << "    Create a dotty graph of the syntax tree.\n\n"
@@ -45,7 +45,7 @@ void usage(const char* me)
        << "    Create a PDF printout of the syntax tree.\n\n"
 
        << "  --stratego\n"
-       << "    Create term output compatible with the Stratego/XT.\n\n"
+       << "    Create term output compatible with the Stratego/XT term rewrite system.\n\n"
        << "  --stl-engine\n"
 #if ROSE_HAVE_SWI_PROLOG
        << "    Do not use SWI-Prolog to generate term output.\n\n"

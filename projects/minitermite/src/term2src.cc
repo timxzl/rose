@@ -25,7 +25,6 @@ void usage(const char* me)
        << "    For mult-file projects, this will only affect the first file.\n\n"
 
        << "  -s, --suffix '.suffix'  Default: '.unparsed'\n"
-
        << "    Use the original file names with the additional suffix.\n\n"
 
        << "  -d, --dir DIRECTORY\n"

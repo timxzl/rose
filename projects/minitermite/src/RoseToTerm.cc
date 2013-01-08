@@ -756,7 +756,7 @@ RoseToTerm::getValueExpSpecific(SgValueExp* astNode) {
     val = termFactory.makeAtom(s);
   } else if (SgStringVal* n = dynamic_cast<SgStringVal*>(astNode)) {
     return termFactory.makeCompTerm
-      ("value_annotation", 
+      ("string_value_annotation", 
        termFactory.makeAtom(n->get_value()),
        MAKE_FLAG(n, usesSingleQuotes),
        MAKE_FLAG(n, usesDoubleQuotes),
