@@ -27,7 +27,7 @@ int main(int argc, char** argv) {
     ("help,h", "produce this help message")
     ("rose-help", "Display the help for the C/C++/Fortran frontend")
     ("version,v", "Display the version")
-    ("input,i", po::value< string >(), "input file")
+    ("input,i",  po::value< string >(), "input file")
     ("output,o", po::value< string >(), 
      "Override the name of the unparsed file.\n"
      "For multi-file projects, this will only affect the first file.")

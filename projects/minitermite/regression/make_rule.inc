@@ -307,7 +307,7 @@ regression/f03_driver.sh: Makefile
 	@echo '$(TERM2SRC) --stl-engine  $${NAME}-3.term -o $${NAME}-4.f03 || exit 4' >>$@
 	@echo '$(SRC2TERM) --stratego $(F03FLAGS) -I$$include $${NAME}-4.f03 -o $${NAME}-5.term || exit 5' >> $@
 	@echo '$(TERM2SRC) --stratego  $${NAME}-5.term -o $${NAME}-6.f03 || exit 6' >>$@
-	@echo '$(SRC2TERM) --aterm      -I$$include $${NAME}-6.f03 -o $${NAME}-7.term || exit 7' >> $@
+	@echo '$(SRC2TERM) --aterm    $(F03FLAGS) -I$$include $${NAME}-6.f03 -o $${NAME}-7.term || exit 7' >> $@
 	@echo '$(TERM2SRC) --aterm       $${NAME}-7.term -o $${NAME}-8.f03 || exit 8' >>$@
 if ROSE_HAVE_SWI_PROLOG
 	@echo '$(TERMLINT) $${NAME}-1.term || exit 9' >> $@
