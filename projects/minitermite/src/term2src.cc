@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
     ("rose-help", "Display the help for the C/C++/Fortran frontend")
     ("version,v", "Display the version")
     ("input,i",  po::value< string >(), "input file")
-    ("output,o", po::value< string >(), 
+    ("output,o", po::value< string >()->default_value(""), 
      "Override the name of the unparsed file.\n"
      "For multi-file projects, this will only affect the first file.")
     ("suffix,s", po::value< string >()->default_value(".unparsed"), 
@@ -64,6 +64,11 @@ int main(int argc, char** argv) {
       return 0;
     }
 
+    if (!args.count("input")) {
+      cout << desc << endl;
+      return 1;
+    }
+
     if (args.count("version")) {
       cout<<argv[0]<<", "<<PACKAGE_STRING<<" version "<<PACKAGE_VERSION<<endl; 
       return 0;
@@ -97,7 +102,8 @@ int main(int argc, char** argv) {
 #endif
 
     TermToRose conv(*termFactory);
-    SgNode* p = conv.toRose(args["input"].as<string>().c_str());
+    string fn = args["input"].as<string>();
+    SgNode* p = conv.toRose(fn.c_str());
 
     if (args.count("dot")) {
       //  Create dot and pdf files
