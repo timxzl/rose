@@ -15,6 +15,7 @@ nobase_include_HEADERS = \
 	src/minitermite/RoseEnums.h \
 	src/minitermite/term.h++ \
 	src/minitermite/stl-term.h++ \
+	src/minitermite/aterm-term.h++ \
 	src/minitermite/swipl-term.h++ \
 	src/minitermite/stratego-term.h++
 

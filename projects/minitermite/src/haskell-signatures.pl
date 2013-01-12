@@ -70,20 +70,11 @@ main :-
     retractall(printed(_)),
     retractall(node(_)),
     retractall(node_type(_,_)),
-    %start_symbol(Start),
-    %once(trav_rule(Start, UnsrtTypes)),
-    %sort(UnsrtTypes, Types), 
     
     format('-- Minitermite term grammar as algebraic datatype~n', []),
     writeln('type Null = String'),
     once(print_types),
     nl, nl,
-    %format('-- show instance declarations~n', []),
-
-    %maplist(fst, Types, T1),
-    %reverse(T1, [_|T2]),
-    %reverse(T2, Typenames),
-    %once(maplist(print_show_instance, [null|Typenames], Types)),
 
     write('data MTT = '),
     once(print_nodes),

@@ -100,6 +100,7 @@ F90_TESTCODES_REQUIRED_TO_PASS = \
      test2007_104.f90 \
      test2007_105.f90 \
      test2007_106.f90 \
+     test2007_107.f90 \
      test2007_109.f90 \
      test2007_110.f90 \
      test2007_111.f90 \
@@ -110,6 +111,7 @@ F90_TESTCODES_REQUIRED_TO_PASS = \
      test2007_122.f90 \
      test2007_126.f90 \
      test2007_127.f90 \
+     test2007_131.f90 \
      test2007_135.f90 \
      test2007_136.f90 \
      test2007_137.f90 \
@@ -118,13 +120,17 @@ F90_TESTCODES_REQUIRED_TO_PASS = \
      test2007_140.f90 \
      test2007_141.f90 \
      test2007_143.f90 \
+     test2007_144.f90 \
      test2007_149.f90 \
      test2007_158.f90 \
      test2007_159.f90 \
      test2007_160.f90 \
      test2007_161.f90 \
+     test2007_165.f90 \
+     test2007_166.f90 \
      test2007_168.f90 \
      test2007_169.f90 \
+     test2007_170.f90 \
      test2007_178.f90 \
      test2007_179.f90 \
      test2007_181.f90 \
@@ -134,45 +140,80 @@ F90_TESTCODES_REQUIRED_TO_PASS = \
      test2007_236.f90 \
      test2007_238.f90 \
      test2007_239.f90 \
+     test2007_240.f90 \
      test2007_244.f90 \
      test2007_248.f90 \
      test2007_249.f90 \
      test2007_250.f90 \
+     test2007_254.f90 \
+     test2007_255.f90 \
+     test2007_257.f90 \
      test2007_262.f90 \
+     test2008_30.f90 \
+     test2009_1.f90 \
      test2010_01.f90 \
      test2010_02.f90 \
+     test2010_04.f90 \
+     test2010_05.f90 \
      test2010_15.f90 \
      test2010_16.f90 \
+     test2010_17.f90 \
      test2010_18.f90 \
      test2010_20.f90 \
+     test2010_21.f90 \
+     test2010_22.f90 \
      test2010_23.f90 \
+     test2010_24.f90 \
      test2010_25.f90 \
      test2010_28.f90 \
+     test2010_31.f90 \
      test2010_32.f90 \
      test2010_33.f90 \
      test2010_34.f90 \
+     test2010_36.f90 \
      test2010_37.f90 \
      test2010_38.f90 \
      test2010_40.f90 \
      test2010_41.f90 \
      test2010_42.f90 \
+     test2010_43.f90 \
      test2010_44.f90 \
      test2010_45.f90 \
      test2010_46.f90 \
      test2010_47.f90 \
+     test2010_48.f90 \
      test2010_49.f90 \
      test2010_50.f90 \
+     test2010_51.f90 \
      test2010_59.f90 \
      test2010_60.f90 \
      test2010_61.f90 \
      test2010_62.f90 \
      test2010_63.f90 \
      test2010_64.f90 \
+     test2010_65.f90 \
+     test2010_66.f90 \
+     test2010_67.f90 \
+     test2010_72.f90 \
+     test2010_73.f90 \
+     test2010_78.f90 \
+     test2010_79.f90 \
+     test2010_82.f90 \
+     test2010_84.f90 \
+     test2010_85.f90 \
+     test2010_86.f90 \
+     test2010_90.f90 \
+     test2010_100.f90 \
+     test2010_107.f90 \
+     test2010_108.f90 \
+     test2010_109.f90 \
      test2010_111.f90 \
      test2010_112.f90 \
      test2010_113.f90 \
      test2010_114.f90 \
      test2010_115.f90 \
+     test2010_116.f90 \
+     test2010_117.f90 \
      test2010_118.f90 \
      test2010_120.f90 \
      test2010_121.f90 \
@@ -183,6 +224,8 @@ F90_TESTCODES_REQUIRED_TO_PASS = \
      test2010_127.f90 \
      test2010_128.f90 \
      test2010_129.f90 \
+     test2010_130.f90 \
+     test2010_131.f90 \
      test2010_132.f90 \
      test2010_133.f90 \
      test2010_134.f90 \
@@ -196,6 +239,11 @@ F90_TESTCODES_REQUIRED_TO_PASS = \
      test2010_142.f90 \
      test2010_143.f90 \
      test2010_144.f90 \
+     test2010_145.f90 \
+     test2010_146.f90 \
+     test2010_147.f90 \
+     test2010_148.f90 \
+     test2010_149.f90 \
      test2010_150.f90 \
      test2010_151.f90 \
      test2010_152.f90 \
@@ -212,12 +260,15 @@ F90_TESTCODES_REQUIRED_TO_PASS = \
      test2010_166.f90 \
      test2010_167.f90 \
      test2010_168.f90 \
+     test2010_169.f90 \
+     test2010_170.f90 \
      test2010_172.f90 \
      test2010_173.f90 \
      test2010_174.f90 \
      test2010_182.f90 \
      test2010_183.f90 \
      test2010_184.f90 \
+     test2011_03.f90 \
      test2011_05.f90 \
      test2011_08.f90 \
      test2011_09.f90 \
@@ -228,11 +279,36 @@ F90_TESTCODES_REQUIRED_TO_PASS = \
      test2011_15.f90 \
      test2011_16.f90 \
      test2011_17.f90 \
+     test2011_18.f90 \
      test2011_19.f90 \
      test2011_20.f90 \
+     test2011_21.f90 \
+     test2011_22.f90 \
      test2011_36.f90 \
      test2011_39.f90 \
      test2011_40.f90 \
+     test2011_41.f90 \
+     test2011_43.f90 \
+     test2011_44.f90 \
+     test2011_45.f90 \
+     test2011_46.f90 \
+     test2011_50.f90 \
+     test2011_51.f90 \
+     test2011_52.f90 \
+     test2011_53.f90 \
+     test2011_54.f90 \
+     test2011_55.f90 \
+     test2011_57.f90 \
+     test2011_60.f90 \
+     test2011_62.f90 \
+     test2011_63.f90 \
+     test2011_64.f90 \
+     test2011_68.f90 \
+     test2011_69.f90 \
+     test2011_71.f90 \
+     test2011_72.f90 \
+     test2011_75.f90 \
+     test2011_76.f90 \
      test2011_Rice_allocate-derived-type-scope.f90 \
      test2011_Rice_asterisk-length.f90 \
      test2011_Rice_attrs-dimension.f90 \
@@ -294,7 +370,24 @@ F90_TESTCODES_REQUIRED_TO_PASS = \
      test2011_Rice_wrong-func-type.f90 \
      test2011_Rice_wrong-func-type-2.f90 \
      test2011_Rice_wrong-func-type-3.f90 \
-     canonicalExample.f90 
+     test2011_Rice_A-cant-assert-keyword-nonnull.f90 \
+     test2011_Rice_B-cant-assert-keyword-nonnull.f90 \
+     test2011_Rice_C-cant-assert-keyword-nonnull.f90 \
+     test2011_Rice_lost-func-return-type.f90 \
+	 test2012_Rice_derived-type-array-2.f90 \
+     test2012_Rice_derived-type-array-3.f90 \
+     test2012_Rice_derived-type-array-4.f90 \
+     test2012_Rice_derived-type-array-5.f90 \
+     test2012_Rice_extern_func_call.f90 \
+     test2012_Rice_if-scope.f90 \
+     canonicalExample.f90
+
+# phlin (as 08/22/2012):
+# test case for ROSE-bugs #597
+if ROSE_USING_GFORTRAN_VERSION_LATER_4_5
+F90_TESTCODES_REQUIRED_TO_PASS += \
+     test2012_SavedCommonBlock.f90 
+endif
 
 
 # SKW 8/21/2011: these test fails with gfortran 4.1.2, but there is no 'ROSE_USING_GFORTRAN_VERSION_4_1_2'
@@ -640,92 +733,6 @@ if !ROSE_USING_GFORTRAN_VERSION_4_1
 #   F03_TESTCODES_REQUIRED_TO_PASS += test2007_43.f03
 endif
 
-# DXN (as of 08/10/2011):
-F90_TESTCODES_REQUIRED_TO_PASS += \
-     test2007_107.f90 \
-     test2007_131.f90 \
-     test2007_144.f90 \
-     test2007_165.f90 \
-     test2007_166.f90 \
-     test2007_170.f90 \
-     test2007_240.f90 \
-     test2007_254.f90 \
-     test2007_255.f90 \
-     test2007_257.f90 \
-     test2008_30.f90 \
-     test2009_1.f90 \
-     test2010_04.f90 \
-     test2010_05.f90 \
-     test2010_17.f90 \
-     test2010_21.f90 \
-     test2010_22.f90 \
-     test2010_24.f90 \
-     test2010_31.f90 \
-     test2010_36.f90 \
-     test2010_43.f90 \
-     test2010_48.f90 \
-     test2010_51.f90 \
-     test2010_65.f90 \
-     test2010_66.f90 \
-     test2010_67.f90 \
-     test2010_72.f90 \
-     test2010_73.f90 \
-     test2010_78.f90 \
-     test2010_79.f90 \
-     test2010_82.f90 \
-     test2010_84.f90 \
-     test2010_85.f90 \
-     test2010_86.f90 \
-     test2010_90.f90 \
-     test2010_100.f90 \
-     test2010_107.f90 \
-     test2010_108.f90 \
-     test2010_109.f90 \
-     test2010_116.f90 \
-     test2010_117.f90 \
-     test2010_130.f90 \
-     test2010_131.f90 \
-     test2010_145.f90 \
-     test2010_146.f90 \
-     test2010_147.f90 \
-     test2010_148.f90 \
-     test2010_149.f90 \
-     test2010_169.f90 \
-     test2010_170.f90 \
-     test2011_03.f90 \
-     test2011_18.f90 \
-     test2011_21.f90 \
-     test2011_22.f90 \
-     test2011_41.f90 \
-     test2011_43.f90 \
-     test2011_44.f90 \
-     test2011_45.f90 \
-     test2011_46.f90 \
-     test2011_50.f90 \
-     test2011_51.f90 \
-     test2011_52.f90 \
-     test2011_53.f90 \
-     test2011_54.f90 \
-     test2011_55.f90 \
-     test2011_57.f90 \
-     test2011_60.f90 \
-     test2011_62.f90 \
-     test2011_63.f90 \
-     test2011_64.f90 \
-     test2011_68.f90 \
-     test2011_69.f90 \
-     test2011_71.f90 \
-     test2011_72.f90 \
-     test2011_75.f90 \
-     test2011_76.f90 
-
-
-# phlin (as 08/22/2012):
-# test case for ROSE-bugs #597
-if ROSE_USING_GFORTRAN_VERSION_LATER_4_5
-F90_TESTCODES_REQUIRED_TO_PASS += \
-     test2012_SavedCommonBlock.f90 
-endif
 
 # DQ (9/30/2011): There is a long history of this being a statistical failure on at least OSX systems. 
 # test2010_161.f90 
@@ -822,10 +829,6 @@ F90_TESTCODES_CURRENTLY_FAILING += \
      test2011_65.f90 \
      test2011_67.f90 \
      test2011_73.f90 \
-     test2011_Rice_A-cant-assert-keyword-nonnull.f90 \
-     test2011_Rice_B-cant-assert-keyword-nonnull.f90 \
-     test2011_Rice_C-cant-assert-keyword-nonnull.f90 \
-     test2011_Rice_lost-func-return-type.f90 \
      fCaller.f90 \
      triangle.f90 \
      X-comment-in-wrong-place.f90 \
