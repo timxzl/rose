@@ -258,7 +258,7 @@ fortran_do ::=
     fortran_do(expression, expression, expression, statement /* body */,
 	       fortran_do_annotation, analysis_info, file_info).
 
-fortran_do_annotation ::= fortran_do_annotation(todo, todo, preprocessing_info).
+fortran_do_annotation ::= fortran_do_annotation(flag, flag, preprocessing_info).
 
 function_definition ::=
     function_definition(basic_block,
@@ -292,15 +292,16 @@ expression ::=
   | cast_exp(expression, /*expression? * original expression tree ,*/
              unary_op_annotation, analysis_info, file_info)
   | conditional_exp
+  | delete_exp
   | expr_list_exp
   | function_call_exp
   | function_ref_exp
-  | member_function_ref_exp
   | initializer
+  | member_function_ref_exp
   | new_exp
-  | delete_exp
   | null_expression
   | size_of_op
+  | subscript_expression
   | unary_op
   | var_arg_copy_op
   | var_arg_end_op
@@ -313,7 +314,7 @@ expression ::=
         unsigned_short_val, char_val, unsigned_char_val, float_val,
         double_val, long_double_val, string_val, enum_val]
     with (/*expression?  original expression tree ,*/
-          value_annotation, analysis_info, file_info).
+          any_value_annotation, analysis_info, file_info).
 
 binary_op ::=
     functors [add_op, and_assign_op, and_op, arrow_exp, assign_op,
@@ -397,6 +398,10 @@ null_expression ::=
 size_of_op ::=
     size_of_op(expression?, size_of_op_annotation, analysis_info, file_info).
 
+subscript_expression ::=
+    subscript_expression(expression?, expression?, expression?, default_annotation,
+			 analysis_info, file_info).
+
 unary_op ::=
     functors [address_of_op, bit_complement_op, minus_minus_op,
         minus_op, not_op, plus_plus_op, pointer_deref_exp, unary_add_op]
@@ -437,17 +442,19 @@ default_annotation ::=
     default_annotation(preprocessing_info?).
 
 initialized_name_annotation ::=
-    initialized_name_annotation(type, name, todo /* storage modifier */,
+    initialized_name_annotation(type, name, flag /* storage modifier */,
                                 scope_name?, preprocessing_info).
 
 function_declaration_annotation ::=
-    function_declaration_annotation(type, name, declaration_modifier, todo /* special */,
-				    todo, todo, todo, todo, todo, 
+    function_declaration_annotation(type, name, declaration_modifier,
+				    special_function_modifier,
+				    number, flag, flag, flag, scope_name?, 
                                     preprocessing_info).
 
 member_function_declaration_annotation ::=
     member_function_declaration_annotation(some_function_type, name, scope_name,
-					   declaration_modifier, todo /* special */,
+					   declaration_modifier,
+					   special_function_modifier,
 					   preprocessing_info).
 
 some_function_type ::= member_function_type | function_type /* static */.
@@ -483,7 +490,7 @@ size_of_op_annotation ::=
     size_of_op_annotation(type? /* operand */, type /* sizeof expression */,
                           preprocessing_info).
 
-value_annotation ::=
+any_value_annotation ::=
     enum_value_annotation(number_or_string, number_or_string, enum_type, preprocessing_info)
     | string_value_annotation(name, name, name, preprocessing_info)
     | value_annotation(number_or_string, preprocessing_info).
@@ -499,7 +506,7 @@ unary_op_annotation ::=
                         todo /* throw kind */, preprocessing_info).
 
 var_ref_exp_annotation ::=
-    var_ref_exp_annotation(type, name, todo /* storage modifier */,
+    var_ref_exp_annotation(type, name, flag /* storage modifier */,
                            scope_name?, preprocessing_info).
 
 typedef_annotation ::=
@@ -544,11 +551,11 @@ type ::=
   | modifier_type(type, type_modifier)
   | named_type
   | type_complex(basic_type)
-  | type_default
   | type_fortran_string(expression)
-  | pointer_type(type).
+  | pointer_type(type)
+  | atoms [type_default].
 
-function_type ::= function_type(type /* return */, todo /* ellipses */, [type] /* args */).
+function_type ::= function_type(type /* return */, flag /* ellipses */, [type] /* args */).
 
 basic_type ::=
     atoms [type_bool, type_char, type_double, type_ellipse, type_float,
@@ -557,18 +564,19 @@ basic_type ::=
         type_unsigned_int, type_unsigned_long, type_unsigned_long_long,
         type_unsigned_short, type_void].
 
-type_default ::= atoms [type_default].
-
 named_type ::=
     class_type(name, todo, todo)
-  | enum_type(todo)
+  | enum_type
   | typedef_type(name, type).
 
 type_modifier ::=
-    type_modifier([todo], todo, todo, todo).
+    type_modifier([flag], flag, flag, flag).
 
 name ::=
     {Name} where atom(Name).
+
+flag ::= % a generic yes|no-flag
+    {_}.
 
 scope_name ::=  % name of a scope
   {::}
@@ -591,7 +599,10 @@ fixity ::=  % fixity of unary operators
   | {postfix}.
 
 declaration_modifier ::=
-    declaration_modifier(todo, todo, todo, todo).
+    declaration_modifier([flag], type_modifier, flag, flag).
+
+special_function_modifier ::=
+    special_function_modifier([flag]).
 
 todo ::=
     {_}.

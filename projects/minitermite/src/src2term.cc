@@ -120,11 +120,13 @@ int main(int argc, char** argv) {
       cout<<"**ERROR: The --stratego and --aterm options are mutually exclusive!"<<endl;
       exit(1);
     }
+    bool print_dot = true;
     if (args.count("stratego"))
       termFactory = new StrategoTermFactory();
-    else if (args.count("aterm"))
+    else if (args.count("aterm")) {
       termFactory = new ATermTermFactory();
-    else
+      print_dot = false;
+    } else
 #if ROSE_HAVE_SWI_PROLOG
       if (stl_flag) termFactory = new STLTermFactory();
       else termFactory = new SWIPLTermFactory();
@@ -144,10 +146,14 @@ int main(int argc, char** argv) {
       //ofile << genTerm->getRepresentation() << "." << endl;
       //cerr<<"% dump"<<endl;
       genTerm->dump(ofile);
-      ofile << "." << endl;
-
+      if (print_dot) ofile << ".";
+      ofile << endl;
       ofile.close();
-    } else cout << genTerm->getRepresentation() << "." << endl;
+    } else {
+      cout << genTerm->getRepresentation();
+      if (print_dot) cout << ".";
+      cout << endl;
+    }
   }
   catch(po::error& e) { 
     cerr << "**ERROR: " << e.what() << endl;
