@@ -63,7 +63,14 @@ static SgNode* gNode;
 
 // The current expression node being generated 
 static SgExpression* current_exp = NULL;
-bool b_within_variable_list  = false; 
+bool b_within_variable_list  = false;  // a flag to indicate if the program is now processing a list of variables
+
+// the latest variable symbol being parsed, used to help parsing the array dimensions associated with array symbol
+// such as a[0:n][0:m]
+static SgVariableSymbol* array_symbol; 
+static SgExpression* lower_exp = NULL;
+static SgExpression* upper_exp = NULL;
+
 %}
 
 /* The %union declaration specifies the entire collection of possible data types for semantic values. these names are used in the %token and %type declarations to pick one of the types for a terminal or nonterminal symbol
@@ -864,11 +871,38 @@ variable-list : identifier
               | variable-list , identifier 
 */
 
+
 /* in C++ (we use the C++ version) */ 
-variable_list : ID_EXPRESSION { if (!addVar((const char*)$1)) YYABORT; }
-              | variable_list ',' ID_EXPRESSION { if (!addVar((const char*)$3)) YYABORT; }
+variable_list : id_expression_opt_dimension
+              | variable_list ',' id_expression_opt_dimension
               ;
 
+id_expression_opt_dimension: ID_EXPRESSION { if (!addVar((const char*)$1)) YYABORT; } dimension_field_optseq
+                           ;
+
+/* Parse optional dimension information associated with map(a[0:n][0:m]) Liao 1/22/2013 */
+dimension_field_optseq: /* empty */
+                      | dimension_field_seq
+                      ;
+
+dimension_field_seq : dimension_field
+                    | dimension_field_seq dimension_field
+                    ;
+dimension_field: '[' expression {lower_exp = current_exp; } 
+                 ':' expression { upper_exp = current_exp;
+                      assert (array_symbol != NULL);
+                      SgType* t = array_symbol->get_type();
+                      bool isPointer= (isSgPointerType(t) != NULL );
+                      bool isArray= (isSgArrayType(t) != NULL);
+                      if (!isPointer && ! isArray )
+                      {
+                        std::cerr<<"Error. ompparser.yy expects a pointer or array type."<<std::endl;
+                        std::cerr<<"while seeing "<<t->class_name()<<std::endl;
+                      }
+                      ompattribute->array_dimensions[array_symbol].push_back( std::make_pair (lower_exp, upper_exp));
+                      } 
+                  ']'
+               ;
 %%
 int yyerror(const char *s) {
     printf("%s!\n", s);
@@ -886,7 +920,7 @@ void omp_parser_init(SgNode* aNode, const char* str) {
 }
 
 static bool addVar(const char* var)  {
-    ompattribute->addVariable(omptype,var);
+    array_symbol = ompattribute->addVariable(omptype,var);
     return true;
 }
 
