@@ -3212,6 +3212,7 @@ Grammar::GrammarNodeInfo Grammar::getGrammarNodeInfo(Terminal* grammarnode) {
         ||nodeName == "SgOmpClauseBodyStatement"
         ||nodeName == "SgOmpParallelStatement"
         ||nodeName == "SgOmpSectionsStatement"
+        ||nodeName == "SgOmpTargetStatement"
         ||nodeName == "SgOmpSingleStatement"
         ||nodeName == "SgOmpTaskStatement"
         ||nodeName == "SgOmpForStatement"
@@ -3496,12 +3497,13 @@ Grammar::buildTreeTraversalFunctions(Terminal& node, StringUtility::FileWithLine
                   }
                 // Liao, 5/30/2009
                // More exceptional cases for SgOmpClauseBodyStatement and its derived classes
-              // We allow them to have mixed members (simple member and contanter member)
+              // We allow them to have mixed members (simple member and container member)
                else if (string(node.getName()) == "SgOmpClauseBodyStatement"
                  ||string(node.getName()) == "SgOmpParallelStatement"
                  ||string(node.getName()) == "SgOmpSingleStatement"
                  ||string(node.getName()) == "SgOmpTaskStatement"
                  ||string(node.getName()) == "SgOmpSectionsStatement"
+                 ||string(node.getName()) == "SgOmpTargetStatement"
                  ||string(node.getName()) == "SgOmpForStatement"
                  ||string(node.getName()) == "SgOmpDoStatement"
                  )
@@ -3601,6 +3603,7 @@ Grammar::buildTreeTraversalFunctions(Terminal& node, StringUtility::FileWithLine
                  ||string(node.getName()) == "SgOmpSingleStatement"
                  ||string(node.getName()) == "SgOmpTaskStatement"
                  ||string(node.getName()) == "SgOmpSectionsStatement"
+                 ||string(node.getName()) == "SgOmpTargetStatement"
                  ||string(node.getName()) == "SgOmpForStatement"
                  ||string(node.getName()) == "SgOmpDoStatement"
                  )

@@ -505,6 +505,7 @@ SgOmpTaskStatement
 SgOmpTaskwaitStatement
 SgOmpThreadprivateStatement
 SgOmpWorkshareStatement
+SgOmpTargetStatement
 SgOmpClause
 SgOmpCollapseClause
 SgOmpCopyinClause
@@ -513,6 +514,7 @@ SgOmpDefaultClause
 SgOmpExpressionClause
 SgOmpFirstprivateClause
 SgOmpIfClause
+SgOmpDeviceClause
 SgOmpLastprivateClause
 SgOmpNowaitClause
 SgOmpNumThreadsClause
@@ -523,6 +525,7 @@ SgOmpScheduleClause
 SgOmpSharedClause
 SgOmpUntiedClause
 SgOmpVariablesClause
+SgOmpMapClause
 SgOpenclAccessModeModifier
 SgOpenStatement
 SgOptions

@@ -2305,7 +2305,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
    //! Return a reduction variable's reduction operation type
    SgOmpClause::omp_reduction_operator_enum getReductionOperationType(SgInitializedName* init_name, SgOmpClauseBodyStatement* clause_stmt)
    {
-     SgOmpClause::omp_reduction_operator_enum result = SgOmpClause::e_omp_reduction_unkown;
+     SgOmpClause::omp_reduction_operator_enum result = SgOmpClause::e_omp_reduction_unknown;
      bool found = false;
      ROSE_ASSERT(init_name != NULL);
      ROSE_ASSERT(clause_stmt!= NULL);
@@ -2365,7 +2365,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
        case SgOmpClause::e_omp_reduction_min:
        case SgOmpClause::e_omp_reduction_iand:
           
-       case SgOmpClause::e_omp_reduction_unkown:
+       case SgOmpClause::e_omp_reduction_unknown:
        case SgOmpClause::e_omp_reduction_last:
        default:
          cerr<<"Illegal or unhandled reduction operator kind: "<< r_operator <<endl;
@@ -2554,7 +2554,7 @@ static void insertOmpReductionCopyBackStmts (SgOmpClause::omp_reduction_operator
     case SgOmpClause::e_omp_reduction_iand:
     case SgOmpClause::e_omp_reduction_ior:
     case SgOmpClause::e_omp_reduction_ieor:
-    case SgOmpClause::e_omp_reduction_unkown: 
+    case SgOmpClause::e_omp_reduction_unknown: 
     case SgOmpClause::e_omp_reduction_last:
     default:
         cerr<<"Illegal or unhandled reduction operator type:"<< r_operator<<endl;
@@ -2814,7 +2814,7 @@ static void insertOmpReductionCopyBackStmts (SgOmpClause::omp_reduction_operator
    
       // a local private copy
       SgVariableDeclaration* local_decl = NULL;
-      SgOmpClause::omp_reduction_operator_enum r_operator = SgOmpClause::e_omp_reduction_unkown  ;
+      SgOmpClause::omp_reduction_operator_enum r_operator = SgOmpClause::e_omp_reduction_unknown  ;
       bool isReductionVar = isInClauseVariableList(orig_var, clause_stmt,V_SgOmpReductionClause);
 
       // step 1. Insert local declaration for private, firstprivate, lastprivate and reduction
