@@ -131,6 +131,7 @@ endif
 	@echo "#include <sage3basic.h>"       >>RoseEnumNames.cc
 	$(AM_V_GEN) $< --edg:no_warnings  -O0 -DROSE_SKIP_COMPILATION_OF_WAVE \
 	   -I$(top_builddir) $(ROSE_INCLUDES) \
+	   -I$(top_builddir)/include-staging/g++_HEADERS \
            -c RoseEnumNames.cc > __RoseEnumNames.h
 	@mkdir -p src/minitermite
 	@mv __RoseEnumNames.h src/minitermite/RoseEnumNames.h
