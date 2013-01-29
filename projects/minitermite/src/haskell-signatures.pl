@@ -1,11 +1,13 @@
 % haskell-signatures.pl
 %
-% Written by Adrian Prantl, <adrian@llnl.gov> 2012.
+% Written by Adrian Prantl, <adrian@llnl.gov> 2012, 2013.
 %
 % This program prints an algebraic datatype for use with Haskell and
 % converters from/to ATerms for the grammar specified in the termite
 % grammar spec (src/termite/termite_spec.pl)
 %
+% Yes it's ugly.
+% It was originally written very quickly, and then grew from there.
 %
 %
 % Before doing anything else, set up handling to halt if warnings or errors
@@ -59,6 +61,8 @@ main :-
     nl,
     writeln('module RuleGen.MTT where'),
     writeln('import ATerm.AbstractSyntax'),
+    writeln('-- import ATerm.ReadWrite'),
+    writeln('import ATerm.SimpPretty'),
     writeln('import Data.Data (Data(toConstr), Typeable)'),
     writeln('import Data.Function (on)'),
     nl,
@@ -85,6 +89,8 @@ main :-
     writeln('{-|'),
     writeln('  Turn an aterm into an algebraic minitermite tree.'),
     writeln('-}'),
+    writeln('prettyprint :: ShATerm -> ATermTable -> String'),
+    writeln('prettyprint aterm att = show aterm -- render $ writeATermSDoc att'),
     writeln('atermToMTT :: ShATerm      -- ^ Aterm structure'),
     writeln('           -> ATermTable   -- ^ Table of aterm identifiers'),
     writeln('           -> MTT          -- ^ Minitermite tree created from Aterm structure'),
@@ -114,7 +120,7 @@ main:- writeln('** Internal Error!').
 fst((A:_), A).
 
 print_nodes :-
-    node_type(Node, Type),
+    node_type(Node, Type-_),
     haskellized_atom(Node, NodeH),
     haskellized_atom(Type, TypeH),
     format('MTT~w ~w ~n         | ', [NodeH, TypeH]),
@@ -126,14 +132,12 @@ print_aterm_mtt(_:(C-Ch, Args)) :-
     argchain(0, Args),
     writeln('] t) ->'),
     aterm_constructor(C, Ch),
-    %(map (\i -> atermToMTT (getShATerm i t) t) ss)
     maplistn(print_aterm_mtt1, 0, Args), nl.
 
 aterm_constructor(null, _) :- !,
     format('      "null" ').
 aterm_constructor(C, Ch) :-
     node_type(C, _), !,
-%    format('      MTT~w $ ~w', [Ch, Ch]).
     format('      ~w', [Ch]).
 aterm_constructor(_, Ch) :-
     format('      ~w ', [Ch]).
@@ -159,6 +163,7 @@ spellout(N, 'Number') :- number(N).
 spellout(V, 'Todo') :- var(V).
 spellout(_, error) :- gtrace.
 
+
 % print aa:ab:...
 argchain(_, []).
 argchain(N,[A]) :- argchain1(N,A).
@@ -169,8 +174,8 @@ argchain(N,[A|[B|Args]]) :-
 
 argchain1(N,{A}) :- !, format('a~d_~w', [N,A]).
 argchain1(N,[A]) :- !, format('a~d_~ws', [N,A]).
-argchain1(N,A?) :- !,  format('a~d_~w', [N,A]).
-argchain1(N,A) :-      format('a~d_~w', [N,A]).
+argchain1(N,A?)  :- !, format('a~d_~w', [N,A]).
+argchain1(N,A)   :-    format('a~d_~w', [N,A]).
 
 
 % instance (show VarRef) =
@@ -197,13 +202,14 @@ print_types :-
 print_types.
 
 print_types(Nonterminal) :-
-    ( Nonterminal ::= Rhs ),% (Nonterminal='scope_statement'->gtrace;true),
+    ( Nonterminal ::= Rhs ), %(Nonterminal='expression'->gtrace;true),
     ( printed(Nonterminal)
     ; assert(printed(Nonterminal)),
       haskellized_atom(Nonterminal, Type),
-      %Type \= 'Termite',
       decl(Rhs, Decl),
-      print_type(Type, Rhs, O),
+      (print_type(Type-[], Rhs, O)
+      -> true
+      ;  format('** ERROR: could not convert ~w~n', [Nonterminal]), fail),
       
       format('-- -----------------------------------------------------------------~n'),
       format('-- ~w ::= ~w~n', [Nonterminal,Rhs]),
@@ -219,7 +225,12 @@ print_types(Nonterminal) :-
         maplist(write_snd, Os), nl
       ),
       include(convs, O, Oc), maplist(write_snd, Oc),
-      (hardcoded(Type)->true; format('aterm~wToMTT _ _ = error "malformed term"~n~n', [Type])),
+      (hardcoded(Type)
+      -> true
+      ;  format('aterm~wToMTT aterm att = error $ "expected a <~w> term, found: "~n',
+		[Type, Nonterminal]),
+         format('    ++ prettyprint aterm att~n~n', [])
+      ),
       nl, nl
     ),
     fail.
@@ -234,19 +245,19 @@ types(t-_).
 shows(s-_).
 convs(c-_).
 
-print_type(S,Var,[t-OT,c-OC]) :-
+print_type(S-_,Var,[t-OT,c-OC]) :-
     var(Var), !,
     format(atom(OT), 'String {- UNKNOWN -}', []),
     format(atom(OC), 'aterm~wToMTT (ShAAppl s _ _) _ = s~n~n',[S]).
 
-print_type(_,[Var],[t-O])       :- var(Var), !, format(atom(O), '[String] {- UNKNOWNS -} ', []).
-print_type(N,{T},O)                       :- atom(T), !, print_atoms(N,[T],O).
-print_type(N,{T},O)                       :- !, print_type(N,T,O).
-print_type(_,{_} where Variants,[t-O])    :- !, with_output_to(atom(O), print_variants(Variants)).
-print_type(_,[T],[t-O])                   :- !, haskellized_atom(T,S), format(atom(O), '[~w] ', [S]).
-print_type(_,T?,[t-O])                    :- !, haskellized_atom(T,S), format(atom(O),'(Maybe ~w) ',[S]).
-print_type(T,atoms Atoms,O)               :- !, print_atoms(T,Atoms, O).
-print_type(N,functors Fs with Args,O)     :- !, print_functors(N,Args, Fs, O).
+print_type(_,[Var],[t-O])             :- var(Var), !, format(atom(O), '[String] {- UNKNOWNS -} ', []).
+print_type(N,{T},O)		      :- atom(T),  !, print_atoms(N,[T],O).
+print_type(N,{T},O)		      :- !, print_type(N,T,O).
+print_type(_,{_} where Variants,[t-O]):- !, with_output_to(atom(O), print_variants(Variants)).
+print_type(_,[T],[t-O])		      :- !, haskellized_atom(T,S), format(atom(O), '[~w] ', [S]).
+print_type(_,T?,[t-O])		      :- !, haskellized_atom(T,S), format(atom(O),'(Maybe ~w) ',[S]).
+print_type(T,atoms Atoms,O)	      :- !, print_atoms(T,Atoms, O).
+print_type(N,functors Fs with Args,O) :- !, print_functors(N,Args, Fs, O).
 print_type(_,T,[t-OT]) :-
     atom(T), !,
     haskellized_atom(T,S),
@@ -255,7 +266,8 @@ print_type(_,T,[t-OT]) :-
 print_type(Type, A|B, O) :- !,
     extra_constructor(Type, A, O1),
     print_type(Type, A, O2),
-    ws_indent(6, Type, Ws),
+    Type = T-_,
+    ws_indent(6, T, Ws),
     format(atom(O3), '~n~w| ', [Ws]),
     extra_constructor(Type, B, O4),
     print_type(Type, B, O5),
@@ -286,23 +298,57 @@ print_show(Constructor, ConstructorH, Args) :-
        format('++ ")"~n~n')
     ;  format(') = "~w"~n', [])).
 
-print_conv(Type, C, Ch, Args) :-
-    format('aterm~wToMTT (ShAAppl "~w" [', [Type, Ch]),
+
+print_conv(Type-NTs, C, Ch, Args) :-
+    format('aterm~wToMTT (ShAAppl "~w" [', [Type, C]),
     argchain(0,Args),
     format('] _) t =~n'),
-    aterm_constructor(C, Ch),
+    constructor_chain([Ch|NTs], Constructors),
+    format('    ~w', [Constructors]),
     maplistn(print_aterm_mtt1, 0, Args), nl.
 
+% chain a list of constructor allocations with the $ operator
+constructor_chain(Cs, Atom) :-
+    reverse(Cs, CsR),
+    atomic_list_concat(CsR, ' $ ', Atom).
 
+
+% succeed if Lhs is a nonterminal symbol in the grammar and bind Rhs accordingly
+nonterminal(Lhs, Rhs) :-
+    (Lhs ::= Rhs),
+    functor(Rhs, F, _),
+    F \= Lhs.
+ 
+% if Type turns out to be a nonterminal, recursively list all
+% terminals that could be of Type
+extra_constructor(Type-NTs, A, [Ot|[s-OS|Oc]]) :-
+% 	(A='declaration_statement'->gtrace;true),
+    nonterminal(A, Rhs), !,
+    haskellized_atom(A, AH),
+    RecType = Type-[AH|NTs],
+    print_type(RecType, Rhs, O),
+    retractall(node_type(_, RecType)), % offset an unwanted side-effect of print_type
+    include(convs, O, Oc),
+    format(atom(OS), '    show (~w ~w) = show ~w~n',[AH,A,A]),
+    print_type(Type-NTs, A, [Ot]).
+
+% otherwise print the conversion function for this terminal symbol    
 % extra type constructor for rhs nonterminals
-extra_constructor(Type, A, [t-Type,t-AH,s-OS,c-OC]) :-
+extra_constructor(Type-NTs, A, [t-Type,t-AH,s-OS,c-OC]) :-
     atom(A), !,
-    print_type(Type, A, [t-AH]),
+    print_type(Type-NTs, A, [t-AH]),
     format(atom(OS), '    show (~w~w~w) = show ~w~n',[Type,AH,A,A]),
-    sub_atom(AH, 0, _, 1, AH0),
-    format(atom(OC), 'aterm~wToMTT a@(ShAAppl "~w" _ _) t =~n     ~w~w $ aterm~wToMTT a t~n',
-	   [Type,A,Type,AH0,AH0]).
+    sub_atom(AH, 0, _, 1, AH0), % get rid of trailing space
+    build_constructor(Type, NTs, AH0, Constructors),
+    format(atom(OC), 'aterm~wToMTT a@(ShAAppl "~w" _ _) t =~n    ~w $ aterm~wToMTT a t~n~n',
+	   [Type,A,Constructors,AH0]).
 extra_constructor(_, _, []).
+
+build_constructor(BaseType, NTs, Type, Constructors) :-
+    (NTs = [NT1|_]
+    ->  atom_concat(NT1, Type,  Constructor), NTs1 = [Constructor|NTs]
+    ;   atom_concat(BaseType, Type, Constructor), NTs1 = [Constructor]),
+    constructor_chain(NTs1, Constructors).
 
 
 print_variants(_;_) :-
@@ -313,18 +359,20 @@ print_variants(_) :- gtrace.
 
 
 print_atoms(_,[], []).
-print_atoms(Type,[A|[B|As]], O) :- !,
+print_atoms(Type-NTs,[A|[B|As]], O) :- !,
     haskellized_atom(A, AH),
     format(atom(OT), '~w | ', [AH]),
     format(atom(OS), '    show ~w = "~w"~n',[AH,A]),
-    format(atom(OC), 'aterm~wToMTT (ShAAppl "~w" _ _) t = ~w~n', [Type,A,AH]),
-    print_atoms(Type,[B|As],O1),
+    constructor_chain([AH|NTs], Constructors),
+    format(atom(OC), 'aterm~wToMTT (ShAAppl "~w" _ _) t = ~w~n', [Type,A,Constructors]),
+    print_atoms(Type-NTs,[B|As],O1),
     append([t-OT,s-OS,c-OC],O1,O).
-print_atoms(Type,[A], [t-OT,s-OS,c-OC]) :-
+print_atoms(Type-NTs,[A], [t-OT,s-OS,c-OC]) :-
     haskellized_atom(A, AH),
     format(atom(OT), '~w ', [AH]),
     format(atom(OS), '    show ~w = "~w"~n',[AH,A]),
-    format(atom(OC), 'aterm~wToMTT (ShAAppl "~w" _ _) t = ~w~n', [Type,A,AH]).
+    constructor_chain([AH|NTs], Constructors),
+    format(atom(OC), 'aterm~wToMTT (ShAAppl "~w" _ _) t = ~w~n~n', [Type,A,Constructors]).
 
 print_functors(_, _, [], '').
 print_functors(N, Args, [F|[G|Fs]], O) :- !,
