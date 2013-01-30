@@ -60,6 +60,9 @@ int patchUpSharedVariables(SgFile* );
 
   //! Translate omp parallel
   void transOmpParallel(SgNode* node);
+  
+  //! Translate omp parallel under "omp target"
+  void transOmpTargetParallel(SgNode* node);
 
   //! Translate omp sections 
   void transOmpSections(SgNode* node);
@@ -102,7 +105,7 @@ int patchUpSharedVariables(SgFile* );
 
  //! A helper function to generate implicit or explicit task for either omp parallel or omp task
  // It calls the ROSE AST outliner internally. 
- SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars);
+ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms);
  
   //! Translate OpenMP variables associated with an OpenMP pragma, such as private, firstprivate, lastprivate, reduction, etc. bb1 is the translation generated code block in which the variable handling statements will be inserted. Original loop upper bound is needed for implementing lastprivate (check if it is the last iteration) 
   void transOmpVariables(SgStatement * ompStmt, SgBasicBlock* bb1, SgExpression* orig_loop_upper = NULL);
