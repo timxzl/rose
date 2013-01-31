@@ -5346,6 +5346,8 @@ HEADER_APPLICATION_PROJECT_START
           void set_Java_sourcepath (std::list<std::string> param);
           std::string get_Java_destdir (void) const;
           void set_Java_destdir (std::string param);
+          std::string get_Java_source_destdir (void) const;
+          void set_Java_source_destdir (std::string param);
 
        // DQ (2/4/2009): This is now a data member at the SgProject and so is automatically generated asa member function.
        // bool get_binary_only (void) const;
@@ -13074,6 +13076,21 @@ SgProject::get_Java_destdir (void) const
     }
     return p_Java_destdir;
    }
+
+void
+SgProject::set_Java_source_destdir (std::string param)
+   {
+     p_Java_source_destdir = param;
+   }
+
+std::string
+SgProject::get_Java_source_destdir (void) const
+   {
+    if (p_Java_source_destdir == "") {
+      return ROSE::getWorkingDirectory();
+    }
+    return p_Java_source_destdir;
+  }
 
 #if 0
 // DQ (2/4/2009): This is now a data member at the SgProject and so is automatically generated asa member function.
