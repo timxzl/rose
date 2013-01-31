@@ -1065,7 +1065,7 @@ TermToRose::unescape_char(std::string s) {
     case 'f': return '\f';
     case 'a': return '\a';
     case 'v': return '\v';
-    default: ROSE_ASSERT(false);
+    default: ROSE_ASSERT(false && "unknown escape sequence");
     }
   }
 
@@ -1096,7 +1096,7 @@ TermToRose::unescape_char(std::string s) {
     if (c > 255) cerr << "** WARNING: truncated 16bit unicode character" << s << endl;
     return c;
   }
-  default: ROSE_ASSERT(false);
+  default: ROSE_ASSERT(false && "unknown escape sequence");
   }
 }
 
@@ -1467,10 +1467,10 @@ void TermToRose::unparseFile(SgSourceFile& f, std::string prefix, std::string su
 {
   string fn = f.get_file_info()->get_filenameString();
 
-  int prefix_end = fn.rfind('/');
-  if (prefix_end == fn.length()) prefix_end = 0;
-  else prefix_end++;
+  int prefix_end   = fn.rfind('/');
   int suffix_start = fn.rfind('.');
+  if (prefix_end   == fn.npos) prefix_end = 0; else prefix_end++;
+  if (suffix_start == fn.npos) suffix_start = fn.length();
 
   stringstream name;
   name << prefix << '/' << fn.substr(prefix_end, suffix_start-prefix_end)
@@ -1517,7 +1517,7 @@ void TermToRose::unparse(std::string filename, std::string dir, std::string suff
  * create SgSourceFile
  */
 SgSourceFile*
-TermToRose::createFile(Sg_File_Info* fi,SgNode* child1,CompTerm*) {
+TermToRose::createFile(Sg_File_Info* fi,SgNode* child1,CompTerm* t) {
   // GB (2008-10-20): It looks like there is a new SgSourceFile class in
   // ROSE 0.9.3a-2261, and that it is an instance of that class that we
   // need.
@@ -1557,8 +1557,10 @@ TermToRose::createFile(Sg_File_Info* fi,SgNode* child1,CompTerm*) {
 	     ends_with(name, ".cpp") || ends_with(name, ".c++")) {
     file->set_Cxx_only(true);    
   } else {
-    // ???
-    assert(false);
+    cerr<< "**WARNING: could not detect the programming language from the\n"
+	<< "           file name \""<<name<<"\" specified for this source_file().\n"
+	<< "Assuming C++."<<endl;
+    file->set_Cxx_only(true);    
   }
   if (isFortran) {
     file->set_Fortran_only(true);
