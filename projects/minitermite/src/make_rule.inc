@@ -129,9 +129,9 @@ if ROSE_BUILD_OS_IS_OSX
 	@echo "#define ROSE_ASSERT(X) "       >>RoseEnumNames.cc
 endif
 	@echo "#include <sage3basic.h>"       >>RoseEnumNames.cc
+	@echo "[Note: if this fails, look into how projects/haskellport handles invoking a compiled but not installed ROSE tool]"
 	$(AM_V_GEN) $< --edg:no_warnings  -O0 -DROSE_SKIP_COMPILATION_OF_WAVE \
 	   -I$(top_builddir) $(ROSE_INCLUDES) \
-	   -I$(top_builddir)/include-staging/g++_HEADERS \
            -c RoseEnumNames.cc > __RoseEnumNames.h
 	@mkdir -p src/minitermite
 	@mv __RoseEnumNames.h src/minitermite/RoseEnumNames.h
