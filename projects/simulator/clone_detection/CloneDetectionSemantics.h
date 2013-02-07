@@ -45,6 +45,8 @@
 #include "CloneDetectionTpl.h"
 #endif
 
+#include "BinaryPointerDetection.h"
+
 namespace CloneDetection {
 
 // Make names for the sub policies.
@@ -71,28 +73,50 @@ INTERVAL_VALUE<nBits> convert_to_interval(const ValueType<nBits> &value);
 template <template <size_t> class ValueType, size_t nBits>
 SYMBOLIC_VALUE<nBits> convert_to_symbolic(const ValueType<nBits> &value);
 
+/** Instruction providor for pointer detection analysis. */
+class InstructionProvidor {
+public:
+    RSIM_Process *process;
+    InstructionProvidor(RSIM_Process *process): process(process) { assert(process!=NULL); }
+    SgAsmInstruction *get_instruction(rose_addr_t va) {
+        SgAsmInstruction *insn = NULL;
+        try {
+            insn = process->get_instruction(va);
+        } catch (const DisassemblerX86::Exception&) {
+        }
+        return insn;
+    }
+};
+
+typedef BinaryAnalysis::PointerAnalysis::PointerDetection<InstructionProvidor> PointerDetector;
+
+
 /**************************************************************************************************************************/
 
 /** Initial values to supply for inputs.  These are defined in terms of integers which are then cast to the appropriate size
  *  when needed.  During fuzz testing, whenever the specimen reads from a register or memory location which has never been
- *  written, we consume the next value from this input object. */
+ *  written, we consume the next value from this input object. When all values are consumed, this object begins to return only
+ *  zero values. */
 class InputValues {
 public:
+    enum Type { POINTER, NONPOINTER, UNKNOWN_TYPE };
     InputValues(): next_integer_(0), next_pointer_(0) {}
     void add_integer(uint64_t i) { integers_.push_back(i); }
-    void add_pointer(bool is_non_null) { pointers_.push_back(is_non_null?1:0); }
+    void add_pointer(uint64_t p) { pointers_.push_back(p); }
     uint64_t next_integer() {
         uint64_t retval = next_integer_ < integers_.size() ? integers_[next_integer_] : 0;
         ++next_integer_; // increment even past the end so we know how many inputs were consumed
         return retval;
     }
-    bool next_pointer() {
-        bool retval = 0 != (next_pointer_ < pointers_.size() ? pointers_[next_pointer_] : 0);
+    uint64_t next_pointer() {
+        uint64_t retval = next_pointer_ < pointers_.size() ? pointers_[next_pointer_] : 0;
         ++next_pointer_; // increment even past the end so we know how many inputs were consumed
         return retval;
     }
     size_t integers_consumed() const { return next_integer_; }
     size_t pointers_consumed() const { return next_pointer_; }
+    const std::vector<uint64_t> get_integers() const { return integers_; }
+    const std::vector<uint64_t> get_pointers() const { return pointers_; }
     size_t num_inputs() const { return integers_consumed() + pointers_consumed(); }
     void reset() { next_integer_ = next_pointer_ = 0; }
     void clear() {
@@ -110,9 +134,27 @@ public:
             std::swap(pointers_[i], pointers_[j]);
         }
     }
+    std::string toString() const {
+        std::ostringstream ss;
+        print(ss);
+        return ss.str();
+    }
+    void print(std::ostream &o) const {
+        o <<"non-pointer inputs (" <<integers_.size() <<" total):\n";
+        for (size_t i=0; i<integers_.size(); ++i)
+            o <<"  " <<integers_[i] <<(i==next_integer_?"\t<-- next input":"") <<"\n";
+        if (next_integer_>=integers_.size())
+            o <<"  all non-pointers have been consumed; returning zero\n";
+        o <<"pointer inputs (" <<pointers_.size() <<" total):\n";
+        for (size_t i=0; i<pointers_.size(); ++i)
+            o <<"  " <<pointers_[i] <<(i==next_pointer_?"\t<-- next input":"") <<"\n";
+        if (next_pointer_>=pointers_.size())
+            o <<"  all pointers have been consumed; returning null\n";
+    }
+        
 protected:
     std::vector<uint64_t> integers_;
-    std::vector<int> pointers_;                 // Boolean: non-zero means non-null (actual pointer is allocated later)
+    std::vector<uint64_t> pointers_;
     size_t next_integer_, next_pointer_;        // May increment past the end of its array
 };
 
@@ -123,6 +165,13 @@ class Exception {
 public:
     Exception(const std::string &mesg): mesg(mesg) {}
     std::string mesg;
+};
+
+/** Exception thrown when we've processed too many instructions. This is used by the Policy<>::startInstruction to prevent
+ *  infinite loops in the specimen functions. */
+class InsnLimitException: public Exception {
+public:
+    InsnLimitException(const std::string &mesg): Exception(mesg) {}
 };
 
 /**************************************************************************************************************************/
@@ -158,6 +207,7 @@ class Outputs {
 public:
     std::list<ValueType<32> > values32;
     std::list<ValueType<8> > values8;
+    std::set<uint32_t> get_values() const;
     void print(std::ostream&, const std::string &title="", const std::string &prefix="") const;
     void print(RTS_Message*, const std::string &title="", const std::string &prefix="") const;
     friend std::ostream& operator<<(std::ostream &o, const Outputs &outputs) {
@@ -168,16 +218,27 @@ public:
 
 /**************************************************************************************************************************/
 
-/** One cell of memory.  A cell contains an address and a byte value. Cells are organized into a reverse chronological list to
- *  form a memory state. */
+// If USE_SYMBOLIC_MEMORY is defined then all memory address operations are done in the symbolic domain, otherwise they are
+// performed in the concrete domain.  The concrete domain is MUCH faster since alias determination is a simple comparison of
+// two integers rather than an expensive call to an SMT solver.  (You can define it right here, or in the makefile).
+
+#ifdef USE_SYMBOLIC_MEMORY
+#define MEMORY_ADDRESS_TYPE SYMBOLIC_VALUE<32>
+#define MEMORY_ADDRESS_DOMAIN SYMBOLIC
+#else // concrete
+#define MEMORY_ADDRESS_TYPE CONCRETE_VALUE<32>
+#define MEMORY_ADDRESS_DOMAIN CONCRETE
+#endif
+
+/** One cell of memory.  A cell contains an address and a byte value and an indicatation of how the cell has been accessed. */
 struct MemoryCell {
-    MemoryCell(const SYMBOLIC_VALUE<32> &addr, const RSIM_SEMANTICS_VTYPE<8> &val, unsigned rw_state)
+    MemoryCell(): addr(MEMORY_ADDRESS_TYPE(0)), val(RSIM_SEMANTICS_VTYPE<8>(0)), rw_state(NO_ACCESS) {}
+    MemoryCell(const MEMORY_ADDRESS_TYPE &addr, const RSIM_SEMANTICS_VTYPE<8> &val, unsigned rw_state)
         : addr(addr), val(val), rw_state(rw_state) {}
-    SYMBOLIC_VALUE<32> addr;                                    // Memory addresses are always symbolic
+    MEMORY_ADDRESS_TYPE addr;                                   // Virtual address of memory cell
     RSIM_SEMANTICS_VTYPE<8> val;                                // Byte stored at that address
     unsigned rw_state;                                          // NO_ACCESS or HAS_BEEN_READ and/or HAS_BEEN_WRITTEN bits
 };
-
 /**************************************************************************************************************************/
 
 /** Mixed-interpretation memory.  Addresses are symbolic expressions and values are multi-domain.  We'll override the
@@ -186,7 +247,11 @@ struct MemoryCell {
 template <template <size_t> class ValueType>
 class State: public RSIM_Semantics::OuterState<ValueType> {
 public:
+#ifdef USE_SYMBOLIC_MEMORY
     typedef std::list<MemoryCell> MemoryCells;                  // list of memory cells in reverse chronological order
+#else // concrete
+    typedef std::map<uint32_t, MemoryCell> MemoryCells;         // memory cells indexed by address
+#endif
     MemoryCells stack_cells;                                    // memory state for stack memory (accessed via SS register)
     MemoryCells data_cells;                                     // memory state for anything that non-stack (e.g., DS register)
     BinaryAnalysis::InstructionSemantics::BaseSemantics::RegisterStateX86<RSIM_SEMANTICS_VTYPE> registers;
@@ -194,21 +259,21 @@ public:
     InputValues *input_values;                                  // user-supplied input values
 
     // Write a single byte to memory. The rw_state are the HAS_BEEN_READ and/or HAS_BEEN_WRITTEN bits.
-    void mem_write_byte(X86SegmentRegister sr, const SYMBOLIC_VALUE<32> &addr, const ValueType<8> &value,
+    void mem_write_byte(X86SegmentRegister sr, const MEMORY_ADDRESS_TYPE &addr, const ValueType<8> &value,
                         unsigned rw_state=HAS_BEEN_WRITTEN);
 
     // Read a single byte from memory.  The active_policies is the bit mask of sub-policies that are currently active. The
     // optional SMT solver is used to prove hypotheses about symbolic expressions (like memory addresses).  If the read
     // operation cannot find an appropriate memory cell, then @p uninitialized_read is set (it is not cleared in the counter
     // case).
-    ValueType<8> mem_read_byte(X86SegmentRegister sr, const SYMBOLIC_VALUE<32> &addr, unsigned active_policies,
+    ValueType<8> mem_read_byte(X86SegmentRegister sr, const MEMORY_ADDRESS_TYPE &addr, unsigned active_policies,
                                SMTSolver *solver, bool *uninitialized_read/*out*/);
 
     // Returns true if two memory addresses can be equal.
-    static bool may_alias(const SYMBOLIC_VALUE<32> &addr1, const SYMBOLIC_VALUE<32> &addr2, SMTSolver *solver);
+    static bool may_alias(const MEMORY_ADDRESS_TYPE &addr1, const MEMORY_ADDRESS_TYPE &addr2, SMTSolver *solver);
 
     // Returns true if two memory address are equivalent.
-    static bool must_alias(const SYMBOLIC_VALUE<32> &addr1, const SYMBOLIC_VALUE<32> &addr2, SMTSolver *solver);
+    static bool must_alias(const MEMORY_ADDRESS_TYPE &addr1, const MEMORY_ADDRESS_TYPE &addr2, SMTSolver *solver);
 
     // Reset the analysis state by clearing all memory (sub-policy memory such as simulator concrete is not cleared, only the
     // memory state stored in the MultiSemantics class) and by resetting the read/written status of all registers.
@@ -222,7 +287,7 @@ public:
     // Return output values.  These are the interesting general-purpose registers to which a value has been written, and the
     // memory locations to which a value has been written.  The returned object can be deleted when no longer needed.  The EIP,
     // ESP, and EBP registers are not considered to be interesting.
-    Outputs<ValueType> *get_outputs() const;
+    Outputs<ValueType> *get_outputs(bool verbose=false) const;
 
     // Printing
     template<size_t nBits>
@@ -256,10 +321,14 @@ public:
     unsigned active_policies;                           // Policies that should be active *during* an instruction
     static const rose_addr_t INITIAL_STACK = 0x80000000;// Initial value for the EIP and EBP registers
     InputValues *inputs;                                // Input values to use when reading a never-before-written variable
+    const PointerDetector *pointers;                    // Addresses of pointer variables
+    size_t ninsns;                                      // Number of instructions processed since last trigger() call
+    size_t max_ninsns;                                  // Maximum number of instructions to process after trigger()
 
     // "Inherit" super class' constructors (assuming no c++11)
     Policy(RSIM_Thread *thread)
-        : Super(thread), name(NULL), triggered(false), active_policies(0x07) {
+        : Super(thread), name(NULL), triggered(false), active_policies(0x07), inputs(NULL), pointers(NULL),
+          ninsns(0), max_ninsns(255) {
         init();
     }
 
@@ -278,7 +347,7 @@ public:
 
     // Calling this method will cause all our subdomains to be activated and the simulator will branch
     // to the specified target_va.
-    void trigger(rose_addr_t target_va, InputValues *inputs);
+    void trigger(rose_addr_t target_va, InputValues *inputs, const PointerDetector *pointers);
 
     // We can get control at the beginning of every instruction.  This allows us to do things like enabling/disabling
     // sub-domains based on the kind of instruction.  We could also examine the entire multi-domain state at this point and do
