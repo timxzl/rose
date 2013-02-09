@@ -179,7 +179,7 @@ void gatherReferences( const Rose_STL_Container< SgNode* >& expr, Rose_STL_Conta
                             string localName = vars.at(0)->get_name().getString();
                             if( varName == localName )
                             {
-                              isLocal == true;
+                              isLocal = true;
                             }             
                          localVariablesItr++;
                                            
@@ -1218,7 +1218,7 @@ static void insert_libxompf_h(SgNode* startNode)
   ROSE_ASSERT (loop != NULL);
 
   // make sure this is really a loop affected by "omp target"
-  bool is_target_loop = false;
+  //bool is_target_loop = false;
   SgNode* parent = node->get_parent();
   ROSE_ASSERT (parent != NULL);
   SgNode* grand_parent = parent->get_parent();
@@ -1910,6 +1910,119 @@ static int replaceVariableReferences(SgNode* subtree, std::map <SgVariableSymbol
   }
   return result;
 }
+
+//TODO: move to sageinterface, the current one has wrong reference type, and has undesired effect!!
+// grab the list of dimension sizes for an input array type, store them in the vector container
+static void getArrayDimensionSizes(const SgArrayType*  array_type, std::vector<SgExpression*>& result)
+{
+  ROSE_ASSERT (array_type != NULL);
+
+  const SgType* cur_type = array_type;
+  do
+  {
+    ROSE_ASSERT (isSgArrayType(cur_type) != NULL);
+    SgExpression* index_exp = isSgArrayType(cur_type)->get_index();
+    result.push_back(index_exp); // could be NULL, especially for the first dimension
+    cur_type = isSgArrayType(cur_type)->get_base_type();
+  }
+  while (isSgArrayType(cur_type));
+}
+
+
+//TODO move to SageInterface
+// Liao 2/8/2013
+// rewrite array reference using multiple-dimension subscripts to a reference using one-dimension subscripts
+// e.g. a[i][j] is changed to a[i*col_size +j]
+//      a [i][j][k]  is changed to a [(i*col_size + j)*K_size +k]
+// The parameter is the array reference expression to be changed     
+// Note the array reference expression must be the top one since there will be inner ones for a multi-dimensional array references in AST.
+static void linearizeArrayAccess(SgPntrArrRefExp* top_array_ref)
+{
+  //Sanity check
+  // TODO check language compatibility for C/C++ only: row major storage
+  ROSE_ASSERT( top_array_ref != NULL);
+  //ROSE_ASSERT (top_array_ref->get_lhs_operand_i() != NULL);
+  ROSE_ASSERT (top_array_ref->get_parent() != NULL );
+  ROSE_ASSERT (isSgPntrArrRefExp(top_array_ref->get_parent()) == NULL ); // top ==> must not be a child of a higher level array ref exp
+
+  // must be a canonical array reference, not like (a+10)[10]
+  SgExpression* arrayNameExp = NULL;
+  std::vector<SgExpression*>* subscripts = new vector<SgExpression*>;
+  bool is_array_ref = isArrayReference (top_array_ref, &arrayNameExp, &subscripts);
+  ROSE_ASSERT (is_array_ref);
+  SgInitializedName * i_name = convertRefToInitializedName(arrayNameExp);
+  ROSE_ASSERT (i_name != NULL);
+  SgArrayType * array_type = isSgArrayType(i_name->get_type());
+  ROSE_ASSERT (array_type!= NULL);
+
+  std::vector <SgExpression*> dimensions ; 
+  getArrayDimensionSizes (array_type, dimensions);
+  
+  ROSE_ASSERT ((*subscripts).size() == dimensions.size());
+  ROSE_ASSERT ((*subscripts).size()>1); // we only accept 2-D or above for processing. Caller should check this in advance
+
+  // left hand operand
+  SgExpression* new_lhs = buildVarRefExp(i_name);
+  SgExpression* new_rhs = deepCopy((*subscripts)[0]); //initialized to be i; 
+
+  // build rhs, like (i*col_size + j)*K_size +k
+  for (size_t i =1; i<dimensions.size(); i++) // only repeat dimension count -1 times
+  {
+     new_rhs = buildAddOp( buildMultiplyOp(new_rhs, deepCopy(dimensions[i]) ) , deepCopy((*subscripts)[i]) ) ; 
+  }
+
+  // set new lhs and rhs for the top ref
+  deepDelete(top_array_ref->get_lhs_operand_i()) ;  
+  deepDelete(top_array_ref->get_rhs_operand_i()) ;  
+
+  top_array_ref->set_lhs_operand_i(new_lhs);
+  new_lhs->set_parent(top_array_ref);
+
+  top_array_ref->set_rhs_operand_i(new_rhs);
+  new_rhs->set_parent(top_array_ref);
+
+}
+
+
+// Find all top level array references within the body block, 
+// we do the following:
+//   if it is within the set of arrays (array_syms) to be rewritten: arrays on map() clause,
+//   if it is more than 1-D
+//   change it to be linearized subscript access
+static void rewriteArraySubscripts(SgBasicBlock* body_block, const std::set<SgSymbol*> mapped_array_syms)
+{
+  std::vector<SgPntrArrRefExp* > candidate_refs; // store eligible references 
+  Rose_STL_Container<SgNode*> nodeList = NodeQuery::querySubTree(body_block, V_SgPntrArrRefExp);
+  for (Rose_STL_Container<SgNode *>::iterator i = nodeList.begin(); i != nodeList.end(); i++)
+  {
+    SgPntrArrRefExp* vRef = isSgPntrArrRefExp((*i));
+    ROSE_ASSERT (vRef != NULL);
+    SgNode* parent = vRef->get_parent();
+    // if it is top level ref?
+    if (isSgPntrArrRefExp(parent)) // has a higher level array ref, skip it
+      continue;
+   //TODO: move this logic into a function in SageInterface   
+    // If it is a canonical array reference we can handle?
+    vector<SgExpression *>  *subscripts = new vector<SgExpression*>;
+    SgExpression* array_name_exp = NULL;
+    isArrayReference(vRef, &array_name_exp, &subscripts);
+    SgInitializedName* a_name = convertRefToInitializedName (array_name_exp);
+    if  (a_name == NULL)
+      continue; 
+    // if it is within the mapped array set?  
+    ROSE_ASSERT (a_name != NULL);
+    SgSymbol* array_sym = a_name->get_symbol_from_symbol_table ();
+    ROSE_ASSERT (array_sym != NULL);
+
+    if (mapped_array_syms.find(array_sym)!= mapped_array_syms.end()) 
+      candidate_refs.push_back(vRef);
+  } 
+
+  // To be safe, we use reverse order iteration when changing them
+  for (std::vector<SgPntrArrRefExp* >::reverse_iterator riter = candidate_refs.rbegin(); riter != candidate_refs.rend(); riter ++)
+    linearizeArrayAccess (*riter);
+}
+
   // Liao, 2/4/2013
   // Translate the map clause variables associated with "omp target"
   // TODO: move to the header
@@ -2053,8 +2166,8 @@ static int replaceVariableReferences(SgNode* subtree, std::map <SgVariableSymbol
      // Step 3. copy the data from CPU to GPU
      // Only for variable in map(in:), or map(inout:) 
      // e.g. xomp_memcpyHostToDevice ((void*)dev_m1, (const void*)a, array_size);
-     if ( (map_in_clause) && (isInClauseVariableList (map_in_clause,sym)) || 
-          (map_inout_clause) && (isInClauseVariableList (map_inout_clause,sym)) )
+     if ( ((map_in_clause) && (isInClauseVariableList (map_in_clause,sym))) || 
+          ((map_inout_clause) && (isInClauseVariableList (map_inout_clause,sym))) )
      {
        SgExprListExp * parameters = buildExprListExp (
                                       buildCastExp(buildVarRefExp(dev_var_name, top_scope), buildPointerType(buildVoidType())),
@@ -2102,10 +2215,12 @@ static int replaceVariableReferences(SgNode* subtree, std::map <SgVariableSymbol
 
    }  // end for
 
-   // Step 4. replace references to old with new variables, 
-   replaceVariableReferences (body_block, cpu_gpu_var_map);
-
    // Step 5. TODO  replace indexing element access with address calculation (only needed for 2/3 -D)
+   // We switch the order of 4 and 5 since we want to rewrite the subscripts before the arrays are replaced
+    rewriteArraySubscripts (body_block, array_syms); 
+   
+   // Step 4. replace references to old with new variables, 
+    replaceVariableReferences (body_block, cpu_gpu_var_map);
 
    // TODO handle scalar, separate or merged into previous loop ?
     
@@ -2151,7 +2266,7 @@ static int replaceVariableReferences(SgNode* subtree, std::map <SgVariableSymbol
     SgOmpTargetStatement* target_directive_stmt = isSgOmpTargetStatement(parent);
     ROSE_ASSERT (target_directive_stmt != NULL);
 
-    SgFunctionDefinition * func_def = NULL;
+//    SgFunctionDefinition * func_def = NULL;
 
     // For Fortran code, we have to insert EXTERNAL OUTLINED_FUNC into 
     // the function body containing the parallel region
