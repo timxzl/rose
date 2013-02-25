@@ -921,6 +921,10 @@ namespace OmpSupport
         result = new SgOmpTargetStatement(NULL, body); 
         ROSE_ASSERT (result != NULL);
         break;
+       case e_target_data:
+        result = new SgOmpTargetDataStatement(NULL, body); 
+        ROSE_ASSERT (result != NULL);
+        break;
  
        //Fortran  
       case e_do:
@@ -1286,6 +1290,7 @@ This is no perfect solution until we handle preprocessing information as structu
           case e_task:
           case e_sections: 
           case e_target: // OMP-ACC directive
+          case e_target_data: 
             //fortran
           case e_do:
           case e_workshare:

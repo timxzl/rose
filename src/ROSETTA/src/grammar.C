@@ -3213,6 +3213,7 @@ Grammar::GrammarNodeInfo Grammar::getGrammarNodeInfo(Terminal* grammarnode) {
         ||nodeName == "SgOmpParallelStatement"
         ||nodeName == "SgOmpSectionsStatement"
         ||nodeName == "SgOmpTargetStatement"
+        ||nodeName == "SgOmpTargetDataStatement"
         ||nodeName == "SgOmpSingleStatement"
         ||nodeName == "SgOmpTaskStatement"
         ||nodeName == "SgOmpForStatement"
@@ -3504,6 +3505,7 @@ Grammar::buildTreeTraversalFunctions(Terminal& node, StringUtility::FileWithLine
                  ||string(node.getName()) == "SgOmpTaskStatement"
                  ||string(node.getName()) == "SgOmpSectionsStatement"
                  ||string(node.getName()) == "SgOmpTargetStatement"
+                 ||string(node.getName()) == "SgOmpTargetDataStatement"
                  ||string(node.getName()) == "SgOmpForStatement"
                  ||string(node.getName()) == "SgOmpDoStatement"
                  )
@@ -3604,6 +3606,7 @@ Grammar::buildTreeTraversalFunctions(Terminal& node, StringUtility::FileWithLine
                  ||string(node.getName()) == "SgOmpTaskStatement"
                  ||string(node.getName()) == "SgOmpSectionsStatement"
                  ||string(node.getName()) == "SgOmpTargetStatement"
+                 ||string(node.getName()) == "SgOmpTargetDataStatement"
                  ||string(node.getName()) == "SgOmpForStatement"
                  ||string(node.getName()) == "SgOmpDoStatement"
                  )
