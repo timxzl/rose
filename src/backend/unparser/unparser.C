@@ -1634,24 +1634,22 @@ unparseFile ( SgFile* file, UnparseFormatHelp *unparseHelp, UnparseDelegate* unp
                    }
                    //NOTE: Default package equals the empty string ""
                    //ROSE_ASSERT((packageDecl != NULL) && "Couldn't find the package definition of the java source file");
-                   outputFilename = file->get_sourceFileNameWithoutPath();
-                   if (packageName != "") {
-                       // Build the new java file path
-                       string outFolder = "rose-output/" + packageName;
-                       boost::replace_all(outFolder, ".", "/");
-                       SgProject * project = file->get_project();
-                       string ds = project->get_Java_source_destdir();
-                       if (ds != "") {
-                           outFolder = ds + "/" + outFolder;
-                       }
-                       // Create package folder structure
-                       string mkdirCommand = string("mkdir -p ") + outFolder;
-                       int status = system (mkdirCommand.c_str());
-                       ROSE_ASSERT(status == 0);
-                       if (outFolder != "") {
-                           outputFilename = outFolder + "/" + outputFilename;
-                       }
+                   string outFolder = "";
+                   SgProject *project = file->get_project();
+                   string ds = project->get_Java_source_destdir();
+                   if (ds != "") {
+                       outFolder = ds;
+                       outFolder += "/";
                    }
+                   outFolder += "rose-output/";
+                   boost::replace_all(packageName, ".", "/");
+                   outFolder += packageName;
+                   outFolder += "/";
+                   // Create package folder structure
+                   string mkdirCommand = string("mkdir -p ") + outFolder;
+                   int status = system (mkdirCommand.c_str());
+                   ROSE_ASSERT(status == 0);
+                   outputFilename = outFolder + file->get_sourceFileNameWithoutPath();
                   }
                  else
                   {
