@@ -2659,6 +2659,7 @@ SageBuilder::buildVarRefExp(const SgName& name, SgScopeStatement* scope/*=NULL*/
           varSymbol->set_parent(scope);
         }
      ROSE_ASSERT(varSymbol); 
+     ROSE_ASSERT(varSymbol->get_declaration() != NULL); 
 
      SgVarRefExp *varRef = new SgVarRefExp(varSymbol);
      setOneSourcePositionForTransformation(varRef);
