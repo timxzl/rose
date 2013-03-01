@@ -2515,16 +2515,9 @@ SgSizeOfOp* SageBuilder::buildSizeOfOp_nfi(SgType* type /* = NULL*/)
 //! This is part of Java specific operator support.
 SgJavaInstanceOfOp* SageBuilder::buildJavaInstanceOfOp(SgExpression* exp, SgType* type)
    {
-  // Not sure what should be the correct type of the SgJavaInstanceOfOp expression...
-     SgType* exp_type = NULL;
+     SgType* exp_type = SgTypeBool::createType();
 
-  // I think this should evaluate to be a boolean type (typically used in conditionals).
-  // if (exp != NULL) exp_type = exp->get_type();
-
-  // Warn that this support in not finished.
-     printf ("WARNING: Support for SgJavaInstanceOfOp is incomplete, expression type not specified, should it be SgTypeBool? \n");
-
-     SgJavaInstanceOfOp* result = new SgJavaInstanceOfOp(exp,type, exp_type);
+     SgJavaInstanceOfOp* result = new SgJavaInstanceOfOp(exp, type, exp_type);
      ROSE_ASSERT(result);
      if (exp != NULL)
         {

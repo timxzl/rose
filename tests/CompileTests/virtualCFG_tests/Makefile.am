@@ -691,6 +691,7 @@ clean-local:
 	rm -f *.dot
 	rm -rf QMTest
 	rm -f *.java
-	rm -f *.class 
+	rm -f *.class
+	rm -fr rose-output* ecj-classes-* javac-output-classes javac-syntax-check-classes
 
 
