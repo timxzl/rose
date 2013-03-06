@@ -311,7 +311,6 @@ set(roseBinaryFormats_fileList_part0
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/ExtentMap.C
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/Hexdump.C
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/Interpretation.C
-   ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/MemoryMap.C 
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/Rva.C 
 
    ### Generic Base Classes ###
@@ -353,6 +352,13 @@ set(roseBinaryFormats_fileList_part0
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/ExecLE.C 
    )
 
+include(CheckIncludeFile)
+CHECK_INCLUDE_FILE(sys/mman.h HAVE_SYS_MMAN_H)
+if (HAVE_SYS_MANN_H)
+  list(APPEND roseBinaryFormats_fileList_part0
+       ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/MemoryMap.C)
+endif() 
+   
 set(roseBinaryLoader_SRC
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryLoader/BinaryLoader.C
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryLoader/BinaryLoaderElf.C
