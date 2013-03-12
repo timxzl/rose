@@ -399,6 +399,13 @@ namespace OmpSupport
           result = new SgOmpNumThreadsClause(num_threads_param);
           break;
         }
+      case e_device:
+        {
+          SgExpression* param = checkOmpExpressionClause( att->getExpression(e_device).second, file );
+          result = new SgOmpDeviceClause(param);
+          break;
+        }
+ 
       default:
         {
           printf("error in buildOmpExpressionClause(): unacceptable clause type:%s\n",
@@ -486,11 +493,47 @@ namespace OmpSupport
     return  result;
   }
 
+  static   SgOmpClause::omp_map_operator_enum toSgOmpClauseMapOperator(omp_construct_enum at_op)
+  {
+    SgOmpClause::omp_map_operator_enum result = SgOmpClause::e_omp_map_unknown;
+    switch (at_op)
+    {
+      case e_map_inout: 
+        {
+          result = SgOmpClause::e_omp_map_inout;
+          break;
+        }
+      case e_map_in: 
+        {
+          result = SgOmpClause::e_omp_map_in;
+          break;
+        }
+      case e_map_out: 
+        {
+          result = SgOmpClause::e_omp_map_out;
+          break;
+        }
+      case e_map_alloc: 
+        {
+          result = SgOmpClause::e_omp_map_alloc;
+          break;
+        }
+      default:
+        {
+          printf("error: unacceptable omp construct enum for map operator conversion:%s\n", OmpSupport::toString(at_op).c_str());
+          ROSE_ASSERT(false);
+          break;
+        }
+    }
+    ROSE_ASSERT(result != SgOmpClause::e_omp_map_unknown);
+    return result;
+  }
+
   //! A helper function to convert OmpAttribute reduction operator to SgClause reduction operator
   //TODO move to sageInterface?
   static   SgOmpClause::omp_reduction_operator_enum toSgOmpClauseReductionOperator(omp_construct_enum at_op)
   {
-    SgOmpClause::omp_reduction_operator_enum result = SgOmpClause::e_omp_reduction_unkown;
+    SgOmpClause::omp_reduction_operator_enum result = SgOmpClause::e_omp_reduction_unknown;
     switch (at_op)
     {
       case e_reduction_plus: //+
@@ -589,7 +632,7 @@ namespace OmpSupport
           break;
         }
     }
-    ROSE_ASSERT(result != SgOmpClause::e_omp_reduction_unkown);
+    ROSE_ASSERT(result != SgOmpClause::e_omp_reduction_unknown);
     return result;
   }
   //A helper function to set SgVarRefExpPtrList  from OmpAttribute's construct-varlist map
@@ -632,6 +675,31 @@ namespace OmpSupport
     setClauseVariableList(result, att, reduction_op); 
     return result;
   }
+
+  //! Build a map clause with a given operation type from OmpAttribute
+  // map may have several variants: inout, in, out, and alloc. 
+  // the variables for each may have dimension info 
+  SgOmpMapClause* buildOmpMapClause(OmpAttribute* att, omp_construct_enum map_op)
+  {
+    ROSE_ASSERT(att !=NULL);
+    ROSE_ASSERT (att->isMapVariant(map_op));
+    if (!att->hasMapVariant(map_op))
+      return NULL;
+    SgOmpClause::omp_map_operator_enum  sg_op = toSgOmpClauseMapOperator(map_op); 
+    SgOmpMapClause* result = new SgOmpMapClause(sg_op);
+    setOneSourcePositionForTransformation(result);
+    ROSE_ASSERT(result != NULL);
+
+    // build variable list
+    setClauseVariableList(result, att, map_op); 
+
+    //this is somewhat inefficient. 
+    // since the attribute has dimension info for all map clauses
+    //But we don't want to move the dimension info to directive level 
+    result->set_array_dimensions(att->array_dimensions);
+    return result;
+  }
+
 
   //Build one of the clauses with a variable list
   SgOmpVariablesClause * buildOmpVariableClause(OmpAttribute* att, omp_construct_enum clause_type)
@@ -729,6 +797,7 @@ namespace OmpSupport
       case e_if:
       case e_collapse:
       case e_num_threads:
+      case e_device:
         {
           result = buildOmpExpressionClause(att, c_clause_type);
           break;
@@ -832,6 +901,18 @@ namespace OmpSupport
           target->get_clauses().push_back(sgclause);
         }
       }
+      else if (c_clause == e_map)
+      {
+        std::vector<omp_construct_enum> rops  = att->getMapVariants();
+        ROSE_ASSERT(rops.size()!=0);
+        std::vector<omp_construct_enum>::iterator iter;
+        for (iter=rops.begin(); iter!=rops.end();iter++)
+        {
+          omp_construct_enum rop = *iter;
+          SgOmpClause* sgclause = buildOmpMapClause(att, rop);
+          target->get_clauses().push_back(sgclause);
+        }
+      }
       else 
       {
         SgOmpClause* sgclause = buildOmpNonReductionClause(att, c_clause);
@@ -892,6 +973,15 @@ namespace OmpSupport
       case e_task:
         result = new SgOmpTaskStatement(NULL, body); 
         break;
+      case e_target:
+        result = new SgOmpTargetStatement(NULL, body); 
+        ROSE_ASSERT (result != NULL);
+        break;
+       case e_target_data:
+        result = new SgOmpTargetDataStatement(NULL, body); 
+        ROSE_ASSERT (result != NULL);
+        break;
+ 
        //Fortran  
       case e_do:
         result = new SgOmpDoStatement(NULL, body); 
@@ -1089,6 +1179,22 @@ namespace OmpSupport
             }
             break;
           }
+#if 0           
+        case e_map: //special handling for map , no such thing for combined parallel directives. 
+          {
+            std::vector<omp_construct_enum> rops  = att->getMapVariants();
+            ROSE_ASSERT(rops.size()!=0);
+            std::vector<omp_construct_enum>::iterator iter;
+            for (iter=rops.begin(); iter!=rops.end();iter++)
+            {
+              omp_construct_enum rop = *iter;
+              SgOmpClause* sgclause = buildOmpMapClause(att, rop);
+              ROSE_ASSERT(sgclause != NULL);
+              isSgOmpClauseBodyStatement(second_stmt)->get_clauses().push_back(sgclause);
+           }
+            break;
+          }
+#endif 
         default:
           {
             cerr<<"error: unacceptable clause for combined parallel for directive:"<<OmpSupport::toString(c_clause)<<endl;
@@ -1243,6 +1349,8 @@ This is no perfect solution until we handle preprocessing information as structu
           case e_single:
           case e_task:
           case e_sections: 
+          case e_target: // OMP-ACC directive
+          case e_target_data: 
             //fortran
           case e_do:
           case e_workshare:
