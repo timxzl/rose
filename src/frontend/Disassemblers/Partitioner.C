@@ -3016,6 +3016,11 @@ Partitioner::detach_thunk(Function *func)
         second_va = *(succs.begin());
     }
 
+    /* The JMP target must be an instruction in this same function. Normally it is. */
+    BasicBlock *bb2 = find_bb_containing(second_va, false);
+    if (NULL==bb2 || bb2->function!=func)
+        return false;
+
     /* Don't split the function if the first instruction is a successor of any of the function's blocks. */
     for (BasicBlocks::iterator bi=func->basic_blocks.begin(); bi!=func->basic_blocks.end(); ++bi) {
         BasicBlock *bb = bi->second;
@@ -3046,6 +3051,7 @@ Partitioner::detach_thunk(Function *func)
     for (BasicBlocks::iterator bi=bblocks.begin(); bi!=bblocks.end(); ++bi) {
         if (bi->first==func->entry_va) {
             BasicBlock *new_bb = find_bb_starting(second_va);
+            assert(new_bb!=NULL);
             if (new_bb->function==func) {
                 remove(func, new_bb);
                 append(new_func, new_bb, SgAsmBlock::BLK_ENTRY_POINT);
