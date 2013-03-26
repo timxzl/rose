@@ -317,6 +317,7 @@ SgAsmType *
 SgAsmIntegerValueExpression::get_type() 
 {
     abort();
+    return NULL;
 }
 
 

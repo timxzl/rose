@@ -119,7 +119,7 @@ HEADER_BINARY_INSTRUCTION_START
                                                              bool *complete,
                                                              MemoryMap *initial_memory=NULL);
                 virtual size_t get_size() const { return p_raw_bytes.size(); } //faster than obj->get_raw_bytes().size()
-                virtual bool is_unknown() const { abort(); } // too bad ROSETTA doesn't allow virtual base classes
+                virtual bool is_unknown() const { abort(); return true; } // too bad ROSETTA doesn't allow virtual base classes
 HEADER_BINARY_INSTRUCTION_END
 
 
