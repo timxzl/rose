@@ -1327,6 +1327,9 @@ Grammar::setUpStatements ()
 #endif
 
   // DQ (7/30/2008): Added support suggested by Ryan for PHP interface specification.
+     ClassDeclaration.setDataPrototype ( "bool", "explicit_annotation_interface", "= false",
+                                            NO_CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, NO_TRAVERSAL, NO_DELETE);
+
      ClassDeclaration.setDataPrototype ( "bool", "explicit_interface", "= false",
                                             NO_CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, NO_TRAVERSAL, NO_DELETE);
 

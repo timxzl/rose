@@ -1,13 +1,15 @@
 #ifndef ROSE_JAVA_SUPPORT
 #define ROSE_JAVA_SUPPORT
 
+using namespace std;
+
 extern SgGlobal *globalScope;
 extern SgClassType *ObjectClassType;
 extern SgClassType *StringClassType;
 extern SgClassType *ClassClassType;
 extern SgClassDefinition *ObjectClassDefinition;
-
-extern int initializerCount;
+extern vector<SgClassDefinition *> importedPackages;
+extern vector<SgClassType *> importedTypes;
 
 // This is used for both Fortran and Java support to point to the current SgSourceFile.
 extern SgSourceFile *OpenFortranParser_globalFilePointer;
@@ -28,17 +30,37 @@ extern SgJavaWildcardType *getUniqueWildcardUnbound();
 extern SgJavaWildcardType *getUniqueWildcardExtends(SgType *);
 extern SgJavaWildcardType *getUniqueWildcardSuper(SgType *);
 
-using namespace std;
+bool isImportedType(SgClassType *);
 
 string getPrimitiveTypeName(SgType *);
 string getWildcardTypeName(SgJavaWildcardType *);
-string getArrayTypeName(SgPointerType *);
 string getFullyQualifiedName(SgClassDefinition *);
 string getFullyQualifiedTypeName(SgClassType *);
 string getFullyQualifiedTypeName(SgJavaParameterizedType *);
+string getTypeName(SgClassType *class_type);
+string getTypeName(SgJavaParameterizedType *parm_type);
 string getTypeName(SgType *);
 
 string normalize(string str);
+
+
+//
+// This class is kept here as documentation. IT is declared in:  ./src/midend/astProcessing/AstAttributeMechanism.h
+//
+// class AstSgNodeListAttribute : public AstAttribute {
+//     std::vector<SgNode *> nodeList;
+//
+//     public:
+//         std::vector<SgNode *> &getNodeList();
+//         void addNode(SgNode *);
+//         SgNode *getNode(int);
+//         void setNode(SgNode *, int);
+//         int size();
+//
+//         AstSgNodeListAttribute();
+//         AstSgNodeListAttribute(std::vector<SgNode *> &);
+// };
+
 
 //
 // Attribute used to construct array types.
@@ -455,6 +477,8 @@ string convertJavaPackageNameToCxxString(JNIEnv *env, const jstring &java_string
 string convertJavaStringValToWString(JNIEnv *env, const jstring &java_string);
 string convertJavaStringToCxxString(JNIEnv *env, const jstring &java_string);
 
+SgClassDefinition *findOrInsertPackage(const SgName &, const SgName &, JNIEnv *env, jobject loc);
+
 SgMemberFunctionDeclaration *buildDefiningMemberFunction(const SgName &inputName, SgClassDefinition *classDefinition, int num_arguments, JNIEnv *env, jobject methodLoc, jobject argsLoc);
 SgMemberFunctionDeclaration *lookupMemberFunctionDeclarationInClassScope(SgClassDefinition *classDefinition, const SgName &function_name, int num_arguments);
 SgMemberFunctionDeclaration *lookupMemberFunctionDeclarationInClassScope(SgClassDefinition *classDefinition, const SgName &function_name, list<SgType *> &);
@@ -463,22 +487,20 @@ SgMemberFunctionSymbol *findFunctionSymbolInClass(SgClassDefinition *classDefini
 
 SgClassDeclaration *buildJavaClass (const SgName &className, SgScopeStatement *scope, JNIEnv *env, jobject jToken);
 
-SgVariableDeclaration *buildSimpleVariableDeclaration(const SgName &name, SgType *type);
-
 list<SgName> generateQualifierList (const SgName &classNameWithQualification);
 
 bool isCompatibleTypes(SgType *source, SgType *target);
 
+// TODO: Remove this !!!
 // It might be that this function should take a "const SgName &" instead of a "string".
-SgClassSymbol *lookupSymbolFromQualifiedName(string className);
+// SgClassSymbol *lookupSymbolFromQualifiedName(string className);
+
+SgClassSymbol *lookupTypeSymbol(SgName &type_name);
 
 SgType *lookupTypeByName(SgName &packageName, SgName &typeName, int num_dimensions);
 
 //! Support to get current class scope.
 SgClassDefinition *getCurrentTypeDefinition();
-
-//! Support to get current class scope.
-SgFunctionDefinition *getCurrentMethodDefinition();
 
 //! Support for identification of symbols using simple names in a given scope.
 SgClassSymbol *lookupSimpleNameTypeInClass(const SgName &name, SgClassDefinition *classDefinition);
