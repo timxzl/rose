@@ -1,0 +1,21 @@
+diff --git a/src/frontend/ECJ_ROSE_Connection/java_support.h b/src/frontend/ECJ_ROSE_Connection/java_support.h
+index 70c752b..55f5327 100644
+--- a/src/frontend/ECJ_ROSE_Connection/java_support.h
++++ b/src/frontend/ECJ_ROSE_Connection/java_support.h
+@@ -477,6 +477,7 @@ string convertJavaPackageNameToCxxString(JNIEnv *env, const jstring &java_string
+ string convertJavaStringValToWString(JNIEnv *env, const jstring &java_string);
+ string convertJavaStringToCxxString(JNIEnv *env, const jstring &java_string);
+ 
++SgClassDeclaration *buildDefiningClassDeclaration(SgName class_name, SgScopeStatement *scope);
+ SgClassDefinition *findOrInsertPackage(const SgName &, const SgName &, JNIEnv *env, jobject loc);
+ 
+ SgMemberFunctionDeclaration *buildDefiningMemberFunction(const SgName &inputName, SgClassDefinition *classDefinition, int num_arguments, JNIEnv *env, jobject methodLoc, jobject argsLoc);
+@@ -485,8 +486,6 @@ SgMemberFunctionDeclaration *lookupMemberFunctionDeclarationInClassScope(SgClass
+ SgMemberFunctionDeclaration *findMemberFunctionDeclarationInClass(SgClassDefinition *classDefinition, const SgName &function_name, list<SgType *>& types);
+ SgMemberFunctionSymbol *findFunctionSymbolInClass(SgClassDefinition *classDefinition, const SgName &function_name, list<SgType *> &);
+ 
+-SgClassDeclaration *buildJavaClass (const SgName &className, SgScopeStatement *scope, JNIEnv *env, jobject jToken);
+-
+ list<SgName> generateQualifierList (const SgName &classNameWithQualification);
+ 
+ bool isCompatibleTypes(SgType *source, SgType *target);
