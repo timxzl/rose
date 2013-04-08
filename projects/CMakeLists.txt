@@ -2,11 +2,11 @@ include_directories(${ROSE_INCLUDES})
 
 if (with-roseQt)
   add_subdirectory(AstEquivalence)
+  add_subdirectory(BinQ)
 endif()
 
 add_subdirectory(BabelPreprocessor)
 add_subdirectory(BinFuncDetect)
-add_subdirectory(BinQ)
 
 if(OPENSSL_FOUND)
   add_subdirectory(BinaryCloneDetection)
