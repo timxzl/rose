@@ -25,7 +25,6 @@ add_subdirectory(taintcheck)
 add_subdirectory(UpcTranslation)
 add_subdirectory(vectorization)
 
-
 if(OPENSSL_FOUND)
   add_subdirectory(BinaryCloneDetection)
 endif()
