@@ -1,4 +1,7 @@
-add_subdirectory(sqlite3x)
+
+if(SQLITE3_FOUND)
+  add_subdirectory(sqlite3x)
+endif()
 add_subdirectory(dataStructureTraversal)
 add_subdirectory(highLevelGrammar)
 

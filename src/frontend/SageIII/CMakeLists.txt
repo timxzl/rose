@@ -8,8 +8,7 @@ add_subdirectory(virtualCFG)
 add_subdirectory(astVisualization)
 
 if(NOT enable-internalFrontendDevelopment)
-  ##AS Commented out for simpler build
-  ###add_subdirectory(astFileIO)
+  add_subdirectory(astFileIO)
   add_subdirectory(astFromString)
   add_subdirectory(astHiddenTypeAndDeclarationLists)
   add_subdirectory(astMerge)
