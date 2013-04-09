@@ -725,10 +725,6 @@ CustomMemoryPoolDOTGeneration::~CustomMemoryPoolDOTGeneration()
    }
 #endif
 
-CustomMemoryPoolDOTGeneration::CustomMemoryPoolDOTGeneration()
-{
-  internal_init (NULL);
-}
 CustomMemoryPoolDOTGeneration::CustomMemoryPoolDOTGeneration(s_Filter_Flags* f /*= NULL*/)
 {
   internal_init (f);
