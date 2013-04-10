@@ -44,6 +44,7 @@ Policy<State, ValueType>::trigger(rose_addr_t target_va)
     this->set_active_policies(CONCRETE.mask | INTERVAL.mask | SYMBOLIC.mask);
     triggered = true;
     this->writeRegister("eip", RSIM_SEMANTICS_VTYPE<32>(target_va));
+    Robin::analysis_starting(this, target_va);
 }
 
 MULTI_DOMAIN_TEMPLATE
@@ -102,6 +103,9 @@ Policy<State, ValueType>::finishInstruction(SgAsmInstruction *insn)
         this->get_policy(CONCRETE).writeRegister("eip", eip);
 
         Robin::after_instruction(this, isSgAsmx86Instruction(insn));
+
+        // The simulator needs to execute in the concrete domain between instructions. For instance, RSIM_Thread::main() needs
+        // to obtain a concrete value for the EIP register by calling the semantic policy's readRegister() method.
         this->set_active(CONCRETE);
     }
 
@@ -135,6 +139,49 @@ Policy<State, ValueType>::xor_(const ValueType<nBits> &a, const ValueType<nBits>
         }
     }
     return retval;
+}
+
+MULTI_DOMAIN_TEMPLATE
+template<size_t nBits>
+ValueType<nBits>
+Policy<State, ValueType>::ite(const ValueType<1> &cond, const ValueType<nBits> &a, const ValueType<nBits> &b)
+{
+    using namespace InsnSemanticsExpr;
+
+    if (!triggered) {
+        return Super::ite(cond, a, b);
+    } else {
+        // Convert the condition to symbolic if we don't already have a symbolic value.
+        ValueType<1> new_cond = cond;
+        ValueType<nBits> new_a = a;
+        ValueType<nBits> new_b = b;
+        if (!new_cond.is_valid(SYMBOLIC)) {
+            SYMBOLIC_VALUE<1> symbolic_cond = convert_to_symbolic(new_cond);
+            new_cond.set_subvalue(SYMBOLIC, symbolic_cond);
+        }
+
+        SMTSolver *solver = this->get_policy(SYMBOLIC).get_solver();
+        assert(solver);
+
+        // Can the condition ever be true?
+        TreeNodePtr assert_true = InternalNode::create(1, OP_EQ, new_cond.get_subvalue(SYMBOLIC).get_expression(),
+                                                       LeafNode::create_integer(1, 1));
+        bool can_be_true = SMTSolver::SAT_NO != solver->satisfiable(assert_true);
+
+        // Can the condition ever be false?
+        TreeNodePtr assert_false = InternalNode::create(1, OP_EQ, new_cond.get_subvalue(SYMBOLIC).get_expression(),
+                                                        LeafNode::create_integer(1, 0));
+        bool can_be_false = SMTSolver::SAT_NO != solver->satisfiable(assert_false);
+
+        if (can_be_true && !can_be_false) {
+            return a;
+        } else if (!can_be_true && can_be_false) {
+            return b;
+        } else {
+            assert(can_be_true || can_be_false);
+            return Robin::ite_merge(this, new_cond, a, b);
+        }
+    }
 }
 
 MULTI_DOMAIN_TEMPLATE
@@ -487,25 +534,30 @@ Policy<State, ValueType>::readMemory(X86SegmentRegister sr, ValueType<32> addr, 
         
     // Read a multi-byte value from memory in little-endian order.
     assert(8==nBits || 16==nBits || 32==nBits);
-    ValueType<32> dword = this->concat(ValueType<24>(0), state.mem_read_byte(sr, a0, active_policies, solver));
+    ValueType<32> dword = this->concat(state.mem_read_byte(sr, a0, active_policies, solver), ValueType<24>(0));
     if (nBits>=16) {
         SYMBOLIC_VALUE<32> a1 = this->get_policy(SYMBOLIC).add(a0, SYMBOLIC_VALUE<32>(1));
-        dword = this->or_(dword, this->concat(ValueType<16>(0),
+        dword = this->or_(dword, this->concat(ValueType<8>(0),
                                               this->concat(state.mem_read_byte(sr, a1, active_policies, solver),
-                                                           ValueType<8>(0))));
+                                                           ValueType<16>(0))));
     }
     if (nBits>=24) {
         SYMBOLIC_VALUE<32> a2 = this->get_policy(SYMBOLIC).add(a0, SYMBOLIC_VALUE<32>(2));
-        dword = this->or_(dword, this->concat(ValueType<8>(0),
+        dword = this->or_(dword, this->concat(ValueType<16>(0),
                                               this->concat(state.mem_read_byte(sr, a2, active_policies, solver),
-                                                           ValueType<16>(0))));
+                                                           ValueType<8>(0))));
     }
     if (nBits>=32) {
         SYMBOLIC_VALUE<32> a3 = this->get_policy(SYMBOLIC).add(a0, SYMBOLIC_VALUE<32>(3));
-        dword = this->or_(dword, this->concat(state.mem_read_byte(sr, a3, active_policies, solver),
-                                              ValueType<24>(0)));
+        dword = this->or_(dword, this->concat(ValueType<24>(0), state.mem_read_byte(sr, a3, active_policies, solver)));
     }
-    return this->template extract<0, nBits>(dword);
+    ValueType<nBits> retval = this->template extract<0, nBits>(dword);
+    if (this->get_policy(CONCRETE).tracing(TRACE_MEM)->get_file()) {
+        std::ostringstream ss;
+        ss <<"  readMemory<" <<nBits <<">(" <<segregToString(sr) <<", " <<addr <<") -> " <<retval;
+        this->get_policy(CONCRETE).tracing(TRACE_MEM)->mesg("%s", ss.str().c_str());
+    }
+    return retval;
 }
 
 MULTI_DOMAIN_TEMPLATE
@@ -517,6 +569,11 @@ Policy<State, ValueType>::writeMemory(X86SegmentRegister sr, ValueType<32> addr,
     if (!triggered)
         return Super::template writeMemory<nBits>(sr, addr, data, cond);
 
+    if (this->get_policy(CONCRETE).tracing(TRACE_MEM)->get_file()) {
+        std::ostringstream ss;
+        ss <<"  writeMemory<" <<nBits <<">(" <<segregToString(sr) <<", " <<addr <<") <- " <<data;
+        this->get_policy(CONCRETE).tracing(TRACE_MEM)->mesg("%s", ss.str().c_str());
+    }
     SYMBOLIC_VALUE<32> a0 = convert_to_symbolic(addr);
 
     // Add the address/value pair to the mixed-semantics memory state, one byte at a time in little-endian order.
@@ -695,9 +752,14 @@ State<ValueType>::print(std::ostream &o, unsigned domains) const
         show_value(o, hdg.str(), registers.flag[i], domains);
     }
     for (size_t i=0; i<2; ++i) {
+        size_t ncells=0, max_ncells=100;
         const MemoryCells &cells = 0==i ? stack_cells : data_cells;
         o <<"== Multi Memory (" <<(0==i?"stack":"data") <<" segment) ==\n";
         for (typename MemoryCells::const_iterator ci=cells.begin(); ci!=cells.end(); ++ci) {
+            if (++ncells>max_ncells) {
+                o <<"    skipping " <<cells.size()-(ncells-1) <<" more memory cells for brevity's sake...\n";
+                break;
+            }
             o <<"    address symbolic: " <<ci->first <<"\n";
             show_value(o, "      value ", ci->second, domains);
         }

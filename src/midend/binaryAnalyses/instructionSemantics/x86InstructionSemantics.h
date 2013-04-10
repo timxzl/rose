@@ -673,7 +673,8 @@ struct X86InstructionSemantics {
         Word(1) p67 = policy.xor_(extract<6, 7>(w), extract<7, 8>(w));
         Word(1) p0123 = policy.xor_(p01, p23);
         Word(1) p4567 = policy.xor_(p45, p67);
-        return policy.invert(policy.xor_(p0123, p4567));
+        Word(1) pall = policy.xor_(p0123, p4567);
+        return policy.invert(pall);
     }
 
     /* Sets flags: parity, sign, and zero */
@@ -800,7 +801,11 @@ struct X86InstructionSemantics {
                     throw Exception("instruction must have two operands", insn);
                 switch (numBytesInAsmType(operands[0]->get_type())) {
                     case 2: {
-                        write16(operands[0], policy.concat(read8(operands[1]), number<8>(0)));
+                        switch (numBytesInAsmType(operands[1]->get_type())) {
+                            case 1: write16(operands[0], policy.concat(read8(operands[1]), number<8>(0))); break;
+                            case 2: write16(operands[0], read16(operands[1])); break;
+                            default: throw Exception("size not implemented", insn);
+                        }
                         break;
                     }
                     case 4: {
@@ -808,7 +813,6 @@ struct X86InstructionSemantics {
                             case 1: write32(operands[0], policy.concat(read8(operands[1]), number<24>(0))); break;
                             case 2: write32(operands[0], policy.concat(read16(operands[1]), number<16>(0))); break;
                             default: throw Exception("size not implemented", insn);
-
                         }
                         break;
                     }

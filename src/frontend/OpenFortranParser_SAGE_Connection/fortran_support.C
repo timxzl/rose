@@ -1933,6 +1933,9 @@ trace_back_through_parent_scopes_lookup_variable_symbol_but_do_not_build_variabl
      while (variableSymbol == NULL && functionSymbol == NULL && classSymbol == NULL && tempScope != NULL)
         {
 #if 0
+        // DXN: turning on this degugging code will cause some tests to fail because certain located nodes such as SgIfStmt
+        // do not have their source positions set properly.  The error message looks like:
+        //  void Sg_File_Info::display(std::string) const: Assertion `this != __null' failed
           printf ("Searching in scope = %p = %s \n",tempScope,tempScope->class_name().c_str());
           tempScope->get_startOfConstruct()->display("Searching in scope");
 #endif
@@ -2152,7 +2155,6 @@ void findClassTypeStructureScope (SgClassType* classType, SgScopeStatement*& str
 
 // DXN (08/15/2011)
 // Refactored code to find the scope of a given type;
-// Called by trace_back_through_parent_scopes_lookup_member_variable_symbol.
 void findStructureScope (SgType* type, SgScopeStatement*& structureScope)
 {
     switch (type->variantT())
@@ -6229,8 +6231,6 @@ processAttributeSpecStack(bool hasArraySpec, bool hasInitialization)
                          printf ("found a COPOINTER spec \n");
 
                     ROSE_ASSERT(!astBaseTypeStack.empty());
-
-                    // if (!astTypeStack.empty()) astTypeStack.pop_front();  // DXN (06/13/2011)
 
                     SgPointerType* pointerType = astTypeStack.empty()?
                             new SgPointerType(astBaseTypeStack.front()):

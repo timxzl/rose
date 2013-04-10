@@ -69,8 +69,7 @@ namespace term {
 	      << std::oct 
 	      << std::setfill('0') 
 	      << std::setw(3) 
-	      << (unsigned int)c // \nnn Character with octal value nnn
-	      << '\\'; // Prolog expects this weird syntax with a trailing backslash
+	      << (unsigned int)c; // \nnn Character with octal value nnn
 	  } else {
 	    r << c;
 	  }
@@ -152,6 +151,9 @@ namespace term {
     { }
   };
 
+  /**
+   * Create terms in Stratego/XT format.
+   */
   class StrategoTermFactory : public STLTermFactory {
     /// create a new atom
     Atom* makeAtom(const std::string& name, bool escape) const 
