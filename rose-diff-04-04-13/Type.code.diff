@@ -1,0 +1,26 @@
+diff --git a/src/ROSETTA/Grammar/Type.code b/src/ROSETTA/Grammar/Type.code
+index b3d95ef..522be8a 100644
+--- a/src/ROSETTA/Grammar/Type.code
++++ b/src/ROSETTA/Grammar/Type.code
+@@ -2723,6 +2723,7 @@ $CLASSNAME::get_mangled(void) const
+   // if (get_name().get_length() != 0) // not anonymous
+      if (get_name().is_null() == false) // not anonymous
+         {
++/*
+           const SgClassDeclaration* class_decl = isSgClassDeclaration(get_declaration());
+        // printf ("In $CLASSNAME::get_mangled(): class_decl = %p = %s \n",class_decl, ((class_decl == NULL) ? "NULL" : class_decl->class_name().c_str()) );
+           if (class_decl != NULL)
+@@ -2747,6 +2748,13 @@ $CLASSNAME::get_mangled(void) const
+                  // printf ("In $CLASSNAME::get_mangled(): SgClassDeclaration mangled_name = %s \n",mangled_name.str());
+                   }
+              }
++*/
++              mangled_name = get_raw_type() -> get_mangled();
++              SgTemplateParameterPtrList templateParameters = get_type_list() -> get_args();
++              for (SgTemplateParameterPtrList::iterator i = templateParameters.begin(); i != templateParameters.end(); i++) {
++                  mangled_name += "_";
++                  mangled_name += (*i) -> get_type() -> get_mangled();
++              }
+         }
+ 
+      return mangled_name;
