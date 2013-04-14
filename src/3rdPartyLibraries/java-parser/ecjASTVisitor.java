@@ -13,6 +13,7 @@ import java.util.*;
 
 import org.eclipse.jdt.internal.compiler.ast.ASTNode;
 import org.eclipse.jdt.internal.compiler.ast.Annotation;
+import org.eclipse.jdt.internal.compiler.ast.MethodDeclaration;
 import org.eclipse.jdt.internal.compiler.ast.TypeDeclaration;
 import org.eclipse.jdt.core.compiler.*;
 import org.eclipse.jdt.core.compiler.batch.*;
@@ -70,9 +71,36 @@ class ecjASTVisitor extends ExtendedASTVisitor {
     }
 
     // *************************************************
+    public String nodeId(ASTNode node) {
+        if (node instanceof TypeDeclaration) {
+            TypeDeclaration type_declaration = (TypeDeclaration) node;
+            JavaParserSupport.LocalOrAnonymousType special_type = javaParserSupport.localOrAnonymousType.get(node);
+            String typename = (special_type == null
+                                             ? new String(type_declaration.name)
+                                             : special_type.isAnonymous()
+                                                      ? special_type.typename
+                                                      : special_type.simplename);
+            return " TypeDeclaration - " + (type_declaration.kind(type_declaration.modifiers) == TypeDeclaration.INTERFACE_DECL
+                                                ? "interface"
+                                                : type_declaration.kind(type_declaration.modifiers) == TypeDeclaration.ANNOTATION_TYPE_DECL
+                                                      ? "@interface"
+                                                      : type_declaration.kind(type_declaration.modifiers) == TypeDeclaration.ENUM_DECL
+                                                            ? "enum" 
+                                                            : "class") +
+                   ": " + typename + "(***) -- binding: " + ((TypeDeclaration) node).binding.getClass().getCanonicalName();
+        }
+        else if (node instanceof MessageSend)
+            return " MessageSend: " + new String(((MessageSend) node).selector) + "( ... )";
+        else if (node instanceof MethodDeclaration && (! (node instanceof AnnotationMethodDeclaration)))
+            return " MethodDeclaration: " + new String(((MethodDeclaration) node).selector) + "(***)";
+        else if (node instanceof SingleNameReference)
+            return " SingleNameReference: " + new String(((SingleNameReference) node).token);
+        return node.getClass().getName();
+    }
+    
     public boolean preVisit(ASTNode node) {
         if (javaParserSupport.verboseLevel > 1)
-            System.out.println("Pre-visiting " + node.getClass().getName());
+            System.out.println("Pre-visiting " + nodeId(node));
 
         if (node instanceof Javadoc) { // Ignore all Javadoc nodes!!!
             return false;
@@ -120,8 +148,8 @@ class ecjASTVisitor extends ExtendedASTVisitor {
     }
 
     public void postVisit(ASTNode node) {
-        if (javaParserSupport.verboseLevel > 1)
-            System.out.println("Post-visiting " + node.getClass().getName());
+       if (javaParserSupport.verboseLevel > 1)
+            System.out.println("Post-visiting " + nodeId(node));
 
         //
         // If you need to do something at the end of a visit, do it here.
@@ -151,13 +179,29 @@ class ecjASTVisitor extends ExtendedASTVisitor {
                 System.out.println("The Single name referenced " + varRefName + " is bound to type " + type_variable_binding.debugName());
             }
 
+            String type_parameter_name = javaParserSupport.getTypeName(type_variable_binding);
             Binding binding = type_variable_binding.declaringElement;
             if (binding instanceof TypeBinding) {
                 TypeBinding enclosing_binding = (TypeBinding) binding;
-                String type_parameter_name = javaParserSupport.getTypeName(type_variable_binding),
-                       package_name = javaParserSupport.getPackageName(enclosing_binding),
+                String package_name = javaParserSupport.getPackageName(enclosing_binding),
                        type_name = javaParserSupport.getTypeName(enclosing_binding);
-                JavaParser.cactionTypeParameterReference(package_name, type_name, type_parameter_name, javaParserSupport.createJavaToken(node));
+                JavaParser.cactionTypeParameterReference(package_name, type_name, -1 /* no method index */, type_parameter_name, javaParserSupport.createJavaToken(node));
+            }
+            else if (binding instanceof MethodBinding) {
+                MethodBinding method_binding = (MethodBinding) binding;
+                AbstractMethodDeclaration method_declaration = method_binding.sourceMethod();
+                if (method_declaration != null) {
+                    TypeBinding type_binding = method_binding.declaringClass;
+                    String package_name = javaParserSupport.getPackageName(type_binding),
+                           type_name = javaParserSupport.getTypeName(type_binding);
+                    int method_index = javaParserSupport.classMemberTable.get(method_declaration);
+                    JavaParser.cactionTypeParameterReference(package_name, type_name, method_index, type_parameter_name, javaParserSupport.createJavaToken(node));
+                }
+                else {
+                    System.out.println();
+                    System.out.println("*** No support yet for Type Variable enclosed in " + binding.getClass().getCanonicalName() + " without source being available");
+                    System.exit(1);
+                }
             }
             else {
                 System.out.println();
@@ -192,7 +236,6 @@ class ecjASTVisitor extends ExtendedASTVisitor {
                 package_name = javaParserSupport.getPackageName(type_binding);
                 type_name = javaParserSupport.getTypeName(type_binding);
             }
-
             JavaParser.cactionSingleNameReference(package_name, type_name, varRefName, javaParserSupport.createJavaToken(node));
         }
     }
@@ -226,6 +269,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 
         JavaParser.cactionTypeDeclaration(package_name,
                                           typename,
+                                          node.kind(node.modifiers) == TypeDeclaration.ANNOTATION_TYPE_DECL,
                                           node.kind(node.modifiers) == TypeDeclaration.INTERFACE_DECL,
                                           node.kind(node.modifiers) == TypeDeclaration.ENUM_DECL,
                                           (node.binding != null && node.binding.isAbstract()),
@@ -286,7 +330,6 @@ class ecjASTVisitor extends ExtendedASTVisitor {
     }
 
     private void exitTypeDeclaration(TypeDeclaration node) {
-        String typename = new String(node.name);
         if (TypesWithNoBody.contains(node)) {
             if (javaParserSupport.verboseLevel > 1)
                 System.out.println("    Side-visiting Type Declaration Header for " + node.getClass().getName());
@@ -409,7 +452,8 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         boolean is_final = node.binding.isFinal();
 
         if (catchArguments.contains(node)) {
-            JavaParser.cactionCatchArgumentEnd(name, is_final, javaParserSupport.createJavaToken(node));
+            int number_of_types = (node.type instanceof UnionTypeReference ? ((UnionTypeReference ) node.type).typeReferences.length : 1);
+            JavaParser.cactionCatchArgumentEnd(name, number_of_types, is_final, javaParserSupport.createJavaToken(node));
         }
         else {
             JavaParser.cactionArgumentEnd(name, is_final, javaParserSupport.createJavaToken(node));
@@ -454,7 +498,8 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         boolean is_final = node.binding.isFinal(); 
 
         if (catchArguments.contains(node)) {
-            JavaParser.cactionCatchArgumentEnd(name, is_final, javaParserSupport.createJavaToken(node));
+            int number_of_types = (node.type instanceof UnionTypeReference ? ((UnionTypeReference ) node.type).typeReferences.length : 1);
+            JavaParser.cactionCatchArgumentEnd(name, number_of_types, is_final, javaParserSupport.createJavaToken(node));
         }
         else {
             JavaParser.cactionArgumentEnd(name, is_final, javaParserSupport.createJavaToken(node));
@@ -499,8 +544,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         
         javaParserSupport.preprocessClass(node.type.resolvedType);
 
-        JavaParser.cactionArrayAllocationExpressionEnd(node.type.toString(),
-                                                       node.dimensions == null ? 0 : node.dimensions.length,
+        JavaParser.cactionArrayAllocationExpressionEnd(node.dimensions == null ? 0 : node.dimensions.length,
                                                        node.initializer != null,
                                                        javaParserSupport.createJavaToken(node));
 
@@ -540,6 +584,11 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 
         ArrayBinding array_type = (ArrayBinding) node.resolvedType;
         TypeBinding base_type = array_type.leafComponentType;
+        if (base_type.isClass() || base_type.isInterface() || base_type.isEnum()) { 
+            if (javaParserSupport.verboseLevel > 0)
+                System.out.println("Array base type referenced is bound to " + base_type.debugName());
+            javaParserSupport.preprocessClass(base_type);
+        }
 
         javaParserSupport.generateAndPushType(base_type, javaParserSupport.createJavaToken(node));
         JavaParser.cactionArrayTypeReference(node.dimensions(), javaParserSupport.createJavaToken(node));
@@ -564,6 +613,11 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 
         ArrayBinding array_type = (ArrayBinding) node.resolvedType;
         TypeBinding base_type = array_type.leafComponentType;
+        if (base_type.isClass() || base_type.isInterface() || base_type.isEnum()) { 
+            if (javaParserSupport.verboseLevel > 0)
+                System.out.println("Array base type referenced is bound to " + base_type.debugName());
+            javaParserSupport.preprocessClass(base_type);
+        }
 
         javaParserSupport.generateAndPushType(base_type, javaParserSupport.createJavaToken(node));
         JavaParser.cactionArrayTypeReference(node.dimensions(),
@@ -613,6 +667,11 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 
         ArrayBinding array_type = (ArrayBinding) node.resolvedType;
         TypeBinding base_type = array_type.leafComponentType;
+        if (base_type.isClass() || base_type.isInterface() || base_type.isEnum()) { 
+            if (javaParserSupport.verboseLevel > 0)
+                System.out.println("Array base type referenced is bound to " + base_type.debugName());
+            javaParserSupport.preprocessClass(base_type);
+        }
 
         javaParserSupport.generateAndPushType(base_type, javaParserSupport.createJavaToken(node));
         JavaParser.cactionArrayTypeReference(node.dimensions(),
@@ -641,6 +700,11 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 
         ArrayBinding array_type = (ArrayBinding) node.resolvedType;
         TypeBinding base_type = array_type.leafComponentType;
+        if (base_type.isClass() || base_type.isInterface() || base_type.isEnum()) { 
+            if (javaParserSupport.verboseLevel > 0)
+                System.out.println("Array base type referenced is bound to " + base_type.debugName());
+            javaParserSupport.preprocessClass(base_type);
+        }
 
         javaParserSupport.generateAndPushType(base_type, javaParserSupport.createJavaToken(node));
         JavaParser.cactionArrayTypeReference(node.dimensions(),
@@ -1045,18 +1109,64 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         //
         // TODO: Do something !!!
         //
+/*        
         if (node.typeParameters != null) {
             System.out.println();
             System.out.println("*** No support yet for constructor type parameters");
             System.exit(1);
         }
+*/
 
-        JavaParser.cactionConstructorDeclaration(name, javaParserSupport.createJavaToken(node));
+        int constructor_index = javaParserSupport.classMemberTable.get(node);
+        JavaParser.cactionConstructorDeclaration(name, constructor_index, javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving enter (ConstructorDeclaration,ClassScope)");
 
-        return true; // do nothing by node, keep traversing
+        //
+        // We perform our own traversal for MethodDeclaration so that we can skip certain subcomponents
+        // (commented out below).
+        //
+        //
+        /*
+       if (node.javadoc != null) {
+            node.javadoc.traverse(this, node.scope);
+        }
+        if (node.annotations != null) {
+            int annotationsLength = node.annotations.length;
+            for (int i = 0; i < annotationsLength; i++)
+                node.annotations[i].traverse(this, node.scope);
+        }
+        */
+
+        if (node.typeParameters != null) {
+            int typeParametersLength = node.typeParameters.length;
+            for (int i = 0; i < typeParametersLength; i++) {
+                node.typeParameters[i].traverse(this, node.scope);
+            }
+        }
+
+        /*
+        if (node.arguments != null) {
+            int argumentLength = node.arguments.length;
+            for (int i = 0; i < argumentLength; i++)
+                node.arguments[i].traverse(this, node.scope);
+        }
+        */
+
+        if (node.thrownExceptions != null) {
+            int thrownExceptionsLength = node.thrownExceptions.length;
+            for (int i = 0; i < thrownExceptionsLength; i++)
+                node.thrownExceptions[i].traverse(this, node.scope);
+        }
+        if (node.constructorCall != null)
+            node.constructorCall.traverse(this, node.scope);
+        if (node.statements != null) {
+            int statementsLength = node.statements.length;
+            for (int i = 0; i < statementsLength; i++)
+                node.statements[i].traverse(this, node.scope);
+        }
+        return false; // do nothing by node, keep traversing
     }
 
     public void exit(ConstructorDeclaration node, ClassScope scope) {
@@ -1204,12 +1314,13 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         //
         // TODO: Do something !!!
         //
+/*        
         if (node.genericTypeArguments != null) {
             System.out.println();
             System.out.println("*** No support yet for constructor type arguments");
             System.exit(1);
         }
-
+*/
         JavaParser.cactionExplicitConstructorCall(javaParserSupport.createJavaToken(node));
           
         if (javaParserSupport.verboseLevel > 0)
@@ -1323,7 +1434,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         String name = new String(node.name);
 
         JavaParser.cactionFieldDeclarationEnd(name, 
-        		                              node.getKind() == AbstractVariableDeclaration.ENUM_CONSTANT,
+                                              node.getKind() == AbstractVariableDeclaration.ENUM_CONSTANT,
                                               hasInitializer,
                                               isFinal,
                                               isPrivate,
@@ -1491,6 +1602,8 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         if (javaParserSupport.verboseLevel > 1)
             System.out.println("Inside of enter (ImportReference,CompilationUnitScope)");
 
+// TODO: Remove this - Already taken care of during preprocessing of unit        
+/*
         //
         // An Import statement may refer to a package name (optionally followed by ".*"), a type name, which
         // in the case of a static import may optionally followed by ".*" or a name suffix (the suffix
@@ -1516,7 +1629,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
             // Once we've found the longest prefix of the import name that is a class, we append
             // the remaining suffix to the name_suffix variable.
             //
-            Class c = javaParserSupport.lookupClass(import_reference.toString());
+            Class c = javaParserSupport.getClassForName(import_reference.toString());
             if (c != null) { // a class?
                 cls = c; // save the first class we find.
             }
@@ -1528,9 +1641,6 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 
         boolean containsWildcard = ((node.bits & node.OnDemand) != 0);
         String importReferenceWithoutWildcard = import_reference.toString();
-        if (containsWildcard) {
-            import_reference.append(".*");
-        }
 
         if (javaParserSupport.verboseLevel > 1)
             System.out.println("importReference (string) = " + import_reference.toString());
@@ -1543,6 +1653,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
             type_name = "";
 
             JavaParser.cactionPushPackage(package_name, javaParserSupport.createJavaToken(node));
+            JavaParser.cactionIdentifyImportedPackage(package_name, javaParserSupport.createJavaToken(node));
             JavaParser.cactionPopPackage();
         }
         else {
@@ -1556,7 +1667,58 @@ class ecjASTVisitor extends ExtendedASTVisitor {
             type_name = canonical_name.substring(package_name.length() == 0 ? 0 : package_name.length() + 1);
         }
 
-        JavaParser.cactionImportReference(node.isStatic(), package_name, type_name, name_suffix, containsWildcard, javaParserSupport.createJavaToken(node));
+        if (! (package_name.equals(javaParserSupport.unitPackageName) && type_name.length() == 0)) { // Do not import the current package! 
+            JavaParser.cactionImportReference(node.isStatic(), package_name, type_name, name_suffix, containsWildcard, javaParserSupport.createJavaToken(node));
+        }
+*/
+/*        
+        String package_name = (javaParserSupport.importPackageName.containsKey(node) ? javaParserSupport.importPackageName.get(node) : ""),
+               type_name = (javaParserSupport.importTypeName.containsKey(node) ? javaParserSupport.importTypeName.get(node) : ""),
+               name_suffix = (javaParserSupport.importNameSuffix.containsKey(node) ? javaParserSupport.importNameSuffix.get(node) : "");
+
+        boolean contains_wildcard = ((node.bits & node.OnDemand) != 0);
+        
+        if ((package_name.length() > 0 || type_name.length() > 0) && (! (package_name.equals(javaParserSupport.unitPackageName) && type_name.length() == 0))) { // Do not import the current package! 
+            // 
+            // Make sure this class is available
+            //
+            Class cls = javaParserSupport.importClass.get(node);
+            if (cls != null) {
+                javaParserSupport.preprocessClass(cls);
+            }
+
+            JavaParser.cactionImportReference(node.isStatic(), package_name, type_name, name_suffix, contains_wildcard, javaParserSupport.createJavaToken(node));
+        }
+*/
+        if (node != javaParserSupport.unit.currentPackage) { // Do no import the current package.
+            String package_name = "",
+                   type_name = "", 
+                   name_suffix = "";
+            boolean contains_wildcard = ((node.bits & node.OnDemand) != 0);
+
+            // 
+            // Make sure this class is available
+            //
+            Class cls = javaParserSupport.importClass.get(node);
+            if (cls != null) {
+                Class base_class = cls;
+                while (base_class.getDeclaringClass() != null) {
+                    name_suffix = (name_suffix.length() == 0 ? base_class.getSimpleName() : (base_class.getSimpleName() + "." + name_suffix));
+                    base_class = base_class.getDeclaringClass();
+                }
+
+                String canonical_name = base_class.getCanonicalName();
+                type_name = base_class.getSimpleName();
+                package_name = (type_name.length() < canonical_name.length()
+                                    ? canonical_name.substring(0, canonical_name.length() - type_name.length() - 1)
+                                    : "");
+            }
+            else {
+                package_name = new String(CharOperation.concatWith(node.tokens, '.'));
+            }
+
+            JavaParser.cactionImportReference(node.isStatic(), package_name, type_name, name_suffix, contains_wildcard, javaParserSupport.createJavaToken(node));
+        }
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving enter (ImportReference,CompilationUnitScope)");
@@ -1575,7 +1737,8 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Inside of enter (Initializer,MethodScope)");
 
-        JavaParser.cactionInitializer(node.isStatic(), javaParserSupport.initializerName.get(node), javaParserSupport.createJavaToken(node));
+        int initializer_index = javaParserSupport.classMemberTable.get(node);
+        JavaParser.cactionInitializer(node.isStatic(), javaParserSupport.initializerName.get(node), initializer_index, javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving enter (Initializer,MethodScope)");
@@ -2220,6 +2383,19 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         String method_name                 = new String(node.selector);
         String associatedClassVariableName = node.receiver.toString();
 
+        if (node.actualReceiverType.isEnum()) {
+            if (method_name.equals("values")) {
+                System.out.println();
+                System.out.println("*** No support yet for values() method in an enum");
+                System.exit(1);
+            }
+            else if (method_name.equals("valueOf")) {
+                System.out.println();
+                System.out.println("*** No support yet for valueOf() method in an enum");
+                System.exit(1);
+            }
+        }
+
         if (javaParserSupport.verboseLevel > 0) {
             System.out.println("MessageSend node = " + node);
 
@@ -2231,14 +2407,17 @@ class ecjASTVisitor extends ExtendedASTVisitor {
             System.out.println("     --- function call from class name (associatedClass)    = " + node.actualReceiverType.debugName());
         }
 
+// TODO: Remove this!?
         //
         // TODO: Do something !!!
         //
+/*        
         if (node.genericTypeArguments != null) {
             System.out.println();
             System.out.println("*** No support yet for method type arguments");
             System.exit(1);
         }
+*/
 
         // 
         // Make sure this class is available
@@ -2254,7 +2433,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         // We perform our own traversal for MessageSend so that we can control whether or not the
         // receiver is processed.
         //
-        if (! node.receiver.isImplicitThis()) { // traver the receiver only if it's not an implicit this.
+        if (! node.receiver.isImplicitThis()) { // traverse the receiver only if it's not an implicit this.
             node.receiver.traverse(this, scope);
         }
         if (node.typeArguments != null) { // traverse the type arguments
@@ -2277,7 +2456,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 
     public void exit(MessageSend node, BlockScope scope) {
         if (javaParserSupport.verboseLevel > 0)
-            System.out.println("Inside of exit (MessageSend,BlockScope)");
+            System.out.println("Inside of exit (MessageSend,BlockScope): " + nodeId(node));
 
         pushRawMethodParameterTypes(node.binding, javaParserSupport.createJavaToken(node));
 
@@ -2376,13 +2555,16 @@ System.out.println("The original method is " + new String(method_binding.origina
 //                   " with binding type " + type_binding.getClass().getCanonicalName()); 
             processRawParameters(method_binding);
         }
+// TODO: Remove this !
+/*
         else if (method_binding instanceof SyntheticMethodBinding) {
             SyntheticMethodBinding synthetic_binding = (SyntheticMethodBinding) method_binding;
 
             System.out.println();
-            System.out.println("*** No support yet for calls to method with synthetic binding and \"purpose\" = " + synthetic_binding.purpose);
+            System.out.println("*** No support yet for calls to method (" + new String(method_binding.selector) + " in type " + type_binding.debugName() +  ") with synthetic binding and \"purpose\" = " + synthetic_binding.purpose);
             System.exit(1);
         }
+*/
         else {
             Class cls = javaParserSupport.findClass(type_binding);
             assert(cls != null);
@@ -2454,6 +2636,8 @@ System.out.println("The original method is " + new String(method_binding.origina
         if (javaParserSupport.verboseLevel > 2)
             System.out.println("DONE: Process the return type = " + node.returnType);
 
+// TODO: Remove this !
+/*        
         //
         // TODO: Do something !!!
         //
@@ -2462,6 +2646,7 @@ System.out.println("The original method is " + new String(method_binding.origina
             System.out.println("*** No support yet for method type parameters");
             System.exit(1);
         }
+*/
             
         // Setup the function modifiers
         boolean isAbstract = node.isAbstract();
@@ -2494,12 +2679,53 @@ System.out.println("The original method is " + new String(method_binding.origina
         // We can build this here but we can't put the symbol into the symbol tabel until 
         // we have gathered the function parameter types so that the correct function type 
         // can be computed.
-        JavaParser.cactionMethodDeclaration(name, javaParserSupport.createJavaToken(node));
+        int method_index = javaParserSupport.classMemberTable.get(node);
+        JavaParser.cactionMethodDeclaration(name, method_index, javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving enter (MethodDeclaration,ClassScope)");
 
-        return true; // do nothing by node, keep traversing
+        //
+        // We perform our own traversal for MethodDeclaration so that we can skip certain subcomponents
+        // (commented out below.
+        //
+        //
+        /*
+        if (node.javadoc != null) {
+            node.javadoc.traverse(this, node.scope);
+        }
+        if (node.annotations != null) {
+            int annotationsLength = node.annotations.length;
+            for (int i = 0; i < annotationsLength; i++)
+                node.annotations[i].traverse(this, node.scope);
+        }
+        */
+        if (node.typeParameters != null) {
+            for (int i = 0; i < node.typeParameters.length; i++) {
+                node.typeParameters[i].traverse(this, node.scope);
+            }
+        }
+        /*
+        if (node.returnType != null)
+            node.returnType.traverse(this, node.scope);
+        if (node.arguments != null) {
+            int argumentLength = node.arguments.length;
+            for (int i = 0; i < argumentLength; i++)
+                node.arguments[i].traverse(this, node.scope);
+        }
+        */
+        if (node.thrownExceptions != null) {
+            int thrownExceptionsLength = node.thrownExceptions.length;
+            for (int i = 0; i < thrownExceptionsLength; i++)
+                node.thrownExceptions[i].traverse(this, node.scope);
+        }
+        if (node.statements != null) {
+            int statementsLength = node.statements.length;
+            for (int i = 0; i < statementsLength; i++)
+                node.statements[i].traverse(this, node.scope);
+        }
+
+        return false; // do nothing by node, keep traversing
     }
 
     public void exit(MethodDeclaration node, ClassScope scope) {
@@ -3039,7 +3265,12 @@ System.out.println("The original method is " + new String(method_binding.origina
         
         String package_name = javaParserSupport.getPackageName(node.resolvedType);
         String  type_name = javaParserSupport.getTypeName(node.resolvedType);
-
+// TODO: Remove this !
+/*
+System.out.println("***Processing type " + node.resolvedType.debugName() +
+                   "; package = " + package_name +
+                   "; type = " + type_name);
+*/
         JavaParser.cactionTypeReference(package_name, type_name, javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
@@ -3072,7 +3303,12 @@ System.out.println("The original method is " + new String(method_binding.origina
 
         String package_name = javaParserSupport.getPackageName(node.resolvedType);
         String  type_name = javaParserSupport.getTypeName(node.resolvedType);
-        
+// TODO: Remove this !
+/*
+System.out.println("***Processing type " + node.resolvedType.debugName() +
+                   "; package = " + package_name +
+                   "; type = " + type_name);
+*/
         JavaParser.cactionTypeReference(package_name, type_name, javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
@@ -3190,13 +3426,29 @@ System.out.println("The original method is " + new String(method_binding.origina
                 System.out.println("The Single name referenced " + node.toString() + " is bound to type " + type_variable_binding.debugName());
             }
 
+            String type_parameter_name = javaParserSupport.getTypeName(type_variable_binding);
             Binding binding = type_variable_binding.declaringElement;
             if (binding instanceof TypeBinding) {
                 TypeBinding enclosing_binding = (TypeBinding) binding;
-                String type_parameter_name = javaParserSupport.getTypeName(type_variable_binding),
-                       package_name = javaParserSupport.getPackageName(enclosing_binding),
+                String package_name = javaParserSupport.getPackageName(enclosing_binding),
                        type_name = javaParserSupport.getTypeName(enclosing_binding);
-                JavaParser.cactionTypeParameterReference(package_name, type_name, type_parameter_name, javaParserSupport.createJavaToken(node));
+                JavaParser.cactionTypeParameterReference(package_name, type_name, -1 /* no method index */, type_parameter_name, javaParserSupport.createJavaToken(node));
+            }
+            else if (binding instanceof MethodBinding) {
+                MethodBinding method_binding = (MethodBinding) binding;
+                AbstractMethodDeclaration method_declaration = method_binding.sourceMethod();
+                if (method_declaration != null) {
+                    TypeBinding type_binding = method_binding.declaringClass;
+                    String package_name = javaParserSupport.getPackageName(type_binding),
+                           type_name = javaParserSupport.getTypeName(type_binding);
+                    int method_index = javaParserSupport.classMemberTable.get(method_declaration);
+                    JavaParser.cactionTypeParameterReference(package_name, type_name, method_index, type_parameter_name, javaParserSupport.createJavaToken(node));
+                }
+                else {
+                    System.out.println();
+                    System.out.println("*** No support yet for Type Variable enclosed in " + binding.getClass().getCanonicalName() + " without source being available");
+                    System.exit(1);
+                }
             }
             else {
                 System.out.println();
@@ -3204,7 +3456,7 @@ System.out.println("The original method is " + new String(method_binding.origina
                 System.exit(1);
             }
         }
-        else { 
+        else {
             String package_name = javaParserSupport.getPackageName(node.resolvedType),
                    type_name = javaParserSupport.getTypeName(node.resolvedType);
             JavaParser.cactionTypeReference(package_name, type_name, javaParserSupport.createJavaToken(node));
@@ -3244,13 +3496,29 @@ System.out.println("The original method is " + new String(method_binding.origina
                 System.out.println("The Single name referenced " + node.toString() + " is bound to type " + type_variable_binding.debugName());
             }
 
+            String type_parameter_name = javaParserSupport.getTypeName(type_variable_binding);
             Binding binding = type_variable_binding.declaringElement;
             if (binding instanceof TypeBinding) {
                 TypeBinding enclosing_binding = (TypeBinding) binding;
-                String type_parameter_name = javaParserSupport.getTypeName(type_variable_binding),
-                       package_name = javaParserSupport.getPackageName(enclosing_binding),
+                String package_name = javaParserSupport.getPackageName(enclosing_binding),
                        type_name = javaParserSupport.getTypeName(enclosing_binding);
-                JavaParser.cactionTypeParameterReference(package_name, type_name, type_parameter_name, javaParserSupport.createJavaToken(node));
+                JavaParser.cactionTypeParameterReference(package_name, type_name, -1 /* no method index */, type_parameter_name, javaParserSupport.createJavaToken(node));
+            }
+            else if (binding instanceof MethodBinding) {
+                MethodBinding method_binding = (MethodBinding) binding;
+                AbstractMethodDeclaration method_declaration = method_binding.sourceMethod();
+                if (method_declaration != null) {
+                    TypeBinding enclosing_type_binding = method_binding.declaringClass;
+                    String package_name = javaParserSupport.getPackageName(enclosing_type_binding),
+                           type_name = javaParserSupport.getTypeName(enclosing_type_binding);
+                    int method_index = javaParserSupport.classMemberTable.get(method_declaration);
+                    JavaParser.cactionTypeParameterReference(package_name, type_name, method_index, type_parameter_name, javaParserSupport.createJavaToken(node));
+                }
+                else {
+                    System.out.println();
+                    System.out.println("*** No support yet for Type Variable enclosed in " + binding.getClass().getCanonicalName() + " without source being available");
+                    System.exit(1);
+                }
             }
             else {
                 System.out.println();

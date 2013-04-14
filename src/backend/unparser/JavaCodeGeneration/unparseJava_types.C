@@ -73,6 +73,14 @@ Unparse_Java::unparseTypedefType(SgTypedefType *type, SgUnparse_Info& info)
 void
 Unparse_Java::unparseClassType(SgClassType *type, SgUnparse_Info& info)
    {
+// TODO: Remove this !
+cout << "Bumped into class type: "
+     << type -> get_qualified_name().getString()
+     << endl;
+cout.flush();
+string *p = NULL;
+int n = p -> size(); // force a crash to print the stack!
+
      //SgClassDeclaration *decl = isSgClassDeclaration(type->get_declaration());
      //ROSE_ASSERT(decl != NULL);
      //unparseName(decl->get_name(), info);
