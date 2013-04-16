@@ -158,8 +158,30 @@ class JavaTraversal implements Callable<Boolean> {
     }
 
 
+    public static String languageLevel(long level) {
+        String language_level = "";
+
+        if (level == ClassFileConstants.JDK1_1)
+             language_level = "JDK1_1";
+        else if (level == ClassFileConstants.JDK1_2)
+             language_level = "JDK1_2";
+        else if (level == ClassFileConstants.JDK1_3)
+             language_level = "JDK1_3";
+        else if (level == ClassFileConstants.JDK1_4)
+             language_level = "JDK1_4";
+        else if (level == ClassFileConstants.JDK1_5)
+             language_level = "JDK1_5";
+        else if (level == ClassFileConstants.JDK1_6)
+             language_level = "JDK1_6";
+        else if (level == ClassFileConstants.JDK1_7)
+             language_level = "JDK1_7";
+        else language_level = "???";
+
+        return language_level;
+    }
+
     // Added support for command line processing to set the verbose level (passed directly from ROSE "--rose:verbose n").
-    public static String [] filterCommandline(String args[]) {
+    public static String[] filterCommandline(String args[]) {
         int commandlineErrorLevel = 0;
 
         if (commandlineErrorLevel > 0)
@@ -242,7 +264,7 @@ class JavaTraversal implements Callable<Boolean> {
      *  
      * @param args
      */
-    static boolean compile(String args[]) {
+    static Main compile(String args[]) {
         if (verboseLevel > 0)
             System.out.println("Compiling ...");
 
@@ -261,8 +283,8 @@ class JavaTraversal implements Callable<Boolean> {
         main.compilerOptions = new CompilerOptions(main.options);
         main.compilerOptions.performMethodsFullRecovery = false;
         main.compilerOptions.performStatementsRecovery = false;
-        // main.compilerOptions.verbose = true;
-        main.compilerOptions.sourceLevel = ClassFileConstants.JDK1_7;
+//        main.compilerOptions.verbose = true;
+//        main.compilerOptions.sourceLevel = ClassFileConstants.JDK1_7;
         main.compilerOptions.generateClassFiles = true;
 
         main.batchCompiler =  new Compiler(main.getLibraryAccess(),
@@ -280,9 +302,87 @@ class JavaTraversal implements Callable<Boolean> {
 
         main.batchCompiler.compile(sourceUnits); // generate all class files that are needed for these source units.
 
-        return main.globalErrorsCount == 0; // return whether or not the compilation was successful.
+        return main; // return whether or not the compilation was successful.
     }
 
+    /** 
+     * This method was copied from Compiler.java as it is not directly accessible there.
+     */
+    static protected synchronized void addCompilationUnit(Compiler compiler,
+			ICompilationUnit sourceUnit,
+			CompilationUnitDeclaration parsedUnit) {
+
+			if (compiler.unitsToProcess == null)
+				return; // not collecting units
+
+			// append the unit to the list of ones to process later on
+			int size = compiler.unitsToProcess.length;
+			if (compiler.totalUnits == size)
+				// when growing reposition units starting at position 0
+				System.arraycopy(
+					compiler.unitsToProcess,
+					0,
+					(compiler.unitsToProcess = new CompilationUnitDeclaration[size * 2]),
+					0,
+					compiler.totalUnits);
+			compiler.unitsToProcess[compiler.totalUnits++] = parsedUnit;
+		}
+
+    /** 
+     * This method was copied from Compiler.java as it is not directly accessible there.
+     */
+	static protected void internalBeginToCompile(Compiler compiler, ICompilationUnit[] sourceUnits, int maxUnits) {
+		if (! compiler.useSingleThread && maxUnits >= ReadManager.THRESHOLD)
+			compiler.parser.readManager = new ReadManager(sourceUnits, maxUnits);
+
+		// Switch the current policy and compilation result for this unit to the requested one.
+		for (int i = 0; i < maxUnits; i++) {
+			try {
+				/*
+                if (compiler.options.verbose) {
+                    compiler.out.println(
+                        Messages.bind(Messages.compilation_request,
+                        new String[] {
+                            String.valueOf(i + 1),
+                            String.valueOf(maxUnits),
+                            new String(sourceUnits[i].getFileName())
+                        }));
+                }
+                */
+                // diet parsing for large collection of units
+                CompilationUnitDeclaration parsedUnit;
+                CompilationResult unitResult =
+                    new CompilationResult(sourceUnits[i], i, maxUnits, compiler.options.maxProblemsPerUnit);
+                long parseStart = System.currentTimeMillis();
+                if (compiler.totalUnits < compiler.parseThreshold) {
+                    parsedUnit = compiler.parser.parse(sourceUnits[i], unitResult);
+                } else {
+                    parsedUnit = compiler.parser.dietParse(sourceUnits[i], unitResult);
+                }
+                long resolveStart = System.currentTimeMillis();
+                compiler.stats.parseTime += resolveStart - parseStart;
+                // initial type binding creation
+                compiler.lookupEnvironment.buildTypeBindings(parsedUnit, null /*no access restriction*/);
+                compiler.stats.resolveTime += System.currentTimeMillis() - resolveStart;
+                addCompilationUnit(compiler, sourceUnits[i], parsedUnit);
+                ImportReference currentPackage = parsedUnit.currentPackage;
+                if (currentPackage != null) {
+                    unitResult.recordPackageName(currentPackage.tokens);
+                }
+                //} catch (AbortCompilationUnit e) {
+                // requestor.acceptResult(unitResult.tagAsAccepted());
+            } finally {
+                sourceUnits[i] = null; // no longer hold onto the unit
+            }
+        }
+        if (compiler.parser.readManager != null) {
+            compiler.parser.readManager.shutdown();
+            compiler.parser.readManager = null;
+        }
+        // binding resolution
+        compiler.lookupEnvironment.completeTypeBindings();
+    }
+    
     /**
      * Compile and generate an AST for each input file specified in args.
      * 
@@ -309,10 +409,11 @@ class JavaTraversal implements Callable<Boolean> {
         }
 
         main.compilerOptions = new CompilerOptions(main.options);
-        main.compilerOptions.performMethodsFullRecovery = false;
+        //main.compilerOptions.performMethodsFullRecovery = false;
         main.compilerOptions.performStatementsRecovery = false;
-     // main.compilerOptions.verbose = true;
-        main.compilerOptions.sourceLevel = ClassFileConstants.JDK1_7;
+//        main.compilerOptions.verbose = true;
+//        main.compilerOptions.sourceLevel = ClassFileConstants.JDK1_7;
+        main.compilerOptions.generateClassFiles = false;
 
         main.batchCompiler =  new Compiler(main.getLibraryAccess(),
                                            main.getHandlingPolicy(),
@@ -326,10 +427,10 @@ class JavaTraversal implements Callable<Boolean> {
         /* tps : handle compilation units--------------------------------------------- */
         ICompilationUnit[] sourceUnits = main.getCompilationUnits();
         int maxUnits = sourceUnits.length;
-
-        main.batchCompiler.totalUnits = 0;
+//
+//        main.batchCompiler.totalUnits = 0;
         main.batchCompiler.unitsToProcess = new CompilationUnitDeclaration[maxUnits];
-        main.batchCompiler.internalBeginToCompile(sourceUnits, maxUnits);
+        internalBeginToCompile(main.batchCompiler, sourceUnits, maxUnits);
 
         try {
             // writing to the DOT file
@@ -356,7 +457,8 @@ class JavaTraversal implements Callable<Boolean> {
         //
         // Generate all necessary classfiles if no errors are detected
         //
-        if (! compile(args)) { // errors are detected?
+        Main main = compile(args);
+        if (main.globalErrorsCount > 0) { // errors were detected?
             System.out.flush();
             System.err.flush();
 
@@ -366,7 +468,7 @@ class JavaTraversal implements Callable<Boolean> {
             System.exit(1);
         }
         
-        Main main = generateAst(args); // get compiler to generate AST.
+        main = generateAst(args); // get compiler to generate AST.
         Compiler batchCompiler = main.batchCompiler; // get compiler to generate AST.
         int maxUnits = main.getCompilationUnits().length;
         
@@ -430,7 +532,7 @@ class JavaTraversal implements Callable<Boolean> {
                     // **************************************************
                     // This is where the traveral of the ECJ AST is done.
                     // **************************************************
-                    java_parser_support.translate(unit);
+                    java_parser_support.translate(unit, languageLevel(main.compilerOptions.sourceLevel));
 
                     if (verboseLevel > 2)
                         System.out.println("test 10 ...");
@@ -450,6 +552,10 @@ class JavaTraversal implements Callable<Boolean> {
                 batchCompiler.stats.lineCount += unit.compilationResult.lineSeparatorPositions.length;
                 batchCompiler.requestor.acceptResult(unit.compilationResult.tagAsAccepted());
             }
+        }
+        catch (UnsatisfiedLinkError e) {
+            e.printStackTrace();
+            System.err.println("Ouch !!! Make sure that the signature of all native (jni?) methods match their corresponding Java headers. " + e.getMessage());
         }
         catch (Exception e) {
             // DQ (11/1/2010): Added more aggressive termination of program...
