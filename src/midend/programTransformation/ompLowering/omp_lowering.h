@@ -13,18 +13,21 @@
 namespace OmpSupport
 {
 
+  // OpenMP version info.
+  extern bool enable_accelerator;  
+
   //! makeDataSharingExplicit() can call some of existing functions for some work in OmpSupport namespace by Hongyi 07/16/2012
- //! TODO: add a function within the OmpSupport namespace, the function should transform the AST, so all variables' data-sharing attributes are explicitied represented in the AST. ROSE has dedicated AST nodes for OpenMP directives and the associated clauses, such as private, shared, reduction.
+  //! TODO: add a function within the OmpSupport namespace, the function should transform the AST, so all variables' data-sharing attributes are explicitied represented in the AST. ROSE has dedicated AST nodes for OpenMP directives and the associated clauses, such as private, shared, reduction.
 
 
-int patchUpSharedVariables(SgFile* );
- // TODO:  patchUpDefaultVariables(SgFile* );
+  int patchUpSharedVariables(SgFile* );
+  // TODO:  patchUpDefaultVariables(SgFile* );
 
- int makeDataSharingExplicit( SgFile* );   
+  int makeDataSharingExplicit( SgFile* );   
 
 
-// last edited by Hongyi on 07/24/2012. 
-  
+  // last edited by Hongyi on 07/24/2012. 
+
   //! The type of target runtime libraries (not yet in use)
   // We support Omni, GCC OpenMP and NANOS++ runtime libraries
   enum omp_rtl_enum 
@@ -62,6 +65,9 @@ int patchUpSharedVariables(SgFile* );
   //! Translate omp parallel
   void transOmpParallel(SgNode* node);
 
+  //! Translate omp parallel under "omp target"
+  void transOmpTargetParallel(SgNode* node);
+
   //! Translate omp sections 
   void transOmpSections(SgNode* node);
 
@@ -71,8 +77,17 @@ int patchUpSharedVariables(SgFile* );
   //! Translate omp for or omp do loops
   void transOmpLoop(SgNode* node);
 
+  //! Translate omp for or omp do loops affected by the "omp target" directive, Liao 1/28/2013
+  void transOmpTargetLoop(SgNode* node);
+
   //! Translate Fortran omp do
   //void transOmpDo(SgNode* node);
+
+  //! Translate "omp target"
+  void transOmpTarget(SgNode* node);
+
+  //! Translate "omp target data"
+  void transOmpTargetData(SgNode* node);
 
 
   //! Translate omp barrier
@@ -100,25 +115,45 @@ int patchUpSharedVariables(SgFile* );
 
  //! A helper function to generate implicit or explicit task for either omp parallel or omp task
  // It calls the ROSE AST outliner internally. 
- SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, 
-          std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
-          SgClassDeclaration*& struct_decl, SgFunctionDeclaration* nanox_init_func = NULL);
+  SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, 
+          std::set<SgVariableSymbol*>& syms, SgClassDeclaration*& struct_decl);
  
+#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+
+  //! Create an empty object with type the struct to be passed to an OpenMP outlined function in Nanos
+  //! Returns an expression containing the new object
+  SgExpression* build_nanox_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 
+                                          SgType* struct_type, std::string base_name );
+
+  //! Create the function retrieving the empty struct to be passed to an OpenMP outlined function in Nanos
+  //! Returns an expression containing a call to the function
+  SgExpression* build_nanox_get_empty_struct( SgStatement* ancestor, SgScopeStatement* expr_sc, 
+                                              SgType* struct_type, std::string base_name );
+
+  //! Create the function that initializes an empty structure with the arguments to the outlined OpenMP parallel or task in Nanos
+  SgExpression* build_nanox_init_arguments_struct_function( SgStatement* ancestor, std::string& wrapper_name, 
+                                                            SgClassDeclaration* struct_decl, bool init_wsd );
+
+  //! Create the function that retrieves the alignement of an struct
+  SgExpression* build_nanox_get_alignof( SgStatement* ancestor, std::string& wrapper_name, 
+                                         SgClassDeclaration* struct_decl );
 
   //! A helper function to generate explicit task for omp loop
-  // It is only needed for Nanos runtime library
-  // It calls the ROSE AST outliner internally. 
- SgFunctionDeclaration* generateOutlinedLoop(SgNode* node, std::string& wrapper_name, 
-          std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
-          SgClassDeclaration*& struct_decl, SgFunctionDeclaration* nanox_init_func = NULL);
+  //! Inspired in method 'generateOutlinedTask'
+  SgFunctionDeclaration* generateOutlinedLoop( SgNode* node, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, 
+                                               std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
+                                               SgClassDeclaration*& struct_decl,
+                                               SgExpression * lower, SgExpression * upper, SgExpression * stride, SgExpression * chunk );
 
   //! A helper function to generate explicit task for omp section
-  // It is only needed for Nanos runtime library
-  // It calls the ROSE AST outliner internally. 
-  SgFunctionDeclaration* generateOutlinedSection(SgNode* section, SgNode* sections, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, SgClassDeclaration*& struct_decl);
-
-  //! Translate OpenMP variables associated with an OpenMP pragma, such as private, firstprivate, lastprivate, reduction, etc. bb1 is the translation generated code block in which the variable handling statements will be inserted. Original loop upper bound is needed for implementing lastprivate (check if it is the last iteration) 
-  void transOmpVariables(SgStatement * ompStmt, SgBasicBlock* bb1, SgExpression* orig_loop_upper = NULL);
+  //! Inspired in method 'generateOutlinedTask'
+  SgFunctionDeclaration* generateOutlinedSection( SgNode* section, SgNode* sections, std::string& wrapper_name, 
+                                                  std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars,
+                                                  std::set<SgVariableSymbol*>& pdSyms3, SgClassDeclaration*& struct_decl );
+#endif
+  
+  //! Translate OpenMP variables associated with an OpenMP pragma, such as private, firstprivate, lastprivate, reduction, etc. bb1 is the translation generated code block in which the variable handling statements will be inserted. Original loop upper bound is needed for implementing lastprivate (check if it is the last iteration). withinAcceleratorModel means if we only translate private() variables, used to support accelerator model
+  void transOmpVariables(SgStatement * ompStmt, SgBasicBlock* bb1, SgExpression* orig_loop_upper = NULL, bool withinAcceleratorModel= false);
 
   //! Collect all variables from OpenMP clauses associated with an omp statement: private, reduction, etc 
   SgInitializedNamePtrList collectAllClauseVariables (SgOmpClauseBodyStatement * clause_stmt);
@@ -142,7 +177,7 @@ int patchUpSharedVariables(SgFile* );
   int replaceVariableReferences(SgNode* root,  VariableSymbolMap_t varRemap);
   // I decided to reuse the existing Outliner work instead of coding a new one
   //SgFunctionDeclaration* generateOutlinedFunction(SgNode* node);
-  
+
   //! Add a variable into a non-reduction clause of an OpenMP statement, create the clause transparently if it does not exist
   void addClauseVariable(SgInitializedName* var, SgOmpClauseBodyStatement * clause_stmt, const VariantT& vt);
 

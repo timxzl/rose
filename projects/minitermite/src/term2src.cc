@@ -1,152 +1,129 @@
 /* -*- C++ -*-
 Copyright 2006 Christoph Bonitz <christoph.bonitz@gmail.com>
-          2007-2008 Adrian Prantl <adrian@complang.tuwien.ac.at>
+          2007-2012 Adrian Prantl <adrian@complang.tuwien.ac.at>
 */
 #include "minitermite.h"
 #include <iostream>
 #include <stdio.h>
 #include <rose.h>
 #include "TermToRose.h"
-#include <getopt.h>
+#include <boost/program_options.hpp>
+namespace po = boost::program_options;
 #include <rose_config.h>
 
 using namespace std;
 using namespace term;
 
-void usage(const char* me) 
-{
-  cout << "Usage: " << me
-       << " [OPTION]... [FILE.term]\n"
-       << "Unparse a term file to its original source representation.\n\n"
-
-       << "Options:\n"
-       << "  -o, --output sourcefile.c\n"
-       << "    Override the name of the unparsed file.\n"
-       << "    For mult-file projects, this will only affect the first file.\n\n"
-
-       << "  -s, --suffix '.suffix'  Default: '.unparsed'\n"
-
-       << "    Use the original file names with the additional suffix.\n\n"
-
-       << "  -d, --dir DIRECTORY\n"
-       << "    Create the unparsed files in DIRECTORY.\n\n"
-
-       << "  --dot\n"
-       << "    Create a dotty graph of the syntax tree.\n\n"
-
-       << "  --pdf\n"
-       << "    Create a PDF printout of the syntax tree.\n\n"
-
-       << "  --stratego\n"
-       << "    Read term input in Stratego/XT format.\n\n"
-
-       << "  --stl-engine\n"
-#if ROSE_HAVE_SWI_PROLOG
-       << "    Do not use SWI-Prolog to parse term input.\n\n"
-#else
-       << "    Ignored for compatibility reasons.\n\n"
-#endif
-       << "This program was built against "<<PACKAGE_STRING<<",\n"
-       << "please report bugs to <"<<PACKAGE_BUGREPORT<<">."
-
-       << endl;
-
-}
-
 int main(int argc, char** argv) {
-  //  cout << prote->getRepresentation();
-  const char* infile = "";
-  const char* outfile= "";
-  const char* outdir = ".";
-  const char* suffix = ".unparsed";
-  int dot_flag = 0;
-  int pdf_flag = 0;
-  int stratego_flag = 0;
+    // Process command line options
+    po::options_description desc(string("Usage: ")+argv[0]+string(
+    " [OPTIONS] file.term\n"
+    "  Unparse a term file to its original source representation\n"
+    "\n"
+    "This program was built against " PACKAGE_STRING ",\n"
+    "Please report bugs to <" PACKAGE_BUGREPORT ">.\n\n"
+    "Options"));
+  desc.add_options()
+    ("help,h", "produce this help message")
+    ("rose-help", "Display the help for the C/C++/Fortran frontend")
+    ("version,v", "Display the version")
+    ("input,i",  po::value< string >(), "input file")
+    ("output,o", po::value< string >()->default_value(""), 
+     "Override the name of the unparsed file.\n"
+     "For multi-file projects, this will only affect the first file.")
+    ("suffix,s", po::value< string >()->default_value(".unparsed"), 
+     "Use the original file names with this additional suffix appended.")
+    ("dir,d", po::value< string >()->default_value("."), 
+     "Create the unparsed files in DIRECTORY.")
+    ("dot", "Create a graphviz graph of the syntax tree.")
+    ("pdf", "Create a PDF printout of the syntax tree.")
+    ("stratego", "Expect term input in Stratego/XT format.")
+    ("aterm",	 "Expect term input in ATerm format.")
+    ("stl-engine",
 #if ROSE_HAVE_SWI_PROLOG
-  int stl_flag = 0;
+     "Do not use SWI-Prolog to parse term output."
 #else
-  int stl_flag = 1;
+     "Ignored for compatibility."
 #endif
-  int version_flag = 0;
-  int help_flag = 0;
+     );
+  po::variables_map args;
+  po::positional_options_description pos;
+  pos.add("input", 1);
+  try {
+    po::store(po::command_line_parser(argc, argv).
+	      options(desc).positional(pos).run(), args);
+    po::notify(args);
 
-  while (1) {
-    static struct option long_options[] = {
-      /* These options set a flag. */
-      {"dot", no_argument, &dot_flag, 1},
-      {"pdf", no_argument, &pdf_flag, 1},
-      {"stratego", no_argument, &stratego_flag, 1},
-      {"stl-engine", no_argument, &stl_flag, 1},
-      {"version", no_argument, &version_flag, 1},
-      {"help", no_argument, &help_flag, 1},
-      /* These don't */
-      {"dir",    required_argument, 0, 'd'},
-      {"output", required_argument, 0, 'o'},
-      {"suffix", required_argument, 0, 's'},
-      {0, 0, 0, 0}
-    };
-    /* getopt_long stores the option index here. */
-    int option_index = 0;
-     
-    int c = getopt_long(argc, argv, "d:o:s:", long_options, &option_index);
-     
-    /* Detect the end of the options. */
-    if (c == -1)
-      break;
-     
-    switch (c) {
-    case 'd': outdir  = optarg; break;
-    case 'o': outfile = optarg; break;
-    case 's': suffix  = optarg; break;
-     
-    default: ;
-    }
-  }
-  if (help_flag) {
-    usage(argv[0]);
-    return 0;
-  }
-  if (version_flag) {
-    cout << argv[0] << " version " << PACKAGE_VERSION << "\n";
-    return 0;
-  }
-  if (optind < argc) {
-    infile = strdup(argv[optind]);
-  } else {
-    usage(argv[0]);
-    return 1;
-  }
-
-  init_termite(argc, argv);
-
-  // Choose the way to parse terms based on the options
-  TermFactory* termFactory;
-  if (stratego_flag) {
-    yy_use_stratego_filter = true;
-    termFactory = new StrategoTermFactory();
-  } else 
-    if (stl_flag)
-      termFactory = new STLTermFactory();
 #if ROSE_HAVE_SWI_PROLOG
-    else termFactory = new SWIPLTermFactory();
+    int stl_flag = 0;
+#else
+    int stl_flag = 1;
+#endif
+    if (args.count("help")) {
+      cout << desc << endl;
+      return 0;
+    }
+
+    if (!args.count("input")) {
+      cout << desc << endl;
+      return 1;
+    }
+
+    if (args.count("version")) {
+      cout<<argv[0]<<", "<<PACKAGE_STRING<<" version "<<PACKAGE_VERSION<<endl; 
+      return 0;
+    }
+
+    if (args.count("stl-engine")) {
+      stl_flag = 1;
+    }
+
+    if (args.count("stratego") && args.count("aterm")) {
+      cout<<"**ERROR: The --stratego and --aterm options are mutually exclusive!"<<endl;
+      exit(1);
+    }
+
+    init_termite(argc, argv);
+
+    // Choose the way to parse terms based on the options
+    TermFactory* termFactory;
+    if (args.count("stratego")) {
+      yy_use_stratego_filter = true;
+      termFactory = new StrategoTermFactory();
+    } else if (args.count("aterm")) {
+      yy_use_stratego_filter = true;
+      termFactory = new ATermTermFactory();
+    } else 
+#if ROSE_HAVE_SWI_PROLOG
+      if (stl_flag) termFactory = new STLTermFactory();
+      else termFactory = new SWIPLTermFactory();
+#else
+    termFactory = new STLTermFactory();
 #endif
 
-  TermToRose conv(*termFactory);
-  SgNode* p = conv.toRose(infile);
+    TermToRose conv(*termFactory);
+    string fn = args["input"].as<string>();
+    SgNode* p = conv.toRose(fn.c_str());
 
-  if (help_flag || version_flag) return 0;
-
-  if (dot_flag) {
-    //  Create dot and pdf files
-    //  DOT generation (numbering:preoder)
-    AstDOTGeneration dotgen;
-    dotgen.generateInputFiles((SgProject*)p,AstDOTGeneration::PREORDER);
+    if (args.count("dot")) {
+      //  Create dot and pdf files
+      //  DOT generation (numbering:preoder)
+      AstDOTGeneration dotgen;
+      dotgen.generateInputFiles((SgProject*)p,AstDOTGeneration::PREORDER);
+    }
+    if (args.count("pdf")) {
+      //  PDF generation
+      AstPDFGeneration pdfgen;
+      pdfgen.generateInputFiles((SgProject*)p);
+    }
+    conv.unparse(args["output"].as<string>(), 
+		 args["dir"].as<string>(), 
+		 args["suffix"].as<string>(),
+		 p);
   }
-  if (pdf_flag) {
-    //  PDF generation
-    AstPDFGeneration pdfgen;
-    pdfgen.generateInputFiles((SgProject*)p);
+  catch(po::error& e) { 
+    cerr << "**ERROR: " << e.what() << endl;
+    exit(1);
   }
-  conv.unparse(outfile, outdir, suffix, p);
   return 0;
 }

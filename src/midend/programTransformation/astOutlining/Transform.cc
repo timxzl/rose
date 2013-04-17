@@ -24,11 +24,16 @@ using namespace std;
 using namespace SageBuilder;
 using namespace SageInterface;
 // =====================================================================
+// ! create a struct to contain data members for variables to be passed as parameters
+// A wrapper struct for variables passed to the outlined function
+// Each variable (e.g a) has two choices
+//   1. store the value of a:  the same type representation in the struct
+//   2. store the address of a:  pointer type of a
 SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
                                SgBasicBlock* s, // the outlining target
                                const std::string& func_name_str, // the name for the outlined function, we generate the name of struct based on this.
                                const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
-                               ASTtools::VarSymSet_t& pdSyms, // variables must use pointer types
+                               ASTtools::VarSymSet_t& symsUsingAddress, // variables whose addresses are stored into the struct 
                                SgScopeStatement* func_scope ) // the scope of the outlined function, could be different from s's global scope
 {
   SgClassDeclaration* result = NULL;
@@ -60,10 +65,21 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
   SgClassDefinition *def = result->get_definition();
   ROSE_ASSERT (def != NULL); 
   SgScopeStatement* def_scope = isSgScopeStatement (def);
-  ROSE_ASSERT (def_scope != NULL); 
+  ROSE_ASSERT (def_scope != NULL);
+
+#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+    // Sara Royuela: it is important that this member is the first in the struct
+    // It is expected to be there in other methods as 'generateLoopFunction'
+    string member_name = "wsd";
+    SgType* member_type = buildOpaqueType( "nanos_loop_info_t", getGlobalScope( s ) );
+    
+    SgVariableDeclaration * member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
+    appendStatement( member_decl, def_scope );
+#endif
+  
   for (ASTtools::VarSymSet_t::const_iterator i = syms.begin ();
       i != syms.end (); ++i)
-  { 
+  {
     const SgInitializedName* i_name = (*i)->get_declaration ();
     ROSE_ASSERT (i_name);
     const SgVariableSymbol* i_symbol  = isSgVariableSymbol(i_name->get_symbol_from_symbol_table ());
@@ -71,7 +87,7 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
     string member_name= i_name->get_name ().str ();
     SgType* member_type = i_name->get_type() ;
     // use pointer type or its original type?
-    if (pdSyms.find(i_symbol) != pdSyms.end())
+    if (symsUsingAddress.find(i_symbol) != symsUsingAddress.end())
     {
        member_name = member_name+"_p";
        // member_type = buildPointerType(member_type);
@@ -109,6 +125,54 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
   return result;
 }
 
+//!  A helper function to decide if some variables need to be restored from their clones in the end of the outlined function
+// This is needed to support variable cloning 
+// Input are:
+//      All the variables
+//      read-only variables
+//      live-out variables
+//
+// The output is restoreVars, which is isWritten && isLiveOut --> !isRead && isLiveOut 
+static void calculateVariableRestorationSet(const ASTtools::VarSymSet_t& syms, 
+                                     const std::set<SgInitializedName*> & readOnlyVars, 
+                                     const std::set<SgInitializedName*> & liveOutVars,
+                                     std::set<SgInitializedName*>& restoreVars)
+{
+  for (ASTtools::VarSymSet_t::const_reverse_iterator i = syms.rbegin ();
+      i != syms.rend (); ++i)
+  {
+    SgInitializedName* i_name = (*i)->get_declaration ();
+    //conservatively consider them as all live out if no liveness analysis is enabled,
+    bool isLiveOut = true;
+    if (Outliner::enable_liveness)
+      if (liveOutVars.find(i_name)==liveOutVars.end())
+        isLiveOut = false;
+
+    // generate restoring statements for written and liveOut variables:
+    //  isWritten && isLiveOut --> !isRead && isLiveOut --> (findRead==NULL && findLiveOut!=NULL)
+    // must compare to the original init name (i_name), not the local copy (local_var_init)
+    if (readOnlyVars.find(i_name)==readOnlyVars.end() && isLiveOut)   // variables not in read-only set have to be restored
+      restoreVars.insert(i_name);
+  }
+}
+ 
+//! A helper function to decide for the classic outlining, if a variable should be passed using its original type (a) or its pointer type (&a)
+// For simplicity, we assuming Pass-by-reference (using AddressOf()) = all_variables - read_only_variables 
+// So all variables which are written will use addressOf operation to be passed to the outlined function
+// TODO: add more sophisticated logic, C++ reference, C array, Fortran variable etc. 
+static void calculateVariableUsingAddressOf(const ASTtools::VarSymSet_t& syms, const std::set<SgInitializedName*> readOnlyVars,  ASTtools::VarSymSet_t& addressOfVarSyms)
+{
+  for (ASTtools::VarSymSet_t::const_reverse_iterator i = syms.rbegin ();
+      i != syms.rend (); ++i)
+  {
+    // Basic information about the variable to be passed into the outlined function
+    // Variable symbol name
+    SgInitializedName* i_name = (*i)->get_declaration ();
+    if (readOnlyVars.find(i_name)==readOnlyVars.end()) // not readonly ==> being written ==> use addressOf to be passed to the outlined function
+      addressOfVarSyms.insert (*i);
+  } // end for
+}
+
 /**
  * Major work of outlining is done here
  *  Preparations: variable collection
@@ -132,24 +196,47 @@ Outliner::outlineBlock (SgBasicBlock* s, const string& func_name_str)
   ASTtools::cutPreprocInfo (s, PreprocessingInfo::after, ppi_after);
 
   // Determine variables to be passed to outlined routine.
+  // ----------------------------------------------------------
   // Also collect symbols which must use pointer dereferencing if replaced during outlining
-  ASTtools::VarSymSet_t syms, psyms, pdSyms;
-  collectVars (s, syms, psyms);
+  ASTtools::VarSymSet_t syms, pdSyms;
+  collectVars (s, syms);
 
+  // prepare necessary analysis to optimize the outlining 
+  //-----------------------------------------------------------------
   std::set<SgInitializedName*> readOnlyVars;
+  std::set< SgInitializedName *> liveIns, liveOuts;
+  // Collect read-only variables of the outlining target
 
   //Determine variables to be replaced by temp copy or pointer dereferencing.
   if (Outliner::temp_variable|| Outliner::enable_classic || Outliner::useStructureWrapper)
   {
     SageInterface::collectReadOnlyVariables(s,readOnlyVars);
-#if 0    
-    std::set<SgVarRefExp* > varRefSetB;
-    ASTtools::collectVarRefsUsingAddress(s,varRefSetB);
-    ASTtools::collectVarRefsOfTypeWithoutAssignmentSupport(s,varRefSetB);
-#endif
     // Collect use by address plus non-assignable variables
     // They must be passed by reference if they need to be passed as parameters
+    // TODO: this is not accurate: array variables are not assignable , but they should not using pointer dereferencing 
     ASTtools::collectPointerDereferencingVarSyms(s,pdSyms);
+
+    // liveness analysis
+    SgStatement* firstStmt = (s->get_statements())[0];
+    if (isSgForStatement(firstStmt)&& enable_liveness)
+    {
+      LivenessAnalysis * liv = SageInterface::call_liveness_analysis (SageInterface::getProject());
+      SageInterface::getLiveVariables(liv, isSgForStatement(firstStmt), liveIns, liveOuts);
+    }
+
+    if (Outliner::enable_debug)
+    {
+      cout<<"Outliner::Transform::generateFunction() -----Found "<<readOnlyVars.size()<<" read only variables..:";
+      for (std::set<SgInitializedName*>::const_iterator iter = readOnlyVars.begin();
+          iter!=readOnlyVars.end(); iter++)
+        cout<<" "<<(*iter)->get_name().getString()<<" ";
+      cout<<endl;
+      cout<<"Outliner::Transform::generateFunction() -----Found "<<liveOuts.size()<<" live out variables..:";
+      for (std::set<SgInitializedName*>::const_iterator iter = liveOuts.begin();
+          iter!=liveOuts.end(); iter++)
+        cout<<" "<<(*iter)->get_name().getString()<<" ";
+      cout<<endl; 
+    }
   }
 
   // Insert outlined function.
@@ -174,7 +261,19 @@ Outliner::outlineBlock (SgBasicBlock* s, const string& func_name_str)
 
   // generate the function and its prototypes if necessary
   //  printf ("In Outliner::Transform::outlineBlock() function name to build: func_name_str = %s \n",func_name_str.c_str());
-  SgFunctionDeclaration* func = generateFunction (s, func_name_str, syms, pdSyms, psyms, struct_decl, glob_scope);
+   
+  std::set<SgInitializedName*> restoreVars;
+  calculateVariableRestorationSet (syms, readOnlyVars,liveOuts,restoreVars);
+
+  if (Outliner::enable_classic) // merge readOnlyVars and pdSyms into pdSyms, only when no wrapper parameter is used && enable_classic is on
+  { // Liao 1/30/2013. I have to use this dirty trick to consolidate pdSyms and readOnlyVars
+   // This is necessary to separate analysis from transformation so the outliner's API functions can be more predictable.
+   // TODO better handling later on for default case (no flags are turned on at all)
+    pdSyms.clear();
+    calculateVariableUsingAddressOf (syms, readOnlyVars, pdSyms);
+  }
+
+  SgFunctionDeclaration* func = generateFunction (s, func_name_str, syms, pdSyms, restoreVars, struct_decl, glob_scope);
   ROSE_ASSERT (func != NULL);
   ROSE_ASSERT(glob_scope->lookup_function_symbol(func->get_name()));
 
@@ -385,17 +484,21 @@ Outliner::outlineBlock (SgBasicBlock* s, const string& func_name_str)
  *  __out_argv1__1527__.j = j;
  *  __out_argv1__1527__.sum_p = &sum; 
  *
+ * Nanos extra packing statements: wsd.lower, wsd.upper, wsd.step, wsd.chunk
  */
-std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::VarSymSet_t & syms, ASTtools::VarSymSet_t & pdsyms, SgClassDeclaration* struct_decl /* = NULL */)
+std::string Outliner::generatePackingStatements( SgStatement* target, 
+                                                 ASTtools::VarSymSet_t & syms, ASTtools::VarSymSet_t & pdsyms, 
+                                                 SgClassDeclaration* struct_decl /* = NULL */,
+                                                 SgExpression * lower, SgExpression * upper, SgExpression * stride, SgExpression * chunk )
 {
   int var_count = syms.size();
   int counter=0;
   string wrapper_name= generateFuncArgName(target); //"__out_argv";
   SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()); 
   ROSE_ASSERT (class_def != NULL);
-  SgDeclarationStatementPtrList &members = class_def->get_members();
   
 #ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+// Nanos always requires the struct
     if (var_count==0) 
       return wrapper_name;
 #endif
@@ -417,7 +520,7 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
     my_type = buildArrayType(pointer_type, buildIntVal(var_count));
   }
 
-  SgVariableDeclaration* out_argv = buildVariableDeclaration(wrapper_name, my_type, NULL,cur_scope);
+  SgVariableDeclaration* out_argv = buildVariableDeclaration(wrapper_name, my_type, NULL, cur_scope);
 
   // Since we have moved the outlined block to be the outlined function's body, and removed it 
   // from its location in the original location where it was outlined, we can't insert new 
@@ -451,7 +554,7 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
         //rhs = buildAddressOfOp(rhs); 
         rhs = buildCastExp( buildAddressOfOp(rhs), buildPointerType(buildVoidType())); 
       }
-      lhs = buildDotExp ( buildVarRefExp(out_argv), buildVarRefExp (member_name, class_def));  
+      lhs = buildDotExp ( buildVarRefExp(out_argv), buildVarRefExp (member_name, class_def));
     }
     else
     // Default case: array of pointers, e.g.,  *(__out_argv +0)=(void*)(&var1);
@@ -459,13 +562,55 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
       lhs = buildPntrArrRefExp(buildVarRefExp(wrapper_symbol),buildIntVal(counter));
       SgVarRefExp* rhsvar = buildVarRefExp((*i)->get_declaration(),cur_scope);
       rhs = buildCastExp( buildAddressOfOp(rhsvar), buildPointerType(buildVoidType()), SgCastExp::e_C_style_cast);
+      counter ++;
     }
 
     // build wrapping statement for either cases
-    SgExprStatement * expstmti= buildAssignStatement(lhs,rhs);
+    SgExprStatement * expstmti= buildAssignStatement(lhs, rhs);
     SageInterface::insertStatementBefore(target, expstmti);
-    counter ++;
   }
+  
+#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+  // Add Nanos extra packing statements when comming from Loop: wsd.lower, wsd.upper, wsd.step, wsd.chunk
+    if( ( lower != NULL ) && ( upper != NULL ) && ( stride != NULL ) && ( chunk != NULL ) )
+    {
+        SgClassSymbol * loop_info_sym = SageInterface::lookupClassSymbolInParentScopes( "nanos_loop_info_t", cur_scope );
+        ROSE_ASSERT( loop_info_sym != NULL );    
+        SgClassDeclaration * loop_info_decl = loop_info_sym->get_declaration( );
+        SgClassDefinition * loop_info_def = loop_info_decl->get_definition( );
+        SgDeclarationStatementPtrList loop_info_members = loop_info_def->get_members( );
+        
+        SgVariableDeclaration * member_lower = isSgVariableDeclaration( loop_info_members[0] );
+        SgVariableDeclaration * member_upper = isSgVariableDeclaration( loop_info_members[1] );   
+        SgVariableDeclaration * member_step = isSgVariableDeclaration( loop_info_members[2] );
+        SgVariableDeclaration * member_chunk = isSgVariableDeclaration( loop_info_members[3] );
+        
+        // Generate the actual packing statements
+        string member_name = "wsd";
+        SgExpression * wsd_access = buildDotExp( buildVarRefExp( out_argv ), 
+                buildVarRefExp( member_name, class_def ) );
+        
+        SgExpression * wsd_lower = buildDotExp( wsd_access, buildVarRefExp( member_lower->get_decl_item( "lower" ), cur_scope ) );
+        SgExprStatement * lower_stmt = buildAssignStatement( wsd_lower, lower );
+        SageInterface::insertStatementBefore( target, lower_stmt );
+  
+        SgExpression * wsd_upper = buildDotExp( wsd_access, buildVarRefExp( member_upper->get_decl_item( "upper" ), cur_scope ) );
+        SgExprStatement * upper_stmt = buildAssignStatement( wsd_upper, upper );
+        SageInterface::insertStatementBefore( target, upper_stmt );
+  
+        SgExpression * wsd_step = buildDotExp( wsd_access, buildVarRefExp( member_step->get_decl_item( "step" ), cur_scope ) );
+        SgExprStatement * step_stmt = buildAssignStatement( wsd_step, stride );
+        SageInterface::insertStatementBefore( target, step_stmt );
+  
+        SgExpression * wsd_chunk = buildDotExp( wsd_access, buildVarRefExp( member_chunk->get_decl_item( "chunk" ), cur_scope ) );
+        SgExprStatement * chunk_stmt = buildAssignStatement( wsd_chunk, chunk );
+        SageInterface::insertStatementBefore( target, chunk_stmt );
+    }
+    else
+    {
+        ROSE_ASSERT( ( lower == NULL ) && ( upper == NULL ) && ( stride == NULL ) && ( chunk == NULL ) );
+    }
+#endif
   
   return wrapper_name; 
 }

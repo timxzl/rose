@@ -12,8 +12,9 @@ libxomp_a_SOURCES = libnanox.c xomp.c  \
 #libxomp_a_CXXFLAGS = -pthreads
 
 include_HEADERS = omp_lowering.h \
- 	   		      nanos_c_api_macros.h nanos_error.h nanos-int.h nanos_reduction.h nanos_omp.h \
-				  nanos.h libnanox.h  \
+ 	   		      nanos_error.h nanos_version.h \
+			      nanos-int.h nanos_reduction.h \
+				  nanos.h nanos_omp.h libnanox.h  \
      		      libgomp_g.h libompc.h \
      			  libxomp.h libxompf.h 
 				   

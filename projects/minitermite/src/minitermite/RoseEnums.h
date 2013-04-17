@@ -16,7 +16,7 @@ class RoseEnums {
   RoseEnums();
 
 #define ROSEENUMS_DECLARE(TYPE, NAME)					\
-  std::map<std::string, TYPE> enum_ ## NAME; /* TERMITE -> ROSE */	\
+  boost::unordered_map<std::string, TYPE> enum_ ## NAME; /* TERMITE -> ROSE */	\
   std::vector<std::string>     vec_ ## NAME;				\
   const std::string& str(TYPE i)            /* ROSE -> TERMITE */	\
     const { return vec_ ## NAME[i]; }					\

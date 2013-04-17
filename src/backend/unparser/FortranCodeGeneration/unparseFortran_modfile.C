@@ -65,27 +65,23 @@ generateModFile(SgFile *sfile)
           SgModuleStatement* module_stmt = isSgModuleStatement(*i);
 
           ROSE_ASSERT(module_stmt != NULL);
-string outputDir = get_rmod_dir(sfile);
-string outputFilename;
-if (outputDir !="")
-          outputFilename =outputDir + module_stmt->get_name() + MOD_FILE_SUFFIX;
-else
-          outputFilename = module_stmt->get_name() + MOD_FILE_SUFFIX;
-
-          string lowerCaseOutputFilename = StringUtility::convertToLowerCase(outputFilename);
+          string outputDir = get_rmod_dir(sfile);
+          string module_name = StringUtility::convertToLowerCase(module_stmt->get_name());  // DXN: module name is case-insensitive
+          string outputFilename = outputDir != "" ?
+                                  outputDir + module_name + MOD_FILE_SUFFIX:  // DXN: outputDir name may be case-sensitive
+                                  module_name + MOD_FILE_SUFFIX;
 
        // Cause the output of a message with verbose level is turned on.
           if (SgProject::get_verbose() > 0)
              {
-               printf ("In generateModFile() (loop over module declarations): Generating a Fortran 90 specific module file %s for module = %s \n",lowerCaseOutputFilename.c_str(),outputFilename.c_str());
+               printf ("In generateModFile() (loop over module declarations): Generating a Fortran 90 specific module file %s for module = %s \n", outputFilename.c_str(), module_name.c_str());
              }
 
        // Use a lower case generate filename for the generated ROSE mod (or rmod) file. 
-       // fstream Module_OutputFile(outputFilename.c_str(),ios::out);
-          fstream Module_OutputFile(lowerCaseOutputFilename.c_str(),ios::out);
+          fstream Module_OutputFile(outputFilename.c_str(),ios::out);
 
           if (!Module_OutputFile) {
-             cout << "Error detected in opening file " << lowerCaseOutputFilename.c_str()
+              cout << "Error detected in opening file " << outputFilename.c_str()
                   << "for output" << endl;
              ROSE_ASSERT(false);
              }

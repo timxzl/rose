@@ -16,13 +16,14 @@ extern "C" {
 
 // *** NANOX wrapper methods *** //
 
-void NANOX_parallel( void (*) (void *), void *, unsigned, long, long (*) (void), void *, void (*) (void *, void *));
+void NANOX_parallel_init( void );
+void NANOX_parallel_end( void );
+void NANOX_parallel( void (*) (void *), void *, unsigned, long, long (*) (void), void* (*)(void), void (*) (void *, void *) );
 
-void NANOX_task(void (*) (void *), void (*), long, long (*) (void), bool, unsigned, void *, void (*) (void *, void *));
+void NANOX_task( void (*) (void *), void (*), long, long (*) (void), bool, unsigned, void *, void (*) (void *, void *) );
 
-void NANOX_loop(void*, void*, void*, int, int, void (*) (void *), void *, void *, long, long (*)(void), void *, void (*) (void *, void *));
-
-void NANOS_sections(int, bool, va_list);
+void NANOX_loop( void (*) (void *), void *, long, long (*)(void), void *, void (*) (void *, void *), int );
+void NANOS_sections( int, bool, va_list );
 
 void NANOX_taskwait( void );
 void NANOX_barrier( void );

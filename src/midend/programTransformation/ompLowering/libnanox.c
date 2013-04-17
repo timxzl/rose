@@ -8,244 +8,297 @@
 __attribute__((weak)) nanos_lock_t _nx_default_critical_lock = {NANOS_LOCK_FREE};
 // FIXME For c++ we just need "__attribute__((weak)) nanos_lock_t _nx_default_critical_lock;"
 
-void nanos_omp_initialize_worksharings(void *dummy);
-
-void NANOX_parallel(void (*func) (void *), void *data, unsigned numThreads, long data_size, long (*get_data_align)(void), 
-                          void* empty_data, void (* init_func) (void *, void *))
+// Struct containing information of the devce executing a task
+// For more than one device, we will have to create different structs such as this one
+struct nanos_const_wd_definition
 {
-  nanos_err_t err;
-
-  if (numThreads == 0)
-    numThreads = nanos_omp_get_max_threads();
-
-  // Create the working team
-  nanos_thread_t _nanos_threads[numThreads];
-  nanos_team_t _nanos_team = (nanos_team_t) 0;
-  err = nanos_create_team(&_nanos_team, (nanos_sched_t)0, &numThreads,
-                          (nanos_constraint_t*)0, /*reuse current*/ 1, _nanos_threads);
-  if (err != NANOS_OK)
-    nanos_handle_error(err);
-
-  // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
-  int num_copies = 0;
-  // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
-  int num_data_accesses = 0;
-  // Compute the alignement of the struct with the arguments to the outlined function
-  long data_align = (*get_data_align)();
-
-  // Create the Device descriptor (at the moment, only SMP is supported)
-  int num_devices = 1;
-  nanos_smp_args_t _smp_args = { func };
-  struct nanos_const_wd_definition_local_t
-  {
     nanos_const_wd_definition_t base;
     nanos_device_t devices[1];
-  };
-  struct nanos_const_wd_definition_local_t _const_def = {
-    {
-      {
-        1,                  /* mandatory creation */
-        0,                  /* tied */
-        0, 0, 0, 0, 0, 0,   /* reserved0..5 */
-        0                   /* priority */
-      },
-      data_align,
-      num_copies,
-      num_devices
-    },
-    {{  // device description
-        nanos_smp_factory,
-        &_smp_args
-    }}
-  };
+};
 
-  // Compute properties of the WD: mandatory creation, priority, tiedness, real-time info and copy declarations
-  nanos_wd_dyn_props_t dyn_props = { 0 };
+void nanos_omp_initialize_worksharings(void *dummy);
 
-  // Create a wd tied to each thread
-  unsigned _i;
-  for (_i = 1; _i < numThreads; _i++)
-  {
-    // Set properties to the current wd of the team
-    dyn_props.tie_to = _nanos_threads[_i];
-    dyn_props.priority = 0;
-    
-    // Create the current wd of the team
-    nanos_wd_t wd = 0;
-    err = nanos_create_wd_compact(&wd, &_const_def.base, &dyn_props, data_size, (void**)&empty_data, 
-                                  nanos_current_wd(), (nanos_copy_data_t**) 0);
-    if (err != NANOS_OK) 
-      nanos_handle_error(err);
-    (*init_func)(empty_data, data);
 
-    err = nanos_submit(wd, num_data_accesses, (nanos_data_access_t*) 0, (nanos_team_t) 0);
-    if (err != NANOS_OK) 
-      nanos_handle_error(err);
-  }
+// ************************************************************************************ //
+// ************************ Nanos Parallel structs and methods ************************ //
 
-  // Create the wd for the master thread, which will run the team
-  dyn_props.tie_to = _nanos_threads[0];
-  dyn_props.priority = 0;
-  nanos_create_wd_and_run_compact(&_const_def.base, &dyn_props, data_size, data, 
-                                   num_data_accesses, (nanos_data_access_t*) 0, (nanos_copy_data_t*) 0, (void *) 0);
-  if (err != NANOS_OK)
-    nanos_handle_error(err);
+static int parallel_id = 0;
 
-  // End the team
-  err = nanos_end_team(_nanos_team);
-  if (err != NANOS_OK)
-    nanos_handle_error(err);
+void NANOX_parallel_init( )
+{
+    nanos_err_t err = nanos_omp_set_implicit( nanos_current_wd( ) );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
+    err = nanos_enter_team( );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
 }
+
+void NANOX_parallel_end( )
+{
+    nanos_err_t err = nanos_omp_barrier( );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
+    err = nanos_leave_team( );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
+}
+
+void NANOX_parallel( void (*func) (void *), void *data, unsigned numThreads, long data_size, long (*get_data_align)(void), 
+                     void* (*get_empty_data)(void), void (* init_func) (void *, void *) )
+{
+    nanos_err_t err;
+    
+    // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
+    int num_copies = 0;
+    // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
+    int num_data_accesses = 0;
+    // TODO Compute dimensions
+    int num_dimensions = 0;
+    // Compute device descriptor (at the moment, only SMP is supported)
+    int num_devices = 1;
+    // TODO Compute dependencies
+    nanos_data_access_t dependences[1];
+  
+    // Create the Device descriptor (at the moment, only SMP is supported)
+    nanos_smp_args_t _smp_args = { func };
+    char * parallel_name; 
+    asprintf( &parallel_name, "parallel_%d", parallel_id++ );
+    struct nanos_const_wd_definition nanos_wd_const_data = {
+        { { 1,          // mandatory creation
+            1,          // tied
+            0, 0, 0, 0, 0, 0 },                     // properties 
+            ( *get_data_align )( ),                 // data alignment
+            num_copies, num_devices, num_dimensions,                            
+            parallel_name                           // description
+        }, 
+        { { &nanos_smp_factory,                     // device description
+            &_smp_args }                            // outlined function
+        }
+    };
+
+    // Compute properties of the WD: mandatory creation, priority, tiedness, real-time info and copy declarations
+    nanos_wd_dyn_props_t dyn_props;
+    dyn_props.tie_to = ( void * ) 0;
+    dyn_props.priority = 0;
+
+    // Create the working team
+    if( numThreads == 0 )
+        numThreads = nanos_omp_get_max_threads( );
+    void * nanos_team = ( void * ) 0;
+    const unsigned int nthreads_vla = numThreads;
+    void * team_threads[nthreads_vla];
+    err = nanos_create_team( &nanos_team, ( void * ) 0, &numThreads,
+                              (nanos_constraint_t *) 0, /*reuse current*/ 1, team_threads );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
+    
+    // Create a wd tied to each thread
+    unsigned nth_i;
+    for( nth_i = 1; nth_i < numThreads; nth_i++ )
+    {
+        // Set properties to the current wd of the team
+        dyn_props.tie_to = team_threads[nth_i];
+        
+        // Create the current WD of the team
+        void * empty_data = ( *get_empty_data )( );
+        void * wd = ( void * ) 0;
+        err = nanos_create_wd_compact( &wd, &nanos_wd_const_data.base, &dyn_props, 
+                                       data_size, ( void** ) &empty_data, 
+                                       nanos_current_wd( ), ( nanos_copy_data_t ** ) 0, 
+                                       ( nanos_region_dimension_internal_t ** ) 0 );
+        if (err != NANOS_OK) 
+            nanos_handle_error(err);
+        
+        // Initialize empty data structure
+        ( *init_func )( empty_data, data );
+    
+        // Submit work to the WD
+        err = nanos_submit( wd, num_data_accesses, ( nanos_data_access_t * ) 0, ( void * ) 0 );
+        if( err != NANOS_OK ) 
+            nanos_handle_error( err );
+    }
+
+    // Create the wd for the master thread, which will run the team
+    dyn_props.tie_to = team_threads[0];
+    err = nanos_create_wd_and_run_compact( &nanos_wd_const_data.base, &dyn_props, data_size, data, 
+                                           num_data_accesses, dependences, ( nanos_copy_data_t * ) 0,
+                                           ( nanos_region_dimension_internal_t * ) 0, 
+                                           ( void ( * )( void *, void * ) ) 0 );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
+
+    // End the team
+    err = nanos_end_team( nanos_team );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
+}
+
+// ********************** END Nanos Parallel structs and methods ********************** //
+// ************************************************************************************ //
+
+
+
+// ************************************************************************************ //
+// ************************** Nanos Task structs and methods ************************** //
+
+static int task_id = 0;
 
 void NANOX_task(void (*func) (void *), void *data,
                 long data_size, long (*get_data_align) (void), bool if_clause, unsigned untied, 
                 void* empty_data, void (*init_func) (void *, void *))
 {
-  // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
-  int num_copies = 0;
-  // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
-  int num_data_accesses = 0;
-  // Compute the alignement of the struct with the arguments to the outlined function
-  long data_align = (*get_data_align)();
-  
-  // Create the Device descriptor (at the moment, only SMP is supported)
-  int num_devices = 1;
-  nanos_smp_args_t _smp_args = { func };
-  struct nanos_const_wd_definition_local_t
-  {
-    nanos_const_wd_definition_t base;
-    nanos_device_t devices[1];
-  };
-  struct nanos_const_wd_definition_local_t _const_def = {
-    {
-      {
-        0,                  /* mandatory creation => only CUDA requieres mandatory creation */
-        1,                  /* tied   FIXME this value should depend on the parameter 'untied' */
-        0, 0, 0, 0, 0, 0,   /* reserved0..5 */
-        0                   /* priority */
-      },
-      data_align,
-      num_copies,
-      num_devices
-    },
-    {{  // device description
-        nanos_smp_factory,
-        &_smp_args
-    }}
-  };
-
-  // Compute properties of the WD: mandatory creation, priority, tiedness, real-time info and copy declarations
-  nanos_wd_dyn_props_t dyn_props = {0};
-  dyn_props.priority = 0;
-  
-  // Create the wd
-  nanos_wd_t wd = (nanos_wd_t) 0;
-  nanos_err_t err = nanos_create_wd_compact(&wd, &_const_def.base, &dyn_props, data_size, (void**) &empty_data,
-                        nanos_current_wd(), (nanos_copy_data_t **) 0);
-  if (err != NANOS_OK) 
-    nanos_handle_error (err);
-
-  if (wd != (nanos_wd_t)0)
-  { // Submit the task to the existing actual working group
-    (*init_func)(empty_data, data);
-
-    err = nanos_submit(wd, num_data_accesses, (nanos_data_access_t *) 0, (nanos_team_t) 0);
-    if (err != NANOS_OK) 
-      nanos_handle_error (err);
-  }
-  else
-  { // The task must be run immediately
-    err = nanos_create_wd_and_run_compact(&_const_def.base, &dyn_props, data_size, data, num_data_accesses,
-                                          (nanos_data_access_t *) 0, (nanos_copy_data_t *) 0, (void *) 0);
-    if (err != NANOS_OK) 
-      nanos_handle_error (err);
-  }
-}
-
-/* Variables used during the creation of the slicer to execute OpenMP loop constructs */
-// FIXME  scheduling "auto" is only available from version "omp, 5" of Nanos++
-//        we have to implement a mechanism version of the family
-static nanos_ws_t ws_policy[3];
-void nanos_omp_initialize_worksharings(void *dummy)
-{
-  ws_policy[0] = nanos_find_worksharing("static_for");
-  ws_policy[1] = nanos_find_worksharing("dynamic_for");
-  ws_policy[2] = nanos_find_worksharing("guided_for");
-  // ws_policy[3] = nanos_omp_find_worksharing("omp_sched_auto");
-}
-__attribute__((weak, section("nanos_post_init")))
-nanos_init_desc_t __section__nanos_init_worksharing = {(nanos_omp_initialize_worksharings), ((void *)0)};
-
-void NANOX_loop(void* start, void* end, void* incr, int chunk, int policy, 
-                void (*func) (void *), void *data, void * data_wsd /*data_wsd == &(data->wsd)*/, long data_size, long (*get_data_align)(void),
-                void* empty_data, void (*init_func) (void *, void *))
-{
-  nanos_err_t err;
-
-  // Create the worksharing descriptor
-  _Bool single_guard;
-
-  nanos_ws_t* current_ws_policy = &ws_policy[policy];
-  nanos_ws_info_loop_t info_loop = { *((int*) start), *((int*) end), *((int*) incr), chunk };
-
-  err = nanos_worksharing_create(data_wsd, *current_ws_policy, (nanos_ws_info_t*) &info_loop, &single_guard);
-  if (err != NANOS_OK)
-    nanos_handle_error(err);
-
-  if (single_guard)
-  {
-    int sup_threads;
-    err = nanos_team_get_num_supporting_threads(&sup_threads);
-    if (err != NANOS_OK)
-      nanos_handle_error(err);
+    nanos_err_t err;
     
-    if (sup_threads)
-    {
-      // Get the supporting threads of the current team
-      (*((nanos_ws_desc_t**)data_wsd))->threads = (nanos_thread_t *) __builtin_alloca(sizeof(nanos_thread_t) * sup_threads);
-      err = nanos_team_get_supporting_threads(&(*((nanos_ws_desc_t**)data_wsd))->nths, (*((nanos_ws_desc_t**)data_wsd))->threads);
-      if (err != NANOS_OK)
-        nanos_handle_error(err);
-      // Create the properties of the wd
-      nanos_wd_t wd = (nanos_wd_t) 0;
-      nanos_wd_props_t props;
-      __builtin_memset(&props, 0, sizeof (props));
-      props.mandatory_creation = 1;
-      props.tied = 1;
-      nanos_wd_dyn_props_t dyn_props = {0};
+    // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
+    int num_copies = 0;
+    // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
+    int num_data_accesses = 0;
+    // TODO Compute dimensions
+    int num_dimensions = 0;
+    // Compute device descriptor (at the moment, only SMP is supported)
+    int num_devices = 1;
+    // TODO Compute dependencies
+    nanos_data_access_t dependences[1];
+  
+    // Create the Device descriptor (at the moment, only SMP is supported)
+    nanos_smp_args_t _smp_args = { func };
+    char * task_name; 
+    asprintf( &task_name, "task_%d", task_id++ );
+    struct nanos_const_wd_definition nanos_wd_const_data = {
+        { { 0,          // mandatory creation
+            !untied,    // tied
+            0, 0, 0, 0, 0, 0 },                     // properties 
+        ( *get_data_align )( ),                     // data alignment
+          num_copies, num_devices, num_dimensions,                            
+          task_name                                 // description
+        }, 
+        { { &nanos_smp_factory,                     // device description
+            &_smp_args }                            // outlined function
+        }
+    };
 
-      // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
-      int num_copies = 0;
-      // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
-      int num_data_accesses = 0;
+    // Compute properties of the WD: mandatory creation, priority, tiedness, real-time info and copy declarations
+    nanos_wd_dyn_props_t dyn_props;
+    dyn_props.tie_to = 0;
+    dyn_props.priority = 0;
+    
+    // Create the WD
+    nanos_wd_t wd = (nanos_wd_t) 0;
+    err = nanos_create_wd_compact( &wd, &nanos_wd_const_data.base, &dyn_props, 
+                                   data_size, ( void ** ) &empty_data,
+                                   nanos_current_wd( ), ( nanos_copy_data_t ** ) 0, 
+                                   ( nanos_region_dimension_internal_t ** ) 0 );
+    if( err != NANOS_OK ) 
+        nanos_handle_error( err );
+    
+    if( wd != ( void * ) 0 )
+    {   // Submit the task to the existing actual working group
+        (*init_func)(empty_data, data);
 
-      // Create the Device descriptor (at the moment, only SMP is supported)
-      int num_devices = 1;
-      nanos_smp_args_t _smp_args = { func };
-      nanos_device_t _current_devices[] = {{ nanos_smp_factory, &_smp_args }};
-
-      // Create the slicer
-      // Current version of Nanos only supports 'replicate' slicer
-      static nanos_slicer_t replicate = 0;
-      if (!replicate)
-          replicate = nanos_find_slicer("replicate");
-      if (replicate == 0)
-          fprintf(stderr, "Cannot find replicate slicer plugin\n");
-      long data_align = (*get_data_align)();
-      err = nanos_create_sliced_wd(&wd, num_devices, _current_devices, data_size, data_align, (void **) &empty_data, nanos_current_wd(), replicate, &props, &dyn_props, num_copies, (nanos_copy_data_t **) 0);
-      if (err != NANOS_OK)
-          nanos_handle_error(err);
-      (*init_func)(empty_data, data);
-
-      // Submit the work to the runtime system
-      err = nanos_submit(wd, num_data_accesses, (nanos_data_access_t *) 0, (nanos_team_t) 0);
-      if (err != NANOS_OK)
-          nanos_handle_error(err);
+        err = nanos_submit( wd, num_data_accesses, dependences, ( void * ) 0 );
+        if( err != NANOS_OK ) 
+            nanos_handle_error( err );
     }
-  }
-  func(data);
-  nanos_omp_barrier();    
+    else
+    { // The task must be run immediately
+        err = nanos_create_wd_and_run_compact( &nanos_wd_const_data.base, &dyn_props, 
+                                               data_size, data, num_data_accesses,
+                                               dependences, ( nanos_copy_data_t * ) 0, 
+                                               ( nanos_region_dimension_internal_t * ) 0, 
+                                               ( void ( * )( void *, void * ) ) 0 );
+        if( err != NANOS_OK ) 
+            nanos_handle_error( err );
+    }
 }
+
+// ************************ END Nanos Task structs and methods ************************ //
+// ************************************************************************************ //
+
+
+
+// ************************************************************************************ //
+// ************************** Nanos Loop structs and methods ************************** //
+
+static const char * nanos_get_slicer_name( int policy )
+{
+    switch( policy )
+    {
+        case 0:     return "static_for";
+        case 1:     return "dynamic_for";
+        case 2:     return "guided_for";
+        default:    printf( "Unrecognized scheduling policy %d. Using static scheduling\n", policy );
+                    return "static_for";
+    };
+}
+
+static int loop_id = 0;
+void NANOX_loop( void ( * func ) ( void * ), void * data, long data_size, long ( * get_data_align )( void ),
+                 void* empty_data, void ( * init_func ) ( void *, void * ), int policy )
+{
+    nanos_err_t err;
+      
+    // Create the WD and its properties
+    void * wd = ( void * ) 0;
+    nanos_wd_dyn_props_t props;
+    props.tie_to = ( void * ) 0;
+    props.priority = 0;
+      
+    // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
+    int num_copies = 0;
+    // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
+    int num_data_accesses = 0;
+    // TODO Compute dimensions
+    int num_dimensions = 0;
+    // Compute device descriptor (at the moment, only SMP is supported)
+    int num_devices = 1;
+    
+    // Create the slicer
+    nanos_smp_args_t _smp_args = { func };
+    char * loop_name; 
+    asprintf( &loop_name, "loop_%d", loop_id++ );
+    struct nanos_const_wd_definition nanos_wd_const_data = { 
+        { { 1,          // mandatory creation
+            1,          // tied
+            0, 0, 0, 0, 0, 0 },                     // properties 
+        ( *get_data_align )( ),                   // data alignment
+          num_copies, num_devices, num_dimensions,                            
+          loop_name                               // description
+        }, 
+        { { &nanos_smp_factory,                   // device description
+            &_smp_args }                          // outlined function
+        } 
+    };
+    void * slicer = nanos_find_slicer( nanos_get_slicer_name( policy ) );
+    if( slicer == 0 )
+        nanos_handle_error( NANOS_UNIMPLEMENTED );
+    
+    err = nanos_create_sliced_wd( &wd, nanos_wd_const_data.base.num_devices, nanos_wd_const_data.devices, 
+                                  data_size, nanos_wd_const_data.base.data_alignment, ( void ** ) &empty_data, 
+                                  nanos_current_wd( ), slicer, &nanos_wd_const_data.base.props, &props, 
+                                  num_copies, ( nanos_copy_data_t ** ) 0, 
+                                  num_dimensions, ( nanos_region_dimension_internal_t ** ) 0 );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
+    
+    // Initialized outlined data
+    ( *init_func )( empty_data, data );
+    
+    // Submit the work to the runtime system
+    err = nanos_submit( wd, num_data_accesses, ( nanos_data_access_t * ) 0, ( nanos_team_t ) 0 );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
+    
+    // Wait for work completion
+    err = nanos_wg_wait_completion( nanos_current_wd( ), 0 );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
+}
+
+// ************************ END Nanos Loop structs and methods ************************ //
+// ************************************************************************************ //
+
+
 
 // The ellipsed arguments depend on the number of sections. The arguments per section are:
 // - void (*func) (void*) : Outlined function containing the code of the section
@@ -257,98 +310,98 @@ void NANOX_loop(void* start, void* end, void* incr, int chunk, int policy,
 //         the members of the empty data secgment with the members of the filled data segment 
 void NANOS_sections(int num_sections, bool must_wait, va_list sections_args)
 {
-  nanos_err_t err;
-
-  _Bool single_guard;
-  err = nanos_omp_single(&single_guard);
-  if (single_guard)
-  {
-    // Create the workdescriptor for each section
-    nanos_wd_t _wd_section_list[num_sections];
-    int i;
-    for (i = 0; i < num_sections; ++i)
-    {
-      // Get the parameters of the current section
-      void (*func) (void*) = va_arg(sections_args, void (*) (void*));
-      void* data = va_arg(sections_args, void*);
-      long data_size = va_arg(sections_args, long);
-      long (*get_data_align)(void) = va_arg(sections_args, long (*)(void));
-      void* empty_data = va_arg(sections_args, void*);
-      void (*init_func)(void*, void*) = va_arg(sections_args, void (*)(void*, void*));
-
-      // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
-      int num_copies = 0;
-
-      // Create the Device descriptor (at the moment, only SMP is supported)
-      int num_devices = 1;
-      nanos_smp_args_t _smp_args = { func };
-      struct nanos_const_wd_definition_local_t
-      {
-        nanos_const_wd_definition_t base;
-        nanos_device_t devices[1];
-      };
-      struct nanos_const_wd_definition_local_t _const_def = {
-        {
-          {
-            1,                  /* mandatory creation => only CUDA requieres mandatory creation */
-            0,                  /* tied */
-            0, 0, 0, 0, 0, 0,   /* reserved0..5 */
-            0                   /* priority */
-          },
-          (*get_data_align)(),
-          num_copies,
-          num_devices
-        },
-        {{  // device description
-            nanos_smp_factory,
-            &_smp_args
-        }}
-      };
-
-      // Create the wd
-      nanos_wd_t wd = (nanos_wd_t) 0;
-      nanos_wd_dyn_props_t dyn_props = {0};
-      err = nanos_create_wd_compact(&wd, &_const_def.base, &dyn_props, data_size, (void **) &empty_data, nanos_current_wd(), (nanos_copy_data_t **) 0);
-      if (err != NANOS_OK)
-          nanos_handle_error(err);
-      (*init_func)(empty_data, data);
-      _wd_section_list[i] = wd;
-    }
-
-    // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
-    int num_copies = 0;
-    // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
-    int num_data_accesses = 0;
-
-    // Create master workdescriptor and submit the work
-    nanos_wd_props_t props;
-    __builtin_memset(&props, 0, sizeof (props));
-    props.mandatory_creation = 1;
-    nanos_wd_dyn_props_t dyn_props = {0};
-    nanos_slicer_t compound_slicer = nanos_find_slicer("compound_wd");
-    void *compound_dev = (void *) 0;
-    nanos_slicer_get_specific_data(compound_slicer, &compound_dev);
-    nanos_smp_args_t compound_devices_args = {(void (*)(void *)) compound_dev};
-    nanos_device_t compound_device[1] = {{
-        nanos_smp_factory,
-        &compound_devices_args
-    }};
-    nanos_compound_wd_data_t *list_of_wds = (nanos_compound_wd_data_t *) 0;
-    nanos_wd_t wd = (nanos_wd_t) 0;
-    err = nanos_create_sliced_wd(&wd, 1, compound_device, sizeof(nanos_compound_wd_data_t) + num_sections * sizeof(nanos_wd_t), 
-                                 __alignof__(nanos_compound_wd_data_t), (void **) &list_of_wds, nanos_current_wd(), 
-                                 compound_slicer, &props, &dyn_props, num_copies, (nanos_copy_data_t **) 0);
-    if (err != NANOS_OK)
-        nanos_handle_error(err);
-    list_of_wds->nsect = num_sections;
-//     __builtin_memcpy(list_of_wds->lwd, _wd_section_list, sizeof (_wd_section_list));
-    err = nanos_submit(wd, num_data_accesses, (nanos_data_access_t *) 0, (nanos_team_t) 0);
-    if (err != NANOS_OK)
-        nanos_handle_error(err);
-  }
-
-  if (must_wait)
-    nanos_omp_barrier();
+//   nanos_err_t err;
+// 
+//   _Bool single_guard;
+//   err = nanos_omp_single(&single_guard);
+//   if (single_guard)
+//   {
+//     // Create the workdescriptor for each section
+//     nanos_wd_t _wd_section_list[num_sections];
+//     int i;
+//     for (i = 0; i < num_sections; ++i)
+//     {
+//       // Get the parameters of the current section
+//       void (*func) (void*) = va_arg(sections_args, void (*) (void*));
+//       void* data = va_arg(sections_args, void*);
+//       long data_size = va_arg(sections_args, long);
+//       long (*get_data_align)(void) = va_arg(sections_args, long (*)(void));
+//       void* empty_data = va_arg(sections_args, void*);
+//       void (*init_func)(void*, void*) = va_arg(sections_args, void (*)(void*, void*));
+// 
+//       // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
+//       int num_copies = 0;
+// 
+//       // Create the Device descriptor (at the moment, only SMP is supported)
+//       int num_devices = 1;
+//       nanos_smp_args_t _smp_args = { func };
+//       struct nanos_const_wd_definition_local_t
+//       {
+//         nanos_const_wd_definition_t base;
+//         nanos_device_t devices[1];
+//       };
+//       struct nanos_const_wd_definition_local_t _const_def = {
+//         {
+//           {
+//             1,                  /* mandatory creation => only CUDA requieres mandatory creation */
+//             0,                  /* tied */
+//             0, 0, 0, 0, 0, 0,   /* reserved0..5 */
+//             0                   /* priority */
+//           },
+//           (*get_data_align)(),
+//           num_copies,
+//           num_devices
+//         },
+//         {{  // device description
+//             nanos_smp_factory,
+//             &_smp_args
+//         }}
+//       };
+// 
+//       // Create the wd
+//       nanos_wd_t wd = (nanos_wd_t) 0;
+//       nanos_wd_dyn_props_t dyn_props = {0};
+//       err = nanos_create_wd_compact(&wd, &_const_def.base, &dyn_props, data_size, (void **) &empty_data, nanos_current_wd(), (nanos_copy_data_t **) 0);
+//       if (err != NANOS_OK)
+//           nanos_handle_error(err);
+//       (*init_func)(empty_data, data);
+//       _wd_section_list[i] = wd;
+//     }
+// 
+//     // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
+//     int num_copies = 0;
+//     // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
+//     int num_data_accesses = 0;
+// 
+//     // Create master workdescriptor and submit the work
+//     nanos_wd_props_t props;
+//     __builtin_memset(&props, 0, sizeof (props));
+//     props.mandatory_creation = 1;
+//     nanos_wd_dyn_props_t dyn_props = {0};
+//     nanos_slicer_t compound_slicer = nanos_find_slicer("compound_wd");
+//     void *compound_dev = (void *) 0;
+//     nanos_slicer_get_specific_data(compound_slicer, &compound_dev);
+//     nanos_smp_args_t compound_devices_args = {(void (*)(void *)) compound_dev};
+//     nanos_device_t compound_device[1] = {{
+//         nanos_smp_factory,
+//         &compound_devices_args
+//     }};
+//     nanos_compound_wd_data_t *list_of_wds = (nanos_compound_wd_data_t *) 0;
+//     nanos_wd_t wd = (nanos_wd_t) 0;
+//     err = nanos_create_sliced_wd(&wd, 1, compound_device, sizeof(nanos_compound_wd_data_t) + num_sections * sizeof(nanos_wd_t), 
+//                                  __alignof__(nanos_compound_wd_data_t), (void **) &list_of_wds, nanos_current_wd(), 
+//                                  compound_slicer, &props, &dyn_props, num_copies, (nanos_copy_data_t **) 0);
+//     if (err != NANOS_OK)
+//         nanos_handle_error(err);
+//     list_of_wds->nsect = num_sections;
+// //     __builtin_memcpy(list_of_wds->lwd, _wd_section_list, sizeof (_wd_section_list));
+//     err = nanos_submit(wd, num_data_accesses, (nanos_data_access_t *) 0, (nanos_team_t) 0);
+//     if (err != NANOS_OK)
+//         nanos_handle_error(err);
+//   }
+// 
+//   if (must_wait)
+//     nanos_omp_barrier();
 }
 
 void NANOX_barrier( void )
@@ -455,12 +508,13 @@ void NANOX_atomic ( int op, int type, void * variable, void * operand )
 
 bool NANOX_single( void )
 {
-  bool single_guard;
-  nanos_err_t err = nanos_single_guard(&single_guard);
-  if (err != NANOS_OK)
-    nanos_handle_error(err);
+    bool single_guard;
+  
+    nanos_err_t err = nanos_single_guard( &single_guard );
+    if( err != NANOS_OK )
+        nanos_handle_error(err);
 
-  return single_guard;
+    return single_guard;
 }
 
 bool NANOX_master( void )
