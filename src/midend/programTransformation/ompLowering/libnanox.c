@@ -5,9 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-__attribute__((weak)) nanos_lock_t _nx_default_critical_lock = {NANOS_LOCK_FREE};
-// FIXME For c++ we just need "__attribute__((weak)) nanos_lock_t _nx_default_critical_lock;"
-
 // Struct containing information of the devce executing a task
 // For more than one device, we will have to create different structs such as this one
 struct nanos_const_wd_definition
@@ -406,24 +403,42 @@ void NANOS_sections(int num_sections, bool must_wait, va_list sections_args)
 
 void NANOX_barrier( void )
 {
-  nanos_team_barrier();
+    nanos_team_barrier( );
 }
 
 void NANOX_taskwait( void )
 {
-  nanos_wg_t wg = nanos_current_wd();
-  nanos_wg_wait_completion(wg, 0);
+    void * wg = nanos_current_wd( );
+    nanos_err_t err = nanos_wg_wait_completion( wg, 0 );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
 }
+
+
+
+// ************************************************************************************ //
+// ************************ Nanos Critical defines and methods ************************ //
+
+__attribute__((weak)) nanos_lock_t nanos_default_critical_lock = { NANOS_LOCK_FREE };
 
 void NANOX_critical_start( void )
 {
-  nanos_set_lock(&_nx_default_critical_lock);
+    nanos_err_t err = nanos_set_lock( &nanos_default_critical_lock );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
 }
 
 void NANOX_critical_end( void )
 {
-  nanos_unset_lock(&_nx_default_critical_lock);
+    nanos_err_t err = nanos_unset_lock( &nanos_default_critical_lock );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
 }
+
+// ********************** END Nanos Critical defines and methods ********************** //
+// ************************************************************************************ //
+
+
 
 void NANOX_atomic ( int op, int type, void * variable, void * operand )
 {

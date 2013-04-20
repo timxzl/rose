@@ -34,7 +34,6 @@
  */
 
 #include <unistd.h>
-#include <sched.h>
 #include "nanos-int.h"
 #include "nanos_error.h"
 
@@ -155,6 +154,9 @@ NANOS_API_DECL(nanos_err_t, nanos_reduction_get_private_data, ( void **copy, voi
 
 NANOS_API_DECL(nanos_err_t, nanos_reduction_get, ( nanos_reduction_t **dest, void *original ) );
 
+// dependence
+NANOS_API_DECL(nanos_err_t, nanos_dependence_pendant_writes, ( bool *res, void *addr ));
+
 // worksharing
 NANOS_API_DECL(nanos_err_t, nanos_worksharing_create ,( nanos_ws_desc_t **wsd, nanos_ws_t ws, nanos_ws_info_t *info, bool *b ) );
 NANOS_API_DECL(nanos_err_t, nanos_worksharing_next_item, ( nanos_ws_desc_t *wsd, nanos_ws_item_t *wsi ) );
@@ -190,10 +192,6 @@ NANOS_API_DECL(nanos_err_t, nanos_copy_value, ( void *dst, nanos_copy_id_t copy_
 NANOS_API_DECL(const char *, nanos_get_default_architecture, ());
 NANOS_API_DECL(const char *, nanos_get_pm, ());
 NANOS_API_DECL(nanos_err_t, nanos_get_default_binding, ( bool *res ));
-
-NANOS_API_DECL(nanos_err_t, nanos_get_mask, ( cpu_set_t *cpu_set ));
-NANOS_API_DECL(nanos_err_t, nanos_set_mask, ( cpu_set_t *cpu_set ));
-NANOS_API_DECL(nanos_err_t, nanos_add_mask, ( cpu_set_t *cpu_set ));
 
 NANOS_API_DECL(nanos_err_t, nanos_delay_start, ());
 NANOS_API_DECL(nanos_err_t, nanos_start, ());

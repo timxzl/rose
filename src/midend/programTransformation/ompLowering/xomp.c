@@ -306,6 +306,7 @@ void XOMP_parallel_start_for_NANOX( void )
 void XOMP_parallel_for_NANOX (void (*func) (void*), void* data, unsigned ifClauseValue, unsigned numThreadsSpecified,
                               long data_size, long (*get_data_align) (void), void* (*get_empty_data)(void), void (*init_func) (void*, void*))
 {
+    printf("XOMP parallel for NANOS\n");
   unsigned numThreads = 0;
   if (!ifClauseValue)
     numThreads = 1;

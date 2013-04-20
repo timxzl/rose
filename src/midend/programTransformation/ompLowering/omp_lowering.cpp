@@ -45,7 +45,6 @@ static void convertAndFilter (const SgInitializedNamePtrList input, ASTtools::Va
     }
   }
 
-
   
 namespace OmpSupport
 {
@@ -703,6 +702,165 @@ static void insert_libxompf_h(SgNode* startNode)
   } 
 }
 
+   //TODO move to sageInterface advanced transformation ???
+   //! Generate element-by-element assignment from a right-hand array to left_hand array variable. 
+   //
+   //e.g.  for int a[M][N], b[M][N],  a=b is implemented as follows:
+   //
+   //  int element_count = ...;
+   //  int *a_ap = (int *)a;
+   //  int *b_ap = (int *)b;
+   //  int i;
+   //  for (i=0;i<element_count; i++) 
+   //    *(b_ap+i) = *(a_ap+i);
+   //
+   // Sara Royuela Apr 17, 2013: We must do a deep copy here, and need to take into acount Typedef types
+    //  int n_elems_dim_1 = ...;
+    //  int n_elems_dim_2 = ...;
+   //  int ** a_ap = (int **)a;
+   //  int ** b_ap = (int **)b;
+   //  int i, j;
+   //  for (i=0;i<element_count; i++) 
+   //    for (j=0;j<element_count; j++)
+   //      b_ap[i][j] = a_ap[i][j];
+    static void generateInitializingLoop( SgScopeStatement * scope, SgExpression * lhs, SgExpression * rhs )
+{
+        // Parameter validation
+                // Get LHS real type
+    SgType * lhs_type = lhs->get_type( );
+    while( isSgTypedefType( lhs_type ) )
+    {
+        lhs_type = isSgTypedefType( lhs_type )->get_base_type( );
+    }
+    SgArrayType* lhs_array_type = isSgArrayType( lhs_type );
+                // Get RHS real type
+    SgType * rhs_type = rhs->get_type( );
+    while( isSgTypedefType( rhs_type ) )
+    {
+        rhs_type = isSgTypedefType( rhs_type )->get_base_type( );
+    }
+    SgArrayType* rhs_array_type = isSgArrayType( rhs_type );
+      
+    if( lhs_array_type == NULL && rhs_array_type == NULL )
+    {   // Element type of the very last dimension
+        ROSE_ASSERT( lhs_type == rhs_type );
+        
+        SgStatement* assign_stmt = buildAssignStatement( lhs, rhs );
+        appendStatement( assign_stmt, scope );
+    }
+    else
+    {   // Iterating over the dimensions
+        ROSE_ASSERT( lhs_array_type );
+        ROSE_ASSERT( rhs_array_type );
+            
+            // Make sure two array are compatible: same dimension, bounds, and element types, etc.
+        ROSE_ASSERT( getElementType( lhs_array_type ) == getElementType( rhs_array_type ) );
+        int dim_count = getDimensionCount( lhs_array_type );
+        ROSE_ASSERT( dim_count == getDimensionCount( rhs_array_type ) );
+        int element_count = getArrayElementCount( lhs_array_type ); 
+        ROSE_ASSERT( element_count == ( int ) getArrayElementCount( rhs_array_type ) );
+        
+            // The iterator
+        std::string index_name = SageInterface::generateUniqueVariableName( scope, "i" );
+        SgVariableDeclaration* decl_i = buildVariableDeclaration( index_name, buildIntType( ), /*init*/ NULL, scope );
+        appendStatement( decl_i, scope );
+
+            // The actual loop: for (i=0;i<element_count; i++) 
+        SgStatement* init_stmt = buildAssignStatement( buildVarRefExp( decl_i ), buildIntVal( 0 ) );
+        SgStatement* test_stmt = buildExprStatement( buildLessThanOp( buildVarRefExp( decl_i ), buildIntVal( element_count ) ) );
+        SgExpression* incr_exp = buildPlusPlusOp( buildVarRefExp( decl_i ), SgUnaryOp::postfix );
+        SgScopeStatement* loop_body = buildBasicBlock( );
+        generateInitializingLoop( loop_body, 
+                                  buildPntrArrRefExp( lhs, buildVarRefExp( index_name, scope ) ), 
+                                  buildPntrArrRefExp( rhs, buildVarRefExp( index_name, scope ) ) );
+        
+        SgForStatement* for_stmt = buildForStatement( init_stmt, test_stmt, incr_exp, loop_body );
+        appendStatement( for_stmt, scope );
+    }
+}
+   
+static SgBasicBlock* generateArrayAssignmentStatements
+       ( SgInitializedName* left_operand, SgInitializedName* right_operand/*, SgScopeStatement* scope*/ )
+{
+     // parameter validation
+//     ROSE_ASSERT( scope != NULL ); // enforce top-down AST construction here for simplicity
+    ROSE_ASSERT( left_operand != NULL );
+    ROSE_ASSERT( right_operand != NULL );
+
+      // Build the actual loop that initializes the array positions
+    SgBasicBlock* bb = buildBasicBlock();
+    generateInitializingLoop( bb, buildVarRefExp( left_operand ), buildVarRefExp( right_operand ) );
+      
+#if 0
+      SgType* left_type = left_operand->get_type();
+      SgType* right_type = right_operand->get_type();
+      SgArrayType* left_array_type = isSgArrayType(left_type);
+      SgArrayType* right_array_type = isSgArrayType(right_type);
+      ROSE_ASSERT (left_array_type != NULL);
+      ROSE_ASSERT (right_array_type != NULL);
+      
+      // make sure two array are compatible: same dimension, bounds, and element types, etc.
+      ROSE_ASSERT (getElementType(left_array_type) == getElementType(right_array_type));
+      int dim_count = getDimensionCount(left_array_type);
+      ROSE_ASSERT (dim_count == getDimensionCount(right_array_type));
+      int element_count = getArrayElementCount (left_array_type); 
+      ROSE_ASSERT (element_count == (int) getArrayElementCount (right_array_type));
+
+      SgBasicBlock* bb = buildBasicBlock();
+       // front_stmt_list.push_back() will handle this later on.
+       // Keep this will cause duplicated appendStatement()
+      // appendStatement(bb, scope);
+     
+         // int *a_ap = (int*) a;
+      string right_name = right_operand->get_name().getString(); 
+      string right_name_p = right_name+"_ap"; // array pointer (ap)
+      SgType* elementPointerType = buildPointerType( getElementType(left_array_type) );
+      SgAssignInitializer * initor = buildAssignInitializer
+             (buildCastExp(buildVarRefExp(right_operand,scope),elementPointerType),elementPointerType);
+      SgVariableDeclaration* decl_right = buildVariableDeclaration (right_name_p, elementPointerType, initor, bb );
+     appendStatement(decl_right, bb);
+      
+      // int *b_ap = (int*) b;
+      string left_name = left_operand->get_name().getString(); 
+      string left_name_p = left_name+"_ap";
+      SgAssignInitializer * initor2 = buildAssignInitializer
+             (buildCastExp(buildVarRefExp(left_operand,scope),elementPointerType),elementPointerType);
+      SgVariableDeclaration* decl_left = buildVariableDeclaration (left_name_p, elementPointerType, initor2, bb );
+     appendStatement(decl_left, bb);
+   
+     // int i;
+     SgVariableDeclaration* decl_i = buildVariableDeclaration("_p_i", buildIntType(), NULL, bb);
+     appendStatement(decl_i, bb);
+
+   //  for (i=0;i<element_count; i++) 
+   //    *(b_ap+i) = *(a_ap+i);
+    SgStatement* init_stmt = buildAssignStatement(buildVarRefExp(decl_i), buildIntVal(0));
+    SgStatement* test_stmt = buildExprStatement(buildLessThanOp(buildVarRefExp(decl_i),buildIntVal(element_count)));
+    SgExpression* incr_exp = buildPlusPlusOp(buildVarRefExp(decl_i),SgUnaryOp::postfix);
+    SgStatement* loop_body = buildAssignStatement(
+         buildPointerDerefExp(buildAddOp(buildVarRefExp(decl_left),buildVarRefExp(decl_i))),
+         buildPointerDerefExp(buildAddOp(buildVarRefExp(decl_right),buildVarRefExp(decl_i)))
+          );
+    SgForStatement* for_stmt = buildForStatement(init_stmt, test_stmt, incr_exp, loop_body);
+     appendStatement(for_stmt, bb);
+#endif
+
+     return bb;
+}
+
+static SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_operand, SgExpression* right_operand )
+{
+     // parameter validation
+    ROSE_ASSERT( left_operand != NULL );
+    ROSE_ASSERT( right_operand != NULL );
+
+      // Build the actual loop that initializes the array positions
+    SgBasicBlock* bb = buildBasicBlock();
+    generateInitializingLoop( bb, left_operand, right_operand );
+    
+    return bb;
+}
+
 #ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
 
 SgExpression* build_nanox_get_empty_struct( SgStatement* ancestor, SgScopeStatement* expr_sc, 
@@ -822,7 +980,8 @@ SgExpression* build_nanox_init_arguments_struct_function( SgStatement* ancestor,
         SgExpression* rhs = buildArrowExp( init_st_expr, member_expr );
           
         // Add the expression to the function body
-        SgExprStatement * init_member = buildAssignStatement( lhs, rhs );
+//         SgStatement * init_member = buildAssignStatement( lhs, rhs );
+        SgBasicBlock * init_member = generateArrayAssignmentStatements( lhs, rhs );
         appendStatement( init_member, func_body );
       }
     }
@@ -4525,81 +4684,6 @@ static void insertInnerThreadBlockReduction(SgOmpClause::omp_reduction_operator_
   SgStatement* func_call_stmt = buildFunctionCallStmt("xomp_inner_block_reduction_"+type_str, buildVoidType(),parameter_list ,bb1);
   end_stmt_list.push_back(func_call_stmt);
 }
-   //TODO move to sageInterface advanced transformation ???
-   //! Generate element-by-element assignment from a right-hand array to left_hand array variable. 
-   //
-   //e.g.  for int a[M][N], b[M][N],  a=b is implemented as follows:
-   //
-   //  int element_count = ...;
-   //  int *a_ap = (int *)a;
-   //  int *b_ap = (int *)b;
-   //  int i;
-   //  for (i=0;i<element_count; i++) 
-   //    *(b_ap+i) = *(a_ap+i);
-   //
-   static  SgBasicBlock* generateArrayAssignmentStatements
-   (SgInitializedName* left_operand, SgInitializedName* right_operand, SgScopeStatement* scope)
-   {
-       std::cerr << "generateArrayAssignmentStatements for " << left_operand->unparseToString() << std::endl;
-     // parameter validation
-      ROSE_ASSERT(scope != NULL); // enforce top-down AST construction here for simplicity
-      ROSE_ASSERT (left_operand != NULL);
-      ROSE_ASSERT (right_operand != NULL);
-
-      SgType* left_type = left_operand->get_type();
-      SgType* right_type = right_operand->get_type();
-      SgArrayType* left_array_type = isSgArrayType(left_type);
-      SgArrayType* right_array_type = isSgArrayType(right_type);
-
-      ROSE_ASSERT (left_array_type != NULL);
-      ROSE_ASSERT (right_array_type != NULL);
-      // make sure two array are compatible: same dimension, bounds, and element types, etc.
-      ROSE_ASSERT (getElementType(left_array_type) == getElementType(right_array_type));
-      int dim_count = getDimensionCount(left_array_type);
-      ROSE_ASSERT (dim_count == getDimensionCount(right_array_type));
-      int element_count = getArrayElementCount (left_array_type); 
-      ROSE_ASSERT (element_count == (int) getArrayElementCount (right_array_type));
-
-     SgBasicBlock* bb = buildBasicBlock();
-       // front_stmt_list.push_back() will handle this later on.
-       // Keep this will cause duplicated appendStatement()
-      // appendStatement(bb, scope);
-     
-         // int *a_ap = (int*) a;
-      string right_name = right_operand->get_name().getString(); 
-      string right_name_p = right_name+"_ap"; // array pointer (ap)
-      SgType* elementPointerType = buildPointerType(buildIntType());
-      SgAssignInitializer * initor = buildAssignInitializer
-             (buildCastExp(buildVarRefExp(right_operand,scope),elementPointerType),elementPointerType);
-      SgVariableDeclaration* decl_right = buildVariableDeclaration (right_name_p, elementPointerType, initor, bb );
-     appendStatement(decl_right, bb);
-      
-      // int *b_ap = (int*) b;
-      string left_name = left_operand->get_name().getString(); 
-      string left_name_p = left_name+"_ap";
-      SgAssignInitializer * initor2 = buildAssignInitializer
-             (buildCastExp(buildVarRefExp(left_operand,scope),elementPointerType),elementPointerType);
-      SgVariableDeclaration* decl_left = buildVariableDeclaration (left_name_p, elementPointerType, initor2, bb );
-     appendStatement(decl_left, bb);
-   
-     // int i;
-     SgVariableDeclaration* decl_i = buildVariableDeclaration("_p_i", buildIntType(), NULL, bb);
-     appendStatement(decl_i, bb);
-
-   //  for (i=0;i<element_count; i++) 
-   //    *(b_ap+i) = *(a_ap+i);
-    SgStatement* init_stmt = buildAssignStatement(buildVarRefExp(decl_i), buildIntVal(0));
-    SgStatement* test_stmt = buildExprStatement(buildLessThanOp(buildVarRefExp(decl_i),buildIntVal(element_count)));
-    SgExpression* incr_exp = buildPlusPlusOp(buildVarRefExp(decl_i),SgUnaryOp::postfix);
-    SgStatement* loop_body = buildAssignStatement(
-         buildPointerDerefExp(buildAddOp(buildVarRefExp(decl_left),buildVarRefExp(decl_i))),
-         buildPointerDerefExp(buildAddOp(buildVarRefExp(decl_right),buildVarRefExp(decl_i)))
-          );
-    SgForStatement* for_stmt = buildForStatement(init_stmt, test_stmt, incr_exp, loop_body);
-     appendStatement(for_stmt, bb);
-
-     return bb;
-   }
 
   //SgBasicBlock * getEnclosingRegionOrFuncDefinition(SgBasicBlock *orig_scope)
   SgBasicBlock * getEnclosingRegionOrFuncDefinition(SgNode *orig_scope)
@@ -4829,13 +4913,9 @@ static void insertInnerThreadBlockReduction(SgOmpClause::omp_reduction_operator_
       {
         // SgExprStatement* init_stmt = buildAssignStatement(buildVarRefExp(local_decl), buildVarRefExp(orig_var, bb1));
         SgInitializedName* leftArray = getFirstInitializedName(local_decl); 
-        SgBasicBlock* arrayAssign = generateArrayAssignmentStatements (leftArray, orig_var, bb1); 
+        SgBasicBlock* arrayAssign = generateArrayAssignmentStatements (leftArray, orig_var/*, bb1*/); 
         front_stmt_list.push_back(arrayAssign);   
       } 
-      else
-      {
-          std::cerr << " Do no match: " << orig_var->unparseToString( ) << std::endl;
-      }
 #endif    
       if (isReductionVar) // create initial value assignment for the local reduction variable
       {
