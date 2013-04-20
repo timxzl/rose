@@ -1021,12 +1021,7 @@ variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to t
       local_var_decl  = 
         createUnpackDecl (p_init_name, counter, isPointerDeref, i_name , struct_decl, body);
       ROSE_ASSERT (local_var_decl);
-      prependStatement (local_var_decl, body);
-              
-//               SgInitializedName* leftArray = getFirstInitializedName(local_decl); 
-//       SgBasicBlock* arrayAssign = generateArrayAssignmentStatements (leftArray, orig_var, bb1); 
-//       front_stmt_list.push_back(arrayAssign);  
-      
+      prependStatement (local_var_decl,body);
       // regular and shared variables used the first local declaration
       recordSymRemap (*i, local_var_decl, args_scope, sym_remap);
       // transfer the value for firstprivate variables. 

@@ -11,8 +11,6 @@ extern SgClassDefinition *ObjectClassDefinition;
 extern vector<SgClassDefinition *> importedPackages;
 extern vector<SgClassType *> importedTypes;
 
-extern int initializerCount;
-
 // This is used for both Fortran and Java support to point to the current SgSourceFile.
 extern SgSourceFile *OpenFortranParser_globalFilePointer;
 

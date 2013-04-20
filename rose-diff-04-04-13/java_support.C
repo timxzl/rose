@@ -697,6 +697,7 @@ SgClassDeclaration *buildDefiningClassDeclaration(SgName class_name, SgScopeStat
      return declaration;
 }
 
+
 SgClassDefinition *findOrInsertPackage(const SgName &original_package_name, const SgName &converted_package_name, JNIEnv *env, jobject loc) {
     SgClassSymbol *namespace_symbol = ::globalScope -> lookup_class_symbol(converted_package_name);
     SgClassDeclaration *declaration;
@@ -1149,6 +1150,7 @@ SgJavaLabelSymbol *lookupLabelByName(const SgName &name) {
 }
 
 
+
 SgClassSymbol *lookupTypeSymbol(SgName &type_name) {
     SgClassSymbol *class_symbol = NULL;
 
@@ -1368,5 +1370,5 @@ SgScopeStatement *get_scope_from_symbol(SgSymbol *symbol) {
 
     ROSE_ASSERT(currentScope != NULL);
 
-    return NULL;
+    return currentScope;
 }

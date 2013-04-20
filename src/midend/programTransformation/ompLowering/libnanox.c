@@ -141,9 +141,9 @@ void NANOX_parallel( void (*func) (void *), void *data, unsigned numThreads, lon
 
 static int task_id = 0;
 
-void NANOX_task(void (*func) (void *), void *data,
-                long data_size, long (*get_data_align) (void), bool if_clause, unsigned untied, 
-                void* empty_data, void (*init_func) (void *, void *))
+void NANOX_task( void (*func) (void *), void *data,
+                 long data_size, long (*get_data_align) (void), bool if_clause, unsigned untied, 
+                 void* empty_data, void (*init_func) (void *, void *) )
 {
     nanos_err_t err;
     

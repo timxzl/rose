@@ -160,6 +160,7 @@ extern void XOMP_ordered_end (void);
 
 // the max number of threads per thread block of the first available device
 size_t xomp_get_maxThreadsPerBlock(void);
+size_t xomp_get_maxThreadsPerBlock();
 
 //get the max number of 1D blocks for a given input length
 size_t xomp_get_max1DBlock(size_t ss);
@@ -172,6 +173,7 @@ size_t xomp_get_max1DBlock(size_t ss);
 //    y <= maxThreadsDim[1], 1024 
 //  maxThreadsDim[0] happens to be equal to  maxThreadsDim[1] so we use a single function to calculate max segments for both dimensions
 size_t xomp_get_max_threads_per_dimesion_2D (void);
+size_t xomp_get_max_threads_per_dimesion_2D ();
 
 // return the max number of segments for a dimension (either x or y) of a 2D block
 size_t xomp_get_maxSegmentsPerDimensionOf2DBlock(size_t dimension_size);
@@ -194,6 +196,7 @@ void* xomp_hostMalloc(size_t size);
 
 //get the time stamp for now, up to microsecond resolution: 1e-6 , but maybe 1e-4 in practice
 double xomp_time_stamp(void);
+double xomp_time_stamp();
 
 
 // memory copy from src to dest, return the pointer to dest. NULL pointer if anything is wrong 
@@ -259,15 +262,15 @@ void xomp_freeArrayPointer (void* array, int * dimensions, size_t dimension_num)
 #if 0
 // No linker support for device code. We have to put implementation of these device functions into the header
 // TODO: wait until nvcc supports linker for device code.
-#define XOMP_INNER_BLOCK_REDUCTION_DECL(dtype) \
-__device__ void xomp_inner_block_reduction_##dtype(dtype local_value, dtype * grid_level_results, int reduction_op);
-
+//#define XOMP_INNER_BLOCK_REDUCTION_DECL(dtype) \
+//__device__ void xomp_inner_block_reduction_##dtype(dtype local_value, dtype * grid_level_results, int reduction_op);
+//
 ///*TODO declare more prototypes */
-XOMP_INNER_BLOCK_REDUCTION_DECL(int)
-XOMP_INNER_BLOCK_REDUCTION_DECL(float)
-XOMP_INNER_BLOCK_REDUCTION_DECL(double)
-
-#undef XOMP_INNER_BLOCK_REDUCTION_DECL
+//XOMP_INNER_BLOCK_REDUCTION_DECL(int)
+//XOMP_INNER_BLOCK_REDUCTION_DECL(float)
+//XOMP_INNER_BLOCK_REDUCTION_DECL(double)
+//
+//#undef XOMP_INNER_BLOCK_REDUCTION_DECL
 
 #endif
 

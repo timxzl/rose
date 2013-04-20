@@ -270,7 +270,7 @@ void gatherReferences( const Rose_STL_Container< SgNode* >& expr, Rose_STL_Conta
     SageInterface::insertHeader("libnanox.h",PreprocessingInfo::before,false,globalscope);
     if (enable_accelerator)  // include inlined CUDA device codes
       SageInterface::insertHeader("xomp_cuda_lib_inlined.cu",PreprocessingInfo::after,false,globalscope);
-#else
+#else    
     if (rtl_type == e_omni)
       SageInterface::insertHeader("ompcLib.h",PreprocessingInfo::after,false,globalscope);
     else if (rtl_type == e_gomp)
@@ -1660,7 +1660,7 @@ SgFunctionDeclaration* generateOutlinedSection( SgNode* section_node, SgNode* se
     }
     else
     {
-      //void XOMP_loop_default(int lower, int upper, int stride, long *n_lower, long * n_upper)
+     //void XOMP_loop_default(int lower, int upper, int stride, long *n_lower, long * n_upper)
       // XOMP_loop_default (lower, upper, stride, &_p_lower, &_p_upper );
       // lower:  copyExpression(orig_lower)
       // upper: copyExpression(orig_upper)
@@ -2559,6 +2559,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
       SageInterface::replaceStatement(target, s1 , true);
 #endif      // USE_ROSE_NANOX_OPENMP_LIBRARY
     
+    
 #else
    ROSE_ASSERT (false); //This portion of code should never be used anymore. Kept for reference only.
 //    SgExprStatement * s1 = buildFunctionCallStmt("GOMP_parallel_start", buildVoidType(), parameters, p_scope); 
@@ -3287,140 +3288,8 @@ std::map <SgVariableSymbol *, bool> collectVariableAppearance (SgNode* root)
       }
     }
 
-    string func_name = Outliner::generateFuncName(target);
-    SgGlobal* g_scope = SageInterface::getGlobalScope(body_block);
-    ROSE_ASSERT(g_scope != NULL);
-
-    std::set< SgInitializedName *> restoreVars;
-    SgFunctionDeclaration* result = Outliner::generateFunction(body_block, func_name, all_syms, addressOf_syms, restoreVars, NULL, g_scope);
-    result->get_functionModifier().setCudaKernel(); // add __global__ modifier
-     // This one is not desired. It inserts the function to the end and prepend a prototype
-    // Outliner::insert(result, g_scope, body_block); 
-    // TODO: better interface to specify where exactly to insert the function!
-    //Custom insertion:  insert right before the enclosing function of "omp target"
-    SgFunctionDeclaration* target_func = const_cast<SgFunctionDeclaration *>
-       (SageInterface::getEnclosingFunctionDeclaration (target));
-     ROSE_ASSERT(target_func!= NULL);
-    insertStatementBefore (target_func, result);
-    // TODO: this really should be done within Outliner::generateFunction()
-    // TODO: we have to patch up first nondefining function declaration since custom insertion is used
-    SgGlobal* glob_scope = getGlobalScope(target);
-    ROSE_ASSERT (glob_scope!= NULL);
-    SgFunctionSymbol * func_symbol = glob_scope->lookup_function_symbol(result->get_name());
-    ROSE_ASSERT (func_symbol != NULL);
-    //SgFunctionDeclaration * proto_decl = func_symbol->get_declaration();
-    //ROSE_ASSERT (proto_decl != NULL);
-    //ROSE_ASSERT (proto_decl != result );
-    //result->set_firstNondefiningDeclaration(proto_decl);
-
-
-#if 0 // it turns out we don't need satic keyword for CUDA kernel
-    if (result->get_definingDeclaration() != NULL)
-      SageInterface::setStatic(result->get_definingDeclaration());
-    if (result->get_firstNondefiningDeclaration() != NULL)
-      SageInterface::setStatic(result->get_firstNondefiningDeclaration());
-#endif 
-
-    //SgScopeStatement * p_scope = target_directive_stmt ->get_scope(); // the scope of "omp parallel" will be destroyed later, so we use scope of "omp target"
-    SgScopeStatement * p_scope = omp_target_stmt_body_block ; // the scope of "omp parallel" will be destroyed later, so we use scope of "omp target"
-    ROSE_ASSERT(p_scope != NULL);
-   // insert dim3 threadsPerBlock(xomp_get_maxThreadsPerBlock()); 
-   // TODO: for 1-D mapping, int type is enough,  //TODO: a better interface accepting expression as initializer!!
-    SgVariableDeclaration* threads_per_block_decl = buildVariableDeclaration ("_threads_per_block_", buildIntType(), 
-                  buildAssignInitializer(buildFunctionCallExp("xomp_get_maxThreadsPerBlock",buildIntType(), NULL, p_scope)), 
-                  p_scope);
-    //insertStatementBefore (target_directive_stmt, threads_per_block_decl);
-    insertStatementBefore (target, threads_per_block_decl);
-    attachComment(threads_per_block_decl, string("Launch CUDA kernel ..."));
-
-    // dim3 numBlocks (xomp_get_max1DBlock(VEC_LEN));
-    // TODO: handle 2-D or 3-D using dim type
-    ROSE_ASSERT (cuda_loop_iter_count_1 != NULL);
-    SgVariableDeclaration* num_blocks_decl = buildVariableDeclaration ("_num_blocks_", buildIntType(), 
-                  buildAssignInitializer(buildFunctionCallExp("xomp_get_max1DBlock",buildIntType(), buildExprListExp(cuda_loop_iter_count_1), p_scope)),
-                  p_scope);
-    //insertStatementBefore (target_directive_stmt, num_blocks_decl);
-    insertStatementBefore (target, num_blocks_decl);
-
-    // Now we have num_block declaration, we can insert the per block declaration used for reduction variables
-    SgExpression* shared_data = NULL; // shared data size expression for CUDA kernel execution configuration
-    for (std::vector<SgVariableDeclaration*>::iterator iter = per_block_declarations.begin(); iter != per_block_declarations.end(); iter++)
-    {
-       SgVariableDeclaration* decl = *iter;
-       insertStatementAfter (num_blocks_decl, decl);
-       SgVariableSymbol* sym = getFirstVarSym (decl);
-       SgPointerType * pointer_type = isSgPointerType(sym->get_type());
-       ROSE_ASSERT (pointer_type != NULL);
-       SgType* base_type = pointer_type->get_base_type();
-       if (per_block_declarations.size()>1)
-       {
-        cerr<<"Error. multiple reduction variables are not yet handled."<<endl;
-         ROSE_ASSERT (false);
-         // threadsPerBlock.x*sizeof(REAL)  //TODO: how to handle multiple shared data blocks, each for a reduction variable??   
-       }
-       shared_data = buildMultiplyOp (buildVarRefExp(threads_per_block_decl), buildSizeOfOp (base_type) );
-    }
-    // generate the cuda kernel launch statement
-    //e.g.  axpy_ompacc_cuda <<<numBlocks, threadsPerBlock>>>(dev_x,  dev_y, VEC_LEN, a);
-   
-    //func_symbol = isSgFunctionSymbol(result->get_firstNondefiningDeclaration()->get_symbol_from_symbol_table ());
-    ROSE_ASSERT (func_symbol != NULL);
-    SgExprListExp* exp_list_exp = SageBuilder::buildExprListExp();
-
-    std::set<SgInitializedName*>  varsUsingOriginalForm; 
-    for (ASTtools::VarSymSet_t::const_iterator iter = all_syms.begin(); iter != all_syms.end(); iter ++)
-    {
-      const SgVariableSymbol * current_symbol = *iter;
-      if (addressOf_syms.find(current_symbol) == addressOf_syms.end()) // not found in Address Of variable set
-        varsUsingOriginalForm.insert (current_symbol->get_declaration());
-    }
-    // TODO: alternative mirror form using varUsingAddress as parameter
-    Outliner::appendIndividualFunctionCallArgs (all_syms, varsUsingOriginalForm, exp_list_exp);
-    // TODO: builder interface without _nfi, and match function call exp builder interface convention: 
-
-    SgCudaKernelExecConfig * cuda_exe_conf = buildCudaKernelExecConfig_nfi (buildVarRefExp(num_blocks_decl), buildVarRefExp(threads_per_block_decl), shared_data, NULL);
-    setOneSourcePositionForTransformation (cuda_exe_conf);
-    // SgExpression* is not clear, change to SgFunctionRefExp at least!!
-    SgExprStatement* cuda_call_stmt = buildExprStatement(buildCudaKernelCallExp_nfi (buildFunctionRefExp(result), exp_list_exp, cuda_exe_conf) );
-    setSourcePositionForTransformation (cuda_call_stmt);
-    //insertStatementBefore (target_directive_stmt, cuda_call_stmt);
-    insertStatementBefore (target, cuda_call_stmt);
-
-   // insert the beyond block level reduction statement
-   // error = xomp_beyond_block_reduction_float (per_block_results, numBlocks.x, XOMP_REDUCTION_PLUS);
-    for (ASTtools::VarSymSet_t::const_iterator iter = per_block_reduction_syms.begin(); iter != per_block_reduction_syms.end(); iter ++)
-    {
-      const SgVariableSymbol * current_symbol = *iter;
-      SgPointerType* pointer_type = isSgPointerType(current_symbol->get_type());// must be a pointer to simple type
-      ROSE_ASSERT (pointer_type != NULL);
-      SgType * orig_type = pointer_type->get_base_type();
-      ROSE_ASSERT (orig_type != NULL);
-
-      string per_block_var_name = (current_symbol->get_name()).getString();
-      // get the original var name by stripping of the leading "_dev_per_block_"
-      string leading_pattern = string("_dev_per_block_");
-      string orig_var_name = per_block_var_name.substr(leading_pattern.length(), per_block_var_name.length() - leading_pattern.length());
-//      cout<<"debug: "<<per_block_var_name <<" after "<< orig_var_name <<endl;
-      SgExprListExp * parameter_list = buildExprListExp (buildVarRefExp(const_cast<SgVariableSymbol*>(current_symbol)), buildVarRefExp("_num_blocks_",target_directive_stmt->get_scope()), buildIntVal(per_block_reduction_map[const_cast<SgVariableSymbol*>(current_symbol)]) );
-      SgFunctionCallExp* func_call_exp = buildFunctionCallExp ("xomp_beyond_block_reduction_"+ orig_type->unparseToString(), buildVoidType(), parameter_list, target_directive_stmt->get_scope()); 
-     //insertStatementBefore (target_directive_stmt, buildExprStatement(func_call_exp));
-      SgStatement* assign_stmt = buildAssignStatement (buildVarRefExp(orig_var_name, omp_target_stmt_body_block )  ,func_call_exp);
-     ROSE_ASSERT (target->get_scope () == target_directive_stmt->get_body()); // there is a block in between 
-     ROSE_ASSERT (omp_target_stmt_body_block  == target_directive_stmt->get_body()); // just to make sure
-     //insertStatementBefore (target_directive_stmt, buildExprStatement(func_call_exp2));
-     insertStatementBefore (target, assign_stmt );
-
-     // insert memory free for the _dev_per_block_variables
-     // TODO: need runtime support to automatically free memory 
-      SgFunctionCallExp* func_call_exp2 = buildFunctionCallExp ("xomp_freeDevice", buildVoidType(), buildExprListExp(buildVarRefExp(const_cast<SgVariableSymbol*>(current_symbol))),  omp_target_stmt_body_block);
-     //insertStatementBefore (target_directive_stmt, buildExprStatement(func_call_exp2));
-     insertStatementBefore (target, buildExprStatement(func_call_exp2));
-    }
-
-    //------------now remove omp parallel since everything within it has been outlined to a function
-    removeStatement (target);
+   // SageInterface::deepDelete(target);
   }
-
 
   /*
    * Expected AST layout: 
@@ -4826,7 +4695,7 @@ static void insertInnerThreadBlockReduction(SgOmpClause::omp_reduction_operator_
     //    We have no concept of firstprivate or lastprivate
     //    reduction is implemented using a two-level reduction algorithm
     void transOmpVariables(SgStatement* ompStmt, SgBasicBlock* bb1, SgExpression * orig_loop_upper/*= NULL*/, bool isAcceleratorModel /*= false*/)
-    { 
+    {
       ROSE_ASSERT( ompStmt != NULL);
       ROSE_ASSERT( bb1 != NULL);
       SgOmpClauseBodyStatement* clause_stmt = isSgOmpClauseBodyStatement(ompStmt);
