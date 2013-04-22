@@ -70,6 +70,7 @@ TERMITE_TESTS = \
     regression/base/typedefs.cxx \
     regression/base/verysmall.c \
     regression/base/virtual.cxx \
+    regression/base/unprintable.c \
     regression/base/while_call1.c \
     regression/mrtc/success/adpcm.c \
     regression/mrtc/success/bs.c \
@@ -231,11 +232,13 @@ regression/c_driver.sh: Makefile
 	@echo '$(TERM2SRC) $${NAME}-1.term -o $${NAME}-2.c || exit 2' >> $@
 	@echo '$(SRC2TERM) --stl-engine -I$$include $${NAME}-2.c -o $${NAME}-3.term || exit 3' >> $@
 	@echo '$(TERM2SRC) --stl-engine  $${NAME}-3.term -o $${NAME}-4.c || exit 4' >>$@
-	@echo '$(SRC2TERM) --stratego -I$$include $${NAME}-4.c -o $${NAME}-5.term || exit 5' >> $@
-	@echo '$(TERM2SRC) --stratego  $${NAME}-5.term -o $${NAME}-6.c || exit 6' >>$@
+	@echo '$(SRC2TERM) --stratego   -I$$include $${NAME}-4.c -o $${NAME}-5.term || exit 5' >> $@
+	@echo '$(TERM2SRC) --stratego    $${NAME}-5.term -o $${NAME}-6.c || exit 6' >>$@
+	@echo '$(SRC2TERM) --aterm      -I$$include $${NAME}-6.c -o $${NAME}-7.term || exit 7' >> $@
+	@echo '$(TERM2SRC) --aterm       $${NAME}-7.term -o $${NAME}-8.c || exit 8' >>$@
 if ROSE_HAVE_SWI_PROLOG
-	@echo '$(TERMLINT) $${NAME}-1.term || exit 7' >> $@
-	@echo '$(TERMLINT) $${NAME}-3.term || exit 8' >> $@
+	@echo '$(TERMLINT) $${NAME}-1.term || exit 9' >> $@
+	@echo '$(TERMLINT) $${NAME}-3.term || exit 10' >> $@
 endif
 
 regression/cxx_driver.sh: Makefile
@@ -252,11 +255,13 @@ regression/cxx_driver.sh: Makefile
 	@echo '$(TERM2SRC) $${NAME}-1.term -o $${NAME}-2.cxx || exit 2' >> $@
 	@echo '$(SRC2TERM) --stl-engine -I$$include $${NAME}-2.cxx -o $${NAME}-3.term || exit 3' >> $@
 	@echo '$(TERM2SRC) --stl-engine  $${NAME}-3.term -o $${NAME}-4.cxx || exit 4' >>$@
-	@echo '$(SRC2TERM) --stratego -I$$include $${NAME}-4.cxx -o $${NAME}-5.term || exit 5' >> $@
-	@echo '$(TERM2SRC) --stratego  $${NAME}-5.term -o $${NAME}-6.cxx || exit 6' >>$@
+	@echo '$(SRC2TERM) --stratego   -I$$include $${NAME}-4.cxx -o $${NAME}-5.term || exit 5' >> $@
+	@echo '$(TERM2SRC) --stratego    $${NAME}-5.term -o $${NAME}-6.cxx || exit 6' >>$@
+	@echo '$(SRC2TERM) --aterm      -I$$include $${NAME}-6.cxx -o $${NAME}-7.term || exit 7' >> $@
+	@echo '$(TERM2SRC) --aterm       $${NAME}-7.term -o $${NAME}-8.cxx || exit 8' >>$@
 if ROSE_HAVE_SWI_PROLOG
-	@echo '$(TERMLINT) $${NAME}-1.term || exit 7' >> $@
-	@echo '$(TERMLINT) $${NAME}-3.term || exit 8' >> $@
+	@echo '$(TERMLINT) $${NAME}-1.term || exit 9' >> $@
+	@echo '$(TERMLINT) $${NAME}-3.term || exit 10' >> $@
 endif
 
 regression/f90_driver.sh: Makefile
@@ -273,11 +278,13 @@ regression/f90_driver.sh: Makefile
 	@echo '$(TERM2SRC) $${NAME}-1.term -o $${NAME}-2.f90 || exit 2' >> $@
 	@echo '$(SRC2TERM) --stl-engine -I$$include $${NAME}-2.f90 -o $${NAME}-3.term || exit 3' >> $@
 	@echo '$(TERM2SRC) --stl-engine  $${NAME}-3.term -o $${NAME}-4.f90 || exit 4' >>$@
-	@echo '$(SRC2TERM) --stratego -I$$include $${NAME}-4.f90 -o $${NAME}-5.term || exit 5' >> $@
-	@echo '$(TERM2SRC) --stratego  $${NAME}-5.term -o $${NAME}-6.f90 || exit 6' >>$@
+	@echo '$(SRC2TERM) --stratego   -I$$include $${NAME}-4.f90 -o $${NAME}-5.term || exit 5' >> $@
+	@echo '$(TERM2SRC) --stratego    $${NAME}-5.term -o $${NAME}-6.f90 || exit 6' >>$@
+	@echo '$(SRC2TERM) --aterm      -I$$include $${NAME}-6.f90 -o $${NAME}-7.term || exit 7' >> $@
+	@echo '$(TERM2SRC) --aterm       $${NAME}-7.term -o $${NAME}-8.f90 || exit 8' >>$@
 if ROSE_HAVE_SWI_PROLOG
-	@echo '$(TERMLINT) $${NAME}-1.term || exit 7' >> $@
-	@echo '$(TERMLINT) $${NAME}-3.term || exit 8' >> $@
+	@echo '$(TERMLINT) $${NAME}-1.term || exit 9' >> $@
+	@echo '$(TERMLINT) $${NAME}-3.term || exit 10' >> $@
 endif
 
 # disable gfortran-based syntax checking until ROSE can compile with gfortran >= 4.7
@@ -300,9 +307,11 @@ regression/f03_driver.sh: Makefile
 	@echo '$(TERM2SRC) --stl-engine  $${NAME}-3.term -o $${NAME}-4.f03 || exit 4' >>$@
 	@echo '$(SRC2TERM) --stratego $(F03FLAGS) -I$$include $${NAME}-4.f03 -o $${NAME}-5.term || exit 5' >> $@
 	@echo '$(TERM2SRC) --stratego  $${NAME}-5.term -o $${NAME}-6.f03 || exit 6' >>$@
+	@echo '$(SRC2TERM) --aterm    $(F03FLAGS) -I$$include $${NAME}-6.f03 -o $${NAME}-7.term || exit 7' >> $@
+	@echo '$(TERM2SRC) --aterm       $${NAME}-7.term -o $${NAME}-8.f03 || exit 8' >>$@
 if ROSE_HAVE_SWI_PROLOG
-	@echo '$(TERMLINT) $${NAME}-1.term || exit 7' >> $@
-	@echo '$(TERMLINT) $${NAME}-3.term || exit 8' >> $@
+	@echo '$(TERMLINT) $${NAME}-1.term || exit 9' >> $@
+	@echo '$(TERMLINT) $${NAME}-3.term || exit 10' >> $@
 endif
 
 regression/f77_driver.sh: Makefile
@@ -326,7 +335,9 @@ regression/f77_driver.sh: Makefile
 	@echo '$(SRC2TERM) --stratego -I$$include $${NAME}-4.f -o $${NAME}-5.term || exit 5' >> $@
 	@echo '$(TERM2SRC) --stratego  $${NAME}-5.term -o $${NAME}-6.f || exit 6' >>$@
 	@echo 'awk -f $$linewrap $${NAME}-6.f >wrap_$${NAME}-6.f && mv wrap_$${NAME}-6.f $${NAME}-6.f' >> $@
+	@echo '$(SRC2TERM) --aterm      -I$$include $${NAME}-6.f -o $${NAME}-7.term || exit 7' >> $@
+	@echo '$(TERM2SRC) --aterm       $${NAME}-7.term -o $${NAME}-8.f || exit 8' >>$@
 if ROSE_HAVE_SWI_PROLOG
-	@echo '$(TERMLINT) $${NAME}-1.term || exit 7' >> $@
-	@echo '$(TERMLINT) $${NAME}-3.term || exit 8' >> $@
+	@echo '$(TERMLINT) $${NAME}-1.term || exit 9' >> $@
+	@echo '$(TERMLINT) $${NAME}-3.term || exit 10' >> $@
 endif

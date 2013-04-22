@@ -3,6 +3,8 @@
 // These functions are called from demos/MultiWithConversionTpl.h, but I'm splitting them into this file so you guys can find
 // the parts you need to modify.
 
+#include "rose_getline.h"
+
 namespace Robin {
 
 /** Convert a value to the concrete domain.
@@ -44,6 +46,15 @@ convert_to_symbolic(const ValueType<nBits> &value)
     return SYMBOLIC_VALUE<nBits>();
 }
 
+/** Called once when analysis starts. */
+template<class Policy>
+void
+analysis_starting(Policy *policy, rose_addr_t target_va)
+{
+    // Choose an arbitrary concrete value for the initial stack pointer
+    RSIM_SEMANTICS_VTYPE<32> esp(0x80000000); // stack grows down
+    policy->writeRegister("esp", esp);
+}
 
 /** Determines domains in which an x86 instruction executes.
  *
@@ -62,18 +73,35 @@ domains_for_instruction(Policy *policy, SgAsmx86Instruction *insn)
 
     if (true) {
         /* DEBUGGING, but still compile the real stuff [RPM 2012-10-12] */
-        static size_t ncalls = 0;
-        switch (ncalls++ % 3) {
-            case 0: retval = INTERVAL.mask; break;
-            case 1: retval = CONCRETE.mask; break;
-            case 2: retval = SYMBOLIC.mask; break;
+        return SYMBOLIC.mask;
+
+    } else if (true) {
+        // Use a file to determine when to switch from one mode to another.  Each line of the file is an instruction address
+        // followed by white space and an integer. The integer is the mask value returned by this function.  Each time we reach
+        // an instruction whose address is specified by the current line of the file, we consume that line and advance to the
+        // next one.
+        static FILE *f = NULL;
+        if (!f && NULL==(f = fopen("mixed-modes", "r"))) {
+            perror("mixed-modes");
+            assert(!"here");
+            abort();
         }
+        static char *buf = NULL;
+        static size_t bufsz = 0;
+        static rose_addr_t va = 0;
+        static unsigned mask;
+        if (!va && rose_getline(&buf, &bufsz, f) > 0) {
+            char *rest;
+            va = strtoull(buf, &rest, 0);
+            mask = strtol(rest, NULL, 0);
+        }
+        if (insn->get_address()==va)
+            va = 0; // force reading of next file line on next call
+        return mask;
+
     } else {
         // You can enable all policies at once if you like.
         retval = CONCRETE.mask | INTERVAL.mask | SYMBOLIC.mask;
-
-        // You can use the same policies as for the previous instruction.
-        retval = policy->get_active_policies();
 
         // You can turn off the symbolic domain if you think it's getting too complex.
         if (0!=(retval & SYMBOLIC.mask)) {
@@ -83,8 +111,11 @@ domains_for_instruction(Policy *policy, SgAsmx86Instruction *insn)
         }
 
         // You can set the policy based on the kind of x86 instruction.
-        if (x86_int == insn->get_kind())
+        if (x86_int == insn->get_kind()) {
             retval = CONCRETE.mask;
+        } else if (x86InstructionIsConditionalFlagControlTransfer(insn)) {
+            retval = SYMBOLIC.mask;
+        }
 
         // You can hard-code to use a sigle policy, such as when you're debugging
         retval = INTERVAL.mask;
@@ -117,7 +148,56 @@ domains_for_instruction(Policy *policy, SgAsmx86Instruction *insn)
     return retval;
 }
 
+/** Handles certain if-then-else operations.
+ *
+ *  This function is called to obtain the result for all if-then-else RISC operations where the caller determined that the
+ *  condition could be either true and false.  Normally, if the condition is either true or false but not both, the result
+ *  would be either @p a or @p b; this function is to handle the unknown case.  The @p cond is the Boolean condition and is
+ *  defined in the symbolic domain (among others). */
+template<class Policy, template <size_t nBits> class ValueType, size_t nBits>
+ValueType<nBits>
+ite_merge(Policy *policy, const ValueType<1> &cond, const ValueType<nBits> &a, const ValueType<nBits> &b)
+{
+    if (true) {
+        // Here's how you might choose one or the other at random.  We use our own linear congruential generator so we get
+        // reproducible results.
+        static unsigned long long x=0;
+        x = (25214903917ull*x+11) % 0x0000ffffffffffffull;  // 48 bits
+        bool bit = 0 != (x &        0x0000010000000000ull); // arbitrary bit; higher order bits have longer periods
+        std::ostringstream ss;
+        ss <<"Robin: ite_merge: choosing " <<(bit?"first":"second") <<" alternative: " <<(bit?a:b);
+        policy->trace()->mesg("%s", ss.str().c_str());
+        return bit ? a : b;
 
+    } else if (true) {
+        // Here's how you might make the decision from a file.  The file contains lines where each line is either zero or
+        // non-zero to indicate whether the condition should be considered to be false or true, respectively.  Each time we hit
+        // this decision a line is consumed from the file.
+        static FILE *f = NULL;
+        if (!f) {
+            f = fopen("branch-predictions", "r");
+            if (!f) {
+                perror("branch-predictions");
+                assert(!"here");
+                abort();
+            }
+        }
+        static char *buf = NULL;
+        static size_t bufsz = 0;
+        bool take = false;
+        if (rose_getline(&buf, &bufsz, f) > 0)
+            take = strtol(buf, NULL, 0);
+
+        std::ostringstream ss;
+        ss <<"Robin: ite_merge: choosing " <<(take?"first":"second") <<" alternative: " <<(take?a:b);
+        policy->trace()->mesg("%s", ss.str().c_str());
+        return take ? a : b;
+
+    } else {
+        // Here's how you would do the default thing.
+        return policy->Policy::Super::ite(cond, a, b);
+    }
+}
 
 /** Gets called after every x86 instruction.
  *

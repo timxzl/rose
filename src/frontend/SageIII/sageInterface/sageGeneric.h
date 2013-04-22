@@ -1684,10 +1684,6 @@ namespace sg
         Dispatcher::dispatch(rv, assume_sage_type<SgAsmDoubleFloatValueExpression>(*n));
         break;
 
-      case V_SgAsmVectorValueExpression:
-        Dispatcher::dispatch(rv, assume_sage_type<SgAsmVectorValueExpression>(*n));
-        break;
-
       case V_SgAsmValueExpression:
         Dispatcher::dispatch(rv, assume_sage_type<SgAsmValueExpression>(*n));
         break;
@@ -2504,17 +2500,6 @@ namespace sg
         Dispatcher::dispatch(rv, assume_sage_type<SgOmpLastprivateClause>(*n));
         break;
       
-// Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses
-      case V_SgOmpInputClause:
-        Dispatcher::dispatch(rv, assume_sage_type<SgOmpInputClause>(*n));
-        break;              
-      case V_SgOmpOutputClause:
-        Dispatcher::dispatch(rv, assume_sage_type<SgOmpOutputClause>(*n));
-        break;  
-      case V_SgOmpInoutClause:
-        Dispatcher::dispatch(rv, assume_sage_type<SgOmpInoutClause>(*n));
-        break;  
-        
       case V_SgOmpReductionClause:
         Dispatcher::dispatch(rv, assume_sage_type<SgOmpReductionClause>(*n));
         break;

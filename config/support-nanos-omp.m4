@@ -1,6 +1,6 @@
 AC_DEFUN([ROSE_WITH_NANOS_OPENMP_LIBRARY],
 [
-# Check if Nanox OpenMP runtime library is available
+# Check if Nanos OpenMP runtime library is available
 # Begin macro ROSE_WITH_NANOS_OPENMP_LIBRARY.
 # Inclusion of test for NANOS OpenMP Runtime system and its location.
 

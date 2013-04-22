@@ -68,8 +68,11 @@ Grammar::setUpNodes ()
      NEW_TERMINAL_MACRO (OmpCollapseClause, "OmpCollapseClause", "OmpCollapseClauseTag" );
      NEW_TERMINAL_MACRO (OmpIfClause, "OmpIfClause", "OmpIfClauseTag" );
      NEW_TERMINAL_MACRO (OmpNumThreadsClause, "OmpNumThreadsClause", "OmpNumThreadsClauseTag" );
-     NEW_NONTERMINAL_MACRO (OmpExpressionClause, OmpCollapseClause | OmpIfClause | OmpNumThreadsClause
+     NEW_TERMINAL_MACRO (OmpDeviceClause, "OmpDeviceClause", "OmpIfDeviceTag" );
+
+     NEW_NONTERMINAL_MACRO (OmpExpressionClause, OmpCollapseClause | OmpIfClause | OmpNumThreadsClause | OmpDeviceClause
          ,"OmpExpressionClause", "OmpExpressionClauseTag",false );
+
 
      NEW_TERMINAL_MACRO (OmpCopyprivateClause, "OmpCopyprivateClause", "OmpCopyprivateClauseTag" );
      NEW_TERMINAL_MACRO (OmpPrivateClause, "OmpPrivateClause", "OmpPrivateClauseTag" );
@@ -79,14 +82,10 @@ Grammar::setUpNodes ()
      NEW_TERMINAL_MACRO (OmpLastprivateClause, "OmpLastprivateClause", "OmpLastprivateClauseTag" );
      NEW_TERMINAL_MACRO (OmpReductionClause, "OmpReductionClause", "OmpReductionClauseTag" );
 
-     // Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses
-     NEW_TERMINAL_MACRO (OmpInputClause, "OmpInputClause", "OmpInputClauseTag" );
-     NEW_TERMINAL_MACRO (OmpOutputClause, "OmpOutputClause", "OmpOutputClauseTag" );
-     NEW_TERMINAL_MACRO (OmpInoutClause, "OmpInoutClause", "OmpInoutClauseTag" );
-     
+     NEW_TERMINAL_MACRO (OmpMapClause, "OmpMapClause", "OmpMapClauseTag" );
+
      NEW_NONTERMINAL_MACRO (OmpVariablesClause, OmpCopyprivateClause| OmpPrivateClause |OmpFirstprivateClause|
-         OmpSharedClause |OmpCopyinClause| OmpLastprivateClause| OmpReductionClause|
-         OmpInputClause| OmpOutputClause| OmpInoutClause,
+         OmpSharedClause |OmpCopyinClause| OmpLastprivateClause| OmpReductionClause | OmpMapClause,
          "OmpVariablesClause", "OmpVariablesClauseTag", false);
 
      NEW_TERMINAL_MACRO (OmpScheduleClause, "OmpScheduleClause", "OmpScheduleClauseTag" );
@@ -658,7 +657,7 @@ Grammar::setUpNodes ()
      OmpExpressionClause.setDataPrototype ( "SgExpression*", "expression", "= NULL",
                        CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, DEF_TRAVERSAL, NO_DELETE, CLONE_PTR);
      // schedule (kind[, chunksize_exp])
-     OmpScheduleClause.setDataPrototype("SgOmpClause::omp_schedule_kind_enum", "kind", "=e_omp_schedule_unkown",
+     OmpScheduleClause.setDataPrototype("SgOmpClause::omp_schedule_kind_enum", "kind", "=e_omp_schedule_unknown",
                                    CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, NO_TRAVERSAL, NO_DELETE);
      OmpScheduleClause.setDataPrototype ( "SgExpression*", "chunk_size", "= NULL",
                        CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, DEF_TRAVERSAL, NO_DELETE, CLONE_PTR);
@@ -670,12 +669,19 @@ Grammar::setUpNodes ()
                          NO_CONSTRUCTOR_PARAMETER, BUILD_LIST_ACCESS_FUNCTIONS, DEF_TRAVERSAL, NO_DELETE);
 
       // default (private | firstprivate | shared | none)
-     OmpDefaultClause.setDataPrototype("SgOmpClause::omp_default_option_enum", "data_sharing", "=e_omp_default_unkown",
+     OmpDefaultClause.setDataPrototype("SgOmpClause::omp_default_option_enum", "data_sharing", "=e_omp_default_unknown",
                           CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, NO_TRAVERSAL, NO_DELETE);
 
      // reduction(op:variables) 
-     OmpReductionClause.setDataPrototype("SgOmpClause::omp_reduction_operator_enum", "operation", "=e_omp_reduction_unkown",
+     OmpReductionClause.setDataPrototype("SgOmpClause::omp_reduction_operator_enum", "operation", "=e_omp_reduction_unknown",
                           CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, NO_TRAVERSAL, NO_DELETE);
+
+     // map (inout|alloc|in|out:variable_list) , a variable could be array type with additional dimension info, such as a[0:n][0:m]
+     OmpMapClause.setDataPrototype("SgOmpClause::omp_map_operator_enum", "operation", "=e_omp_map_unknown",
+                          CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, NO_TRAVERSAL, NO_DELETE);
+     // TODO how to traverse this map?  the bound variables may need to be visited.
+     OmpMapClause.setDataPrototype("std::map<SgSymbol*,  std::vector < std::pair <SgExpression*, SgExpression*> > >", "array_dimensions", "",
+                          NO_CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, NO_TRAVERSAL, NO_DELETE);
 #endif
 
 

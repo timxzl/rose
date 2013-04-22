@@ -20,12 +20,12 @@ libxomp_la_SOURCES=\
 mptOmpLowering_includeHeaders=\
 	$(mptOmpLoweringPath)/nanos_ompss.h \
 	$(mptOmpLoweringPath)/omp_lowering.h \
-	$(mptOmpLoweringPath)/nanos_c_api_macros.h \
 	$(mptOmpLoweringPath)/nanos_error.h \
-	$(mptOmpLoweringPath)/nanos-int.h \
+	$(mptOmpLoweringPath)/nanos_version.h \
+    $(mptOmpLoweringPath)/nanos-int.h \
 	$(mptOmpLoweringPath)/nanos_reduction.h \
-	$(mptOmpLoweringPath)/nanos_omp.h \
 	$(mptOmpLoweringPath)/nanos.h \
+	$(mptOmpLoweringPath)/nanos_omp.h \
 	$(mptOmpLoweringPath)/libnanos.h \
 	$(mptOmpLoweringPath)/libgomp_g.h \
 	$(mptOmpLoweringPath)/libompc.h \
@@ -36,7 +36,8 @@ mptOmpLowering_extraDist=\
 	$(mptOmpLoweringPath)/CMakeLists.txt \
 	$(mptOmpLoweringPath)/README \
 	$(mptOmpLoweringPath)/run_me_caller_generator.sh \
-	$(mptOmpLoweringPath)/run_me_generator.sh
+	$(mptOmpLoweringPath)/run_me_generator.sh \
+	$(mptOmpLoweringPath)/xomp_cuda_lib.cu
 
 mptOmpLowering_cleanLocal=\
 	rm -rf \
