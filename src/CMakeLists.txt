@@ -4,7 +4,10 @@ set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Ddisc_union=union" )
 
 
 #include_directories( ${ROSE_INCLUDES} )
-include_directories(${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES} ${Boost_INCLUDE_DIRS} ${CMAKE_BINARY_DIR}/src/roseSupport)
+include_directories(
+  ${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES} ${Boost_INCLUDE_DIRS}
+  ${CMAKE_BINARY_DIR}/src/roseSupport
+  ${CMAKE_BINARY_DIR}/src/3rdPartyLibraries/fortran-parser)
 
 #set(  CMAKE_VERBOSE_MAKEFILE  true )
 
@@ -188,11 +191,12 @@ set(POET_SRC
     ${CMAKE_SOURCE_DIR}/src/3rdPartyLibraries/POET/poet_lex.l
    )
 
-
-set(EDG_SAGE_Connection_SRC
+if(have_EDG_source)
+  set(EDG_SAGE_Connection_SRC
     ${CMAKE_SOURCE_DIR}/src/frontend/CxxFrontend/EDG/EDG_SAGE_Connection/sage_gen_be.C
     ${CMAKE_SOURCE_DIR}/src/frontend/CxxFrontend/EDG/EDG_SAGE_Connection/wrapperFunctionsForEDG.C
-   )
+     )
+endif()
 
 set(virtualCFG_SRC
     ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/virtualCFG/virtualCFG.C 
@@ -909,7 +913,17 @@ set(LINK_FILES
    edg33
 #   PHP_FRONTEND_LIB 
    libhpdf
+#   libdl
+   ${CMAKE_DL_LIBS}
 )
+
+if(enable-fortran)
+  list(APPEND LINK_FILES roseFortran)
+endif()
+
+if(enable-java)
+  list(APPEND LINK_FILES roseJava)
+endif()
 
 if ( enable-smaller-generated-files )
 set(ROSE_TARGET_LINK 
