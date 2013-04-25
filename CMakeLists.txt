@@ -2,7 +2,7 @@
 # The order matters!!
 
 #----- put platform independent settings in this section-----------------
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 2.8)
 project (ROSE CXX C)
 
 # Why do we have to have a copy of some standard built-in modules inside rose?
@@ -198,6 +198,11 @@ message(STATUS "The ROSE SCM version Unix timestamp is ${ROSE_SCM_VERSION_UNIX_D
 set(Boost_USE_STATIC_LIBS TRUE)        
 set(Boost_DEBUG TRUE)
 
+# Honor BOOST_HOME environment variable
+if (DEFINED ENV{BOOST_HOME})
+  set (BOOST_ROOT "$ENV{BOOST_HOME}")
+endif ()
+
 if (WIN32)
 FIND_PACKAGE(Boost REQUIRED) 
 #set (Boost_INCLUDE_DIRS ${Boost_INCLUDE_DIRS}/../../ )
@@ -236,7 +241,7 @@ include_directories(${Boost_INCLUDE_DIRS})
 
 
 # default paths to install header, executable, and libraries
-set(INCLUDE_INSTALL_DIR "/usr/include")
+set(INCLUDE_INSTALL_DIR "include")
 set(BIN_INSTALL_DIR      "bin"   )   # The install dir for executables
 set(LIB_INSTALL_DIR      "lib" )
 
@@ -304,6 +309,35 @@ set(ROSE_TOP_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
 #Generate our configure file
 
 # --------- please do all system, platform, software tests here --------------
+
+# Setup EDG version
+set(EDG_VERSION "3.3" CACHE STRING
+  "major.minor version number for EDG (e.g. 3.3, 3.10, 4.0, 4.1).")
+string(SUBSTRING ${EDG_VERSION} 0 1 EDG_MAJOR_VERSION)
+string(SUBSTRING ${EDG_VERSION} 2 1 EDG_MINOR_VERSION)
+add_definitions(-DROSE_EDG_MAJOR_VERSION_NUMBER=${EDG_MAJOR_VERSION})
+add_definitions(-DROSE_EDG_MINOR_VERSION_NUMBER=${EDG_MINOR_VERSION})
+
+# Check if we need to download the EDG binary tarball
+if(EXISTS "${PROJECT_SOURCE_DIR}/src/frontend/CxxFrontend/EDG/CMakeLists.txt")
+  set(have_EDG_source TRUE)
+else()
+  set(have_EDG_source FALSE)
+  # no need to display this message after the file has been downloaded
+  if(NOT EXISTS "${PROJECT_BINARY_DIR}/src/frontend/CxxFrontend/EDG/.libs")
+    message(WARNING
+      "At build time, CMake will attempt to download a required library "
+      "tarball.\n"
+      "Please note that this EDG binary tarball is currently only available "
+      "for the GCC compiler.\n" )
+  endif()
+  include(${PROJECT_SOURCE_DIR}/cmake/DownloadEDG.cmake)
+endif()
+
+# Set ROSE_SHLIBPATH_VAR.  For now, it just has the same value as
+# LD_LIBRARY_PATH.
+set(ROSE_SHLIBPATH_VAR $ENV{LD_LIBRARY_PATH})
+
 # a set of common features: including endian, stdio.h, printf, size of long int ,etc
 #taken from LyX
 include(ConfigureChecks)
@@ -313,6 +347,49 @@ include(MacroLibrary)
 # Try to find MySQL / MySQL Embedded library
 # MYSQL_FOUND,MYSQL_INCLUDE_DIR,MYSQL_LIBRARIES, etc
 include(FindMySQL)
+
+#configuration options
+option(enable-c "Enable C/C++ language support in ROSE." ON)
+if (enable-c)
+  add_definitions(-DROSE_BUILD_CXX_LANGUAGE_SUPPORT)
+  add_definitions(-DROSE_BUILD_C_LANGUAGE_SUPPORT)
+endif()
+
+option(enable-fortran "Enable Fortran support in ROSE." ON)
+if (enable-fortran)
+  add_definitions(-DROSE_BUILD_FORTRAN_LANGUAGE_SUPPORT)
+endif()
+
+option(enable-java "Enable Java support in ROSE." ON)
+if (enable-java)
+  find_package(JNI)
+  add_definitions(-DROSE_BUILD_JAVA_LANGUAGE_SUPPORT)
+endif()
+
+option(enable-php "Enable PHP support in ROSE." ON)
+if (enable-php)
+  add_definitions(-DROSE_BUILD_PHP_LANGUAGE_SUPPORT)
+endif()
+
+option(enable-python "Enable Python support in ROSE." OFF)
+if (enable-python)
+  add_definitions(-DROSE_BUILD_PYTHON_LANGUAGE_SUPPORT)
+endif()
+
+option(enable-binary-analysis "Enable binary analysis support in ROSE." ON)
+if (enable-binary-analysis)
+  add_definitions(-DROSE_BUILD_BINARY_ANALYSIS_SUPPORT)
+endif()
+
+option(enable-cuda "Enable cuda support in ROSE." ON)
+if (enable-cuda)
+  add_definitions(-DROSE_BUILD_CUDA_LANGUAGE_SUPPORT)
+endif()
+
+option(enable-opencl "Enable OpenCL support in ROSE." ON)
+if (enable-opencl)
+  add_definitions(-DROSE_BUILD_OPENCL_LANGUAGE_SUPPORT)
+endif()
 
 # tps (01/04/2010) : added verbose output 
 # ------------------------- Begin Generic CMake Variable Logging ------------------
@@ -480,7 +557,7 @@ message(Status "Looking for JAVA ...")
 include(FindJava)
 
 message(Status "Looking for flex ...")
-include(FindFlex)
+find_package(FLEX)
 if(NOT FLEX_FOUND)
     message(FATAL_ERROR "Could not find flex command")
 endif(NOT FLEX_FOUND)
@@ -520,7 +597,6 @@ message(Status "Running tests ...")
 if (HAVE_DLFCN_H)
   if (HAVE_DLADDR)
     set (use_rose_in_build_tree_var TRUE)
-    set (CMAKE_SHARED_LINKER_FLAGS ${CMAKE_SHARED_LINKER_FLAGS} -ldl)
 # this following line won't work since it only set the environment variable for cmake's session
 # not for ctest session. Still no good way to set it within cmake
 # fortunately,   
@@ -649,6 +725,53 @@ add_subdirectory(src)
 add_subdirectory(tests)
 
 enable_testing()
+
+#TODO: support for other compilers & operating systems
+find_program(shell sh)
+if(shell AND CMAKE_COMPILER_IS_GNUCXX)
+  execute_process(
+    COMMAND ${shell} ${CMAKE_SOURCE_DIR}/config/get_compiler_header_dirs gcc
+    OUTPUT_VARIABLE C_backend_includes
+  )
+  execute_process(
+    COMMAND ${shell} ${CMAKE_SOURCE_DIR}/config/get_compiler_header_dirs g++
+    OUTPUT_VARIABLE CXX_backend_includes
+  )
+  string(REPLACE "\n" ";" C_backend_includes "${C_backend_includes}")
+  string(REPLACE "\n" ";" CXX_backend_includes "${CXX_backend_includes}")
+
+  set(C_INCLUDE_STRING
+    "{\"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS\", \\
+    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs\",  \\
+    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs1\", \\
+    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs2\", \\
+    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs3\", \\
+    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs4\", \\
+    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs5\", \\
+    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs6\", \\
+    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs7\"")
+  foreach(C_include_dir ${C_backend_includes})
+    string(STRIP "${C_include_dir}" C_include_dir)
+    set(C_INCLUDE_STRING "${C_INCLUDE_STRING}, \"${C_include_dir}\"")
+  endforeach()
+  set(C_INCLUDE_STRING "${C_INCLUDE_STRING}}")
+
+  set(CXX_INCLUDE_STRING
+    "{\"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS\", \\
+    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs\",  \\
+    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs1\", \\
+    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs2\", \\
+    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs3\", \\
+    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs4\", \\
+    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs5\", \\
+    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs6\", \\
+    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs7\"")
+  foreach(CXX_include_dir ${CXX_backend_includes})
+    string(STRIP "${CXX_include_dir}" CXX_include_dir)
+    set(CXX_INCLUDE_STRING "${CXX_INCLUDE_STRING}, \"${CXX_include_dir}\"")
+  endforeach()
+  set(CXX_INCLUDE_STRING "${CXX_INCLUDE_STRING}}")
+endif()
 
 # ------------------------- Private Configuration File ----------------------------
 # The rose_config.h file contains CPP macros describing what features were detected
