@@ -164,8 +164,27 @@ class SgAsmInterpretation;
  *
  *  @section AsmUnparser_Examples Examples
  *
- *  This example shows how to escape entire instructions for HTML output, and surround each instruction with an HTML table row.
- *  We could have just as easily combined all three parts into a single functor, but doing it this way makes the example
+ *  @subsection Ex1 Changing register names
+ *
+ *  This example shows how one can replace a register name with something else.  Let's say that MIPS32 Release 1 instructions
+ *  are being unparsed and you'd rather see "lr" (for "link register") rather than "r31" or "ra".  This can be accomplished by
+ *  creating a new register dictionary, adding the definition for "lr", and using that dictionary for unparsing:
+ *
+ *  @code
+ *  RegisterDictionary myRegisters("My Mips32 Release 1");
+ *  myRegisters.insert(RegisterDictionary::dictionary_mips32()); // incorporate MIPS32 defns
+ *  RegisterDescriptor *r31 = myRegisters.lookup("r31"); // definition for r31
+ *  myRegisters.insert("lr", *r31); // new name, same old definition
+ *  AsmUnparser unparser;
+ *  unparser.set_registers(&myRegisters);
+ *  SgAsmInterpretation interp = ...; // the stuff to unparse
+ *  unparser.unparse(std::cout, interp);
+ *  @endcode
+ *
+ *  @subsection Ex2 Unparsing to HTML
+ *
+ *  This next example shows how to escape entire instructions for HTML output, and surround each instruction with an HTML table
+ *  row.  We could have just as easily combined all three parts into a single functor, but doing it this way makes the example
  *  a bit more interesting.
  *
  *  @code
@@ -764,7 +783,7 @@ public:
      **************************************************************************************************************************/
 
     /** Constructor that intializes the "unparser" callback lists with some useful functors. */
-    AsmUnparser() {
+    AsmUnparser(): user_registers(NULL), interp_registers(NULL) {
         init();
     }
 
@@ -798,6 +817,20 @@ public:
      *  Traverses the specified AST to find nodes that can be unparsed, and returns a vector of such nodes.  Once a node is
      *  discovered, the subtree rooted at that node is not searched. */
     virtual std::vector<SgNode*> find_unparsable_nodes(SgNode *ast);
+
+    /** Register dictionaries.
+     *
+     *  A register dictionary is used to convert register descriptors stored within instructions (via RegisterDescriptor) into
+     *  names. The unparser keeps two register dictionaries: the user-specified register dictionary, and a dictionary obtained
+     *  from a SgAsmInterpretation.  The user-specified dictionary is used in preference to the SgAsmInterpretation dictionary
+     *  when both are specified.  The SgAsmInterpretation dictionary is set (internally) whenever an SgAsmInterpretation node
+     *  is encountered during unparsing, and reset after the entire node is unparsed.  The user-specified dictionary is set via
+     *  the set_registers() method.  The get_registers() returns either the user-specified or SgAsmInterpretation dictionary.
+     *
+     * @{ */
+    virtual const RegisterDictionary *get_registers() const;
+    virtual void set_registers(const RegisterDictionary *registers) { user_registers = registers; }
+    /** @}*/
     
     /** Optional information about no-op sequences.
      *
@@ -890,10 +923,6 @@ public:
     virtual std::string blank_prefix() const { return std::string(line_prefix().size(), ' '); }
     /** @} */
 
-
-    
-
-
 protected:
     struct CallbackLists {
         ROSE_Callbacks::List<UnparserCallback> unparse;                 /**< The main unparsing callbacks. */
@@ -938,6 +967,10 @@ protected:
 
     /** How output will be organized. */
     Organization organization;
+
+    /** Dictionaries used to convert register descriptors to register names. */
+    const RegisterDictionary *user_registers;           // registers set by set_registers()
+    const RegisterDictionary *interp_registers;         // registers obtained from the SgAsmInterpretation
 
     /** Initializes the callback lists.  This is invoked by the default constructor. */
     virtual void init();

@@ -4,7 +4,7 @@
 #include "BinaryControlFlow.h"
 
 /* FIXME: this should be a SgAsmInstruction class method. */
-std::string unparseInstruction(SgAsmInstruction* insn, const AsmUnparser::LabelMap *labels) {
+std::string unparseInstruction(SgAsmInstruction* insn, const AsmUnparser::LabelMap *labels, const RegisterDictionary *registers) {
     /* Mnemonic */
     if (!insn) return "BOGUS:NULL";
     std::string result = unparseMnemonic(insn);
@@ -15,16 +15,17 @@ std::string unparseInstruction(SgAsmInstruction* insn, const AsmUnparser::LabelM
     const SgAsmExpressionPtrList& operands = opList->get_operands();
     for (size_t i = 0; i < operands.size(); ++i) {
         if (i != 0) result += ", ";
-        result += unparseExpression(operands[i], labels);
+        result += unparseExpression(operands[i], labels, registers);
     }
 
     return result;
 }
 
 /* FIXME: This should be a SgAsmInstruction class method. */
-std::string unparseInstructionWithAddress(SgAsmInstruction* insn, const AsmUnparser::LabelMap *labels) {
+std::string unparseInstructionWithAddress(SgAsmInstruction* insn, const AsmUnparser::LabelMap *labels,
+                                          const RegisterDictionary *registers) {
     if (!insn) return "BOGUS:NULL";
-    return StringUtility::intToHex(insn->get_address()) + ":" + unparseInstruction(insn, labels);
+    return StringUtility::intToHex(insn->get_address()) + ":" + unparseInstruction(insn, labels, registers);
 }
 
 /* FIXME: This should be a SgAsmInstruction class method. */
@@ -36,6 +37,8 @@ std::string unparseMnemonic(SgAsmInstruction *insn) {
             return unparseArmMnemonic(isSgAsmArmInstruction(insn));
         case V_SgAsmPowerpcInstruction:
             return unparsePowerpcMnemonic(isSgAsmPowerpcInstruction(insn));
+        case V_SgAsmMipsInstruction:
+            return unparseMipsMnemonic(isSgAsmMipsInstruction(insn));
         default:
             std::cerr <<"Unhandled variant " <<insn->class_name() <<std::endl;
             abort();
@@ -46,7 +49,7 @@ std::string unparseMnemonic(SgAsmInstruction *insn) {
 }
 
 /* FIXME: This should be an SgAsmExpression class method */
-std::string unparseExpression(SgAsmExpression *expr, const AsmUnparser::LabelMap *labels) {
+std::string unparseExpression(SgAsmExpression *expr, const AsmUnparser::LabelMap *labels, const RegisterDictionary *registers) {
     /* Find the instruction with which this expression is associated. */
     SgAsmInstruction *insn = NULL;
     for (SgNode *node=expr; !insn && node; node=node->get_parent()) {
@@ -55,15 +58,17 @@ std::string unparseExpression(SgAsmExpression *expr, const AsmUnparser::LabelMap
 
     /* The expression is possibly not linked into the tree yet. Assume x86 if that happens. */
     if (!insn)
-        return unparseX86Expression(expr, labels, false);
+        return unparseX86Expression(expr, labels, registers, false);
         
     switch (insn->variantT()) {
         case V_SgAsmx86Instruction:
-            return unparseX86Expression(expr, labels);
+            return unparseX86Expression(expr, labels, registers);
         case V_SgAsmArmInstruction:
-            return unparseArmExpression(expr, labels);
+            return unparseArmExpression(expr, labels, registers);
         case V_SgAsmPowerpcInstruction:
-            return unparsePowerpcExpression(expr, labels);
+            return unparsePowerpcExpression(expr, labels, registers);
+        case V_SgAsmMipsInstruction:
+            return unparseMipsExpression(expr, labels, registers);
         default:
             std::cerr <<"Unhandled variant " <<insn->class_name() << std::endl;
             abort();
@@ -83,6 +88,7 @@ unparseAsmStatement(SgAsmStatement* stmt)
         case V_SgAsmx86Instruction:
         case V_SgAsmArmInstruction:
         case V_SgAsmPowerpcInstruction:
+        case V_SgAsmMipsInstruction:
             u.unparse(s, isSgAsmInstruction(stmt));
             return s.str();
         case V_SgAsmBlock:

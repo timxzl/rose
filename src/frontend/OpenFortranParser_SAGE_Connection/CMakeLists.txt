@@ -24,17 +24,33 @@ add_dependencies(fortran_ofp_parser_c_jni_FortranParserActionJNI
 set_target_properties(fortran_ofp_parser_c_jni_FortranParserActionJNI PROPERTIES VERSION 1.0.0 SOVERSION 1)
 install(TARGETS fortran_ofp_parser_c_jni_FortranParserActionJNI ${INSTALL_TARGETS_DEFAULT_ARGS})
 
-FLEX_TARGET(Preproc preproc-fortran.ll
-${CMAKE_CURRENT_BINARY_DIR}/preproc-fortran.cc)
-FLEX_TARGET(PreprocFixed preproc-fortran-fixed.ll
-${CMAKE_CURRENT_BINARY_DIR}/preproc-fortran-fixed.cc)
+if(enable-fortran)
+  # Using FLEX_TARGET() would be cleaner, but the autoconf buildsystem
+  # requires outfile="lex.yy.c" in the .ll files.
+  #
+  # FLEX_TARGET(Preproc preproc-fortran.ll
+  #   ${CMAKE_CURRENT_BINARY_DIR}/preproc-fortran.cc)
+  # FLEX_TARGET(PreprocFixed preproc-fortran-fixed.ll
+  #   ${CMAKE_CURRENT_BINARY_DIR}/preproc-fortran-fixed.cc)
+  add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/preproc-fortran.cc
+           ${CMAKE_CURRENT_BINARY_DIR}/preproc-fortran-fixed.cc
+    COMMAND ${FLEX_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/preproc-fortran.ll
+    COMMAND ${CMAKE_COMMAND} -E rename lex.yy.c preproc-fortran.cc
+    COMMAND ${FLEX_EXECUTABLE}
+      ${CMAKE_CURRENT_SOURCE_DIR}/preproc-fortran-fixed.ll
+    COMMAND ${CMAKE_COMMAND} -E rename lex.yy.c preproc-fortran-fixed.cc
+  )
 
 set(libroseFortran_SOURCES
     fortran_support.C fortran_error_handler.C openFortranParser_main.C
     jserver.C ofp.C FortranModuleInfo.C FortranParserState.C
-    ${FLEX_Preproc_OUTPUTS}
-    ${FLEX_PreprocFixed_OUTPUTS})
-
+    preproc-fortran.cc preproc-fortran-fixed.cc)
+else()
+  # Compile using a function that represents the API of the Open Fortran Parser
+  set(libroseFortran_SOURCES dummy_openFortranParser_main.C)
+endif()
+>>>>>>> master
 add_library(roseFortran ${libroseFortran_SOURCES})
 target_link_libraries(roseFortran ${JAVA_JVM_LIBRARY})
 add_dependencies(roseFortran rosetta_generated)
@@ -43,7 +59,14 @@ add_dependencies(roseFortran rosetta_generated)
 
 ########### install files ###############
 
-install(FILES  ActionEnums.h  FortranParserAction.h  token.h rose_fortran_token_maps.h  rose_token_defs.h fortran_support.h jni_token_funcs.h jserver.h ofp.h FortranModuleInfo.h FortranParserState.h DESTINATION ${INCLUDE_INSTALL_DIR})
+install(
+  FILES rose_fortran_token_maps.h  rose_token_defs.h fortran_support.h jserver.h
+        ofp.h FortranModuleInfo.h FortranParserState.h
+        ${fortran_parser_dir}/ActionEnums.h
+        ${fortran_parser_dir}/FortranParserAction.h
+        ${fortran_parser_dir}/token.h
+        ${fortran_parser_dir}/jni_token_funcs.h
+  DESTINATION ${INCLUDE_INSTALL_DIR})
 
 
 
