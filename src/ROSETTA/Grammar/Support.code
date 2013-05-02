@@ -72,7 +72,7 @@ HEADER_OMP_CLAUSE_START
        //! end of edited by Hongyi
        // Liao (5/30/2009): Added support for reduction clauses within an OpenMP directive
 	enum omp_default_option_enum{
-	  e_omp_default_unkown =0,
+	  e_omp_default_unknown =0,
 	  //4 values for default clause
 	  //C/C++ default values
 	  e_omp_default_none,
@@ -84,7 +84,7 @@ HEADER_OMP_CLAUSE_START
 	};
 
         enum omp_schedule_kind_enum{
-          e_omp_schedule_unkown=0,
+          e_omp_schedule_unknown=0,
           e_omp_schedule_static,
           e_omp_schedule_dynamic,
           e_omp_schedule_guided,
@@ -95,7 +95,7 @@ HEADER_OMP_CLAUSE_START
 
         enum omp_reduction_operator_enum
         {
-            e_omp_reduction_unkown,
+            e_omp_reduction_unknown,
             // reduction operations
             //8 operand for C/C++
              //  shared 3 common operators for both C and Fortran
@@ -119,6 +119,17 @@ HEADER_OMP_CLAUSE_START
             e_omp_reduction_ior,
             e_omp_reduction_ieor,
             e_omp_reduction_last
+        };
+
+        // Liao 1/22/2012: experimental support for OpenMP Accelerator model 
+        enum omp_map_operator_enum
+        {
+          e_omp_map_unknown,
+          e_omp_map_alloc,
+          e_omp_map_in,
+          e_omp_map_out,
+          e_omp_map_inout,
+          e_omp_map_last,
         };
 
 
@@ -767,6 +778,7 @@ HEADER_FUNCTION_MODIFIER_START
                e_java_native                 = 32, /*!< Java native keyword used for JNI function specification */
                e_java_synchronized           = 33, /*!< Java synchronized keyword used to only allow one thread at a time into a particular section of code */
                e_java_strictfp               = 34, /*!< Java strictfp keyword used to specify strict floating point evaluation by JVM */
+               e_java_initializer            = 35, /*!< Java initializer keyword used to specify that this "synthetic" function is, in fact, an initializer block */
 
                e_last_modifier     /*!< last value (upper bound on range of values, used in error checking) */
              };
@@ -935,6 +947,10 @@ HEADER_FUNCTION_MODIFIER_START
           bool isJavaStrictfp() const;
           void setJavaStrictfp();
           void unsetJavaStrictfp();
+
+          bool isJavaInitializer() const;
+          void setJavaInitializer();
+          void unsetJavaInitializer();
 
           std::string displayString() const;
           void display ( std::string label ) const;
@@ -2529,6 +2545,11 @@ bool SgFunctionModifier::isJavaStrictfp() const { return checkBit(e_java_strictf
 void SgFunctionModifier::setJavaStrictfp()      { setBit(e_java_strictfp, p_modifierVector); }
 void SgFunctionModifier::unsetJavaStrictfp()    { unsetBit(e_java_strictfp, p_modifierVector); }
 
+// PC (07/24/2012): Added support for Java specific feature: Initializer blocks.
+bool SgFunctionModifier::isJavaInitializer() const { return checkBit(e_java_initializer, p_modifierVector); }
+void SgFunctionModifier::setJavaInitializer()      { setBit(e_java_initializer, p_modifierVector); }
+void SgFunctionModifier::unsetJavaInitializer()    { unsetBit(e_java_initializer, p_modifierVector); }
+
 string
 SgFunctionModifier::displayString() const
    {
@@ -2544,6 +2565,7 @@ SgFunctionModifier::displayString() const
      s += std::string("isJavaNative() = ")       + std::string(isJavaNative()       ? "true " : "false ");
      s += std::string("isJavaSynchronized() = ") + std::string(isJavaSynchronized() ? "true " : "false ");
      s += std::string("isJavaStrictfp() = ")     + std::string(isJavaStrictfp()     ? "true " : "false ");
+     s += std::string("isJavaInitializer() = ")  + std::string(isJavaInitializer()  ? "true " : "false ");
      s += ")";
      return s;
    }
@@ -2613,6 +2635,7 @@ bool operator== (const $CLASSNAME& lhs, const $CLASSNAME& rhs)
 	       (lhs.isJavaNative()               == rhs.isJavaNative()              ) &&
 	       (lhs.isJavaSynchronized()         == rhs.isJavaSynchronized()        ) &&
 	       (lhs.isJavaStrictfp()             == rhs.isJavaStrictfp()            ) &&
+	       (lhs.isJavaInitializer()          == rhs.isJavaInitializer()         ) &&
 		   true;
 }
 
@@ -2631,6 +2654,7 @@ void SgFunctionModifier::reset()
      unsetJavaNative();
      unsetJavaSynchronized();
      unsetJavaStrictfp();
+     unsetJavaInitializer();
 
   // Set this bit to indicate the default value (we want a value of all zero bits to be an error)
      setDefault();
@@ -5333,6 +5357,8 @@ HEADER_APPLICATION_PROJECT_START
           void set_Java_sourcepath (std::list<std::string> param);
           std::string get_Java_destdir (void) const;
           void set_Java_destdir (std::string param);
+          std::string get_Java_source_destdir (void) const;
+          void set_Java_source_destdir (std::string param);
 
        // DQ (2/4/2009): This is now a data member at the SgProject and so is automatically generated asa member function.
        // bool get_binary_only (void) const;
@@ -8206,7 +8232,7 @@ SgSymbolTable::print( std::string label, VariantT nodeType )
                               default:
                                  {
                                 // This is likely an error, I think
-                                   nameOfType = "unkown type name (likely a possible error!)";
+                                   nameOfType = "unknown type name (likely a possible error!)";
                                    break;
                                  }
                             }
@@ -13061,6 +13087,21 @@ SgProject::get_Java_destdir (void) const
     }
     return p_Java_destdir;
    }
+
+void
+SgProject::set_Java_source_destdir (std::string param)
+   {
+     p_Java_source_destdir = param;
+   }
+
+std::string
+SgProject::get_Java_source_destdir (void) const
+   {
+    if (p_Java_source_destdir == "") {
+      return ROSE::getWorkingDirectory();
+    }
+    return p_Java_source_destdir;
+  }
 
 #if 0
 // DQ (2/4/2009): This is now a data member at the SgProject and so is automatically generated asa member function.

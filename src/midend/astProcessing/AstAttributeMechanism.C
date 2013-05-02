@@ -256,3 +256,44 @@ AstRegExAttribute::AstRegExAttribute(const std::string & s)
    {
      expression = s;
    }
+
+// ********************************************
+//              AstSgNodeAttribute
+// ********************************************
+
+AstSgNodeAttribute::AstSgNodeAttribute()
+   : node(NULL)
+   {
+   }
+
+AstSgNodeAttribute::AstSgNodeAttribute(SgNode * node_) 
+   : node(node_)
+   {
+   }
+
+SgNode *AstSgNodeAttribute::getNode() { return node; }
+
+// ********************************************
+//              AstSgNodeListAttribute
+// ********************************************
+
+AstSgNodeListAttribute::AstSgNodeListAttribute() {}
+
+AstSgNodeListAttribute::AstSgNodeListAttribute(std::vector<SgNode *> &list) {
+    nodeList = list;
+}
+
+void AstSgNodeListAttribute::addNode(SgNode *node) { nodeList.push_back(node); }
+
+void AstSgNodeListAttribute::setNode(SgNode *node, int index) {
+    while (nodeList.size() <= index) { // make sure the element at the specified index is available
+        nodeList.push_back(NULL); 
+    }
+    nodeList[index] = node;
+}
+
+SgNode *AstSgNodeListAttribute::getNode(int index) { return (index >= 0 && index < nodeList.size() ? nodeList[index] : NULL); }
+
+std::vector<SgNode *> &AstSgNodeListAttribute::getNodeList() { return nodeList; }
+
+int AstSgNodeListAttribute::size() { return nodeList.size(); }

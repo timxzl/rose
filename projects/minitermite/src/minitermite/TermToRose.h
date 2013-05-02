@@ -12,6 +12,7 @@ Copyright 2006 Christoph Bonitz <christoph.bonitz@gmail.com>
 #include <deque>
 #include <string>
 #include <map>
+#include <boost/unordered_map.hpp>
 #include <vector>
 
 /// Class for creating a ROSE-IR (made for unparsing) from its PROLOG term-representation
@@ -31,22 +32,22 @@ private:
 
   bool createFlag(term::Term*);
   template < typename enumType  >
-  SgBitVector* createBitVector(term::Term*, std::map<std::string, enumType>);
+  SgBitVector* createBitVector(term::Term*, boost::unordered_map<std::string, enumType>);
   
   /* fixups */
   std::vector<SgDeclarationStatement*> declarationStatementsWithoutScope;
   std::vector<SgLabelStatement*> labelStatementsWithoutScope;
   std::multimap<std::string,SgGotoStatement*> gotoStatementsWithoutLabel;
-  std::map<std::string,SgClassDefinition*> classDefinitionMap;
+  boost::unordered_map<std::string,SgClassDefinition*> classDefinitionMap;
   /* our own little symbol tables */
   std::deque<term::Term*>* globalDecls;
-  std::map<std::string,SgType*> typeMap;
-  std::map<std::string,SgType*> fortranFunctionTypeMap;
-  std::map<std::string,SgDeclarationStatement*> declarationMap;
-  std::map<std::string,SgInitializedName*> initializedNameMap;
-  std::map<SgInitializedName*, SgVariableSymbol*> variableSymbolMap;
+  boost::unordered_map<std::string,SgType*> typeMap;
+  boost::unordered_map<std::string,SgType*> fortranFunctionTypeMap;
+  boost::unordered_map<std::string,SgDeclarationStatement*> declarationMap;
+  boost::unordered_map<std::string,SgInitializedName*> initializedNameMap;
+  boost::unordered_map<SgInitializedName*, SgVariableSymbol*> variableSymbolMap;
   std::multimap<std::string,SgMemberFunctionDeclaration*> memberFunctionDeclarationMap;
-  std::map<std::string,SgTemplateDeclaration*> templateDeclMap;
+  boost::unordered_map<std::string,SgTemplateDeclaration*> templateDeclMap;
 
   /* arity specific node generation*/
   SgNode* leafToRose(term::CompTerm*, std::string);

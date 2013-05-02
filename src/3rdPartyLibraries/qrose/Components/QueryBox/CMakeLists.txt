@@ -4,6 +4,8 @@ include_directories(${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES} )
 
 ########### next target ###############
 
+add_library(qrquerybox ${QUERYBOX_SOURCES} ${QUERYBOX_MOC_CPP})
+add_dependencies(qrquerybox rosetta_generated)
 
 ########### install files ###############
 

@@ -4,7 +4,10 @@ set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Ddisc_union=union" )
 
 
 #include_directories( ${ROSE_INCLUDES} )
-include_directories(${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES} ${Boost_INCLUDE_DIRS} ${CMAKE_BINARY_DIR}/src/roseSupport)
+include_directories(
+  ${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES} ${Boost_INCLUDE_DIRS}
+  ${CMAKE_BINARY_DIR}/src/roseSupport
+  ${CMAKE_BINARY_DIR}/src/3rdPartyLibraries/fortran-parser)
 
 #set(  CMAKE_VERBOSE_MAKEFILE  true )
 
@@ -188,11 +191,12 @@ set(POET_SRC
     ${CMAKE_SOURCE_DIR}/src/3rdPartyLibraries/POET/poet_lex.l
    )
 
-
-set(EDG_SAGE_Connection_SRC
+if(have_EDG_source)
+  set(EDG_SAGE_Connection_SRC
     ${CMAKE_SOURCE_DIR}/src/frontend/CxxFrontend/EDG/EDG_SAGE_Connection/sage_gen_be.C
     ${CMAKE_SOURCE_DIR}/src/frontend/CxxFrontend/EDG/EDG_SAGE_Connection/wrapperFunctionsForEDG.C
-   )
+     )
+endif()
 
 set(virtualCFG_SRC
     ${CMAKE_SOURCE_DIR}/src/frontend/SageIII/virtualCFG/virtualCFG.C 
@@ -239,6 +243,7 @@ set(rose_support_src
 
 
 set(roseDisassemblers_SRC
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/InstructionEnumsMips.h
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/InstructionEnumsX86.h
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Assembler.C 
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/AssemblerX86.C 
@@ -254,6 +259,7 @@ set(roseDisassemblers_SRC
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/AssemblerX86Init.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/DisassemblerArm.C 
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Disassembler.C 
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/DisassemblerMips.C 
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/DisassemblerPowerpc.C 
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/DisassemblerX86.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/Expressions.C
@@ -266,6 +272,8 @@ set(roseDisassemblers_SRC
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmBlock.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmFunction.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmInstruction.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmInterpretation.C
+   ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmMipsInstruction.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmPowerpcInstruction.C
    ${CMAKE_SOURCE_DIR}/src/frontend/Disassemblers/SgAsmX86Instruction.C
    )
@@ -306,7 +314,6 @@ set(roseBinaryFormats_fileList_part0
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/ExecGeneric.C 
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/ExtentMap.C
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/Hexdump.C
-   ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/Interpretation.C
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/MemoryMap.C 
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/Rva.C 
 
@@ -360,6 +367,7 @@ set( roseAsmUnparser_SRC
      ${CMAKE_SOURCE_DIR}/src/backend/asmUnparser/unparseX86Asm.C 
      ${CMAKE_SOURCE_DIR}/src/backend/asmUnparser/unparseArmAsm.C 
      ${CMAKE_SOURCE_DIR}/src/backend/asmUnparser/unparsePowerpcAsm.C 
+     ${CMAKE_SOURCE_DIR}/src/backend/asmUnparser/unparseMipsAsm.C
      ${CMAKE_SOURCE_DIR}/src/backend/asmUnparser/AsmUnparser.C
      ${CMAKE_SOURCE_DIR}/src/backend/asmUnparser/AsmUnparser_compat.C
      ${CMAKE_SOURCE_DIR}/src/backend/asmUnparser/AsmFunctionIndex.C
@@ -905,7 +913,17 @@ set(LINK_FILES
    edg33
 #   PHP_FRONTEND_LIB 
    libhpdf
+#   libdl
+   ${CMAKE_DL_LIBS}
 )
+
+if(enable-fortran)
+  list(APPEND LINK_FILES roseFortran)
+endif()
+
+if(enable-java)
+  list(APPEND LINK_FILES roseJava)
+endif()
 
 if ( enable-smaller-generated-files )
 set(ROSE_TARGET_LINK 

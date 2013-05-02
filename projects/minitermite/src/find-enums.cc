@@ -59,7 +59,7 @@ public:
 int main(int argc, char** argv) {
   // Run the EDG frontend
   cerr << "Extracting all enum values defined by the ROSE IR." << endl;
-  cerr << "This may take several minutes, but it is so much more\n"
+  cerr << "This may take several minutes, but it is so much more "
        << "future-proof than what we had before.\n"
        << "Thank you for your patience!" << endl;
 

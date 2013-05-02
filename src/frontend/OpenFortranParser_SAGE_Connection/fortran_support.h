@@ -383,6 +383,8 @@ void convertBaseTypeToArrayWhereAppropriate();
 //! Refactored code to support R504.
 SgInitializedName* buildInitializedNameAndPutOntoStack(const SgName & name, SgType* type, SgInitializer* initializer);
 
+// Find the scope of a given type;
+void findStructureScope (SgType* type, SgScopeStatement*& structureScope);
 
 // endif for ROSE_FORTRAN_SUPPORT
 #endif
