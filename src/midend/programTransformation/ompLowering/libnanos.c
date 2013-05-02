@@ -1,6 +1,8 @@
-#include "libnanox.h"
+#include "libnanos.h"
 
 #include <omp.h>
+// needed for asprintf call, otherwise we get a compilation warning
+#define _GNU_SOURCE         
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,7 +23,7 @@ void nanos_omp_initialize_worksharings(void *dummy);
 
 static int parallel_id = 0;
 
-void NANOX_parallel_init( )
+void NANOS_parallel_init( )
 {
     nanos_err_t err = nanos_omp_set_implicit( nanos_current_wd( ) );
     if( err != NANOS_OK )
@@ -31,7 +33,7 @@ void NANOX_parallel_init( )
         nanos_handle_error( err );
 }
 
-void NANOX_parallel_end( )
+void NANOS_parallel_end( )
 {
     nanos_err_t err = nanos_omp_barrier( );
     if( err != NANOS_OK )
@@ -41,7 +43,7 @@ void NANOX_parallel_end( )
         nanos_handle_error( err );
 }
 
-void NANOX_parallel( void (*func) (void *), void *data, unsigned numThreads, long data_size, long (*get_data_align)(void), 
+void NANOS_parallel( void (*func) (void *), void *data, unsigned numThreads, long data_size, long (*get_data_align)(void), 
                      void* (*get_empty_data)(void), void (* init_func) (void *, void *) )
 {
     nanos_err_t err;
@@ -141,7 +143,7 @@ void NANOX_parallel( void (*func) (void *), void *data, unsigned numThreads, lon
 
 static int task_id = 0;
 
-void NANOX_task( void (*func) (void *), void *data,
+void NANOS_task( void (*func) (void *), void *data,
                  long data_size, long (*get_data_align) (void), bool if_clause, unsigned untied, 
                  void* empty_data, void (*init_func) (void *, void *) )
 {
@@ -164,11 +166,11 @@ void NANOX_task( void (*func) (void *), void *data,
     asprintf( &task_name, "task_%d", task_id++ );
     struct nanos_const_wd_definition nanos_wd_const_data = {
         { { 0,          // mandatory creation
-            !untied,    // tied
+            1,    // tied !untied
             0, 0, 0, 0, 0, 0 },                     // properties 
         ( *get_data_align )( ),                     // data alignment
           num_copies, num_devices, num_dimensions,                            
-          task_name                                 // description
+          "traverse"//task_name                                 // description
         }, 
         { { &nanos_smp_factory,                     // device description
             &_smp_args }                            // outlined function
@@ -230,9 +232,9 @@ static const char * nanos_get_slicer_name( int policy )
 }
 
 static int loop_id = 0;
-void NANOX_loop( void ( * func ) ( void * ), void * data, long data_size, long ( * get_data_align )( void ),
+void NANOS_loop( void ( * func ) ( void * ), void * data, long data_size, long ( * get_data_align )( void ),
                  void* empty_data, void ( * init_func ) ( void *, void * ), int policy )
-{
+{    
     nanos_err_t err;
       
     // Create the WD and its properties
@@ -270,8 +272,9 @@ void NANOX_loop( void ( * func ) ( void * ), void * data, long data_size, long (
     if( slicer == 0 )
         nanos_handle_error( NANOS_UNIMPLEMENTED );
     
+    struct OUT__1__5653___data * ol_args = (struct OUT__1__5653___data *)0;
     err = nanos_create_sliced_wd( &wd, nanos_wd_const_data.base.num_devices, nanos_wd_const_data.devices, 
-                                  data_size, nanos_wd_const_data.base.data_alignment, ( void ** ) &empty_data, 
+                                   data_size, nanos_wd_const_data.base.data_alignment, ( void ** ) &empty_data, 
                                   nanos_current_wd( ), slicer, &nanos_wd_const_data.base.props, &props, 
                                   num_copies, ( nanos_copy_data_t ** ) 0, 
                                   num_dimensions, ( nanos_region_dimension_internal_t ** ) 0 );
@@ -401,12 +404,100 @@ void NANOS_sections(int num_sections, bool must_wait, va_list sections_args)
 //     nanos_omp_barrier();
 }
 
-void NANOX_barrier( void )
+// ************************************************************************************ //
+// ***************************** Nanos Reduction methods ****************************** //
+
+int NANOS_get_thread_num( void )
+{
+    return nanos_omp_get_thread_num( );
+}
+
+int NANOS_get_num_threads( void )
+{
+    return nanos_omp_get_num_threads( );
+}
+
+static void init_nanos_thread_reduction___(int ** thread_data, void ** nanos_reduction_privates)
+{
+    *thread_data = *((int *)nanos_reduction_privates);
+}
+
+void NANOS_reduction( int n_reductions,
+                      void ( ** all_threads_reduction )( void * out, void * in, int num_scalars ),
+                      void ( ** init_thread_reduction_array )( void **, void ** ),
+                      void ( * single_thread_reduction )( void * ), void * single_thread_data,
+                      void *** global_th_data, void ** global_data, long * global_data_size, int num_scalars,
+                      const char * filename, int fileline )
+{
+    nanos_err_t err;
+    
+    bool single_guard;
+    err = nanos_enter_sync_init( &single_guard );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
+    if( single_guard )
+    {
+        int nanos_n_threads = nanos_omp_get_num_threads( );
+        
+        int i;
+        for( i = 0; i < n_reductions; i++ )
+        {
+            nanos_reduction_t * result;
+            
+            err = nanos_malloc( ( void ** ) &result, sizeof( nanos_reduction_t ), filename, fileline );
+            if( err != NANOS_OK )
+                nanos_handle_error( err );
+            ( *result ).original = global_data[i];
+            err = nanos_malloc( &( * result ).privates, global_data_size[i] * nanos_n_threads, filename, fileline );
+            if( err != NANOS_OK )
+                nanos_handle_error( err );
+            ( *result ).descriptor = ( *result ).privates;
+            ( * ( init_thread_reduction_array[i] ) )( global_th_data[i], &( *result ).privates );
+            ( *result).vop = 0;
+            ( *result ).bop = ( void ( * )( void *, void *, int ) ) all_threads_reduction[i];
+            ( *result ).element_size = global_data_size[i];
+            ( *result ).num_scalars = num_scalars;
+            ( *result ).cleanup = nanos_free0;
+            err = nanos_register_reduction( result );
+            if( err != NANOS_OK )
+                nanos_handle_error( err );
+        }
+        
+        err = nanos_release_sync_init( );
+        if( err != NANOS_OK )
+            nanos_handle_error( err );
+    }
+    else
+    {
+        err = nanos_wait_sync_init( );
+        if( err != NANOS_OK )
+            nanos_handle_error( err );
+        
+        int i;
+        for( i = 0; i < n_reductions; i++ )
+        {
+            nanos_reduction_t * result;
+            
+            err = nanos_reduction_get( &result, global_data[i] );
+            if( err != NANOS_OK )
+                nanos_handle_error( err );
+            ( * ( init_thread_reduction_array[0] ) )( global_th_data[i], &( *result ).privates );
+        }
+    }
+    
+    ( * single_thread_reduction )( single_thread_data );
+}
+
+// *************************** END Nanos Reduction methods **************************** //
+// ************************************************************************************ //
+
+
+void NANOS_barrier( void )
 {
     nanos_team_barrier( );
 }
 
-void NANOX_taskwait( void )
+void NANOS_taskwait( void )
 {
     void * wg = nanos_current_wd( );
     nanos_err_t err = nanos_wg_wait_completion( wg, 0 );
@@ -414,21 +505,19 @@ void NANOX_taskwait( void )
         nanos_handle_error( err );
 }
 
-
-
 // ************************************************************************************ //
 // ************************ Nanos Critical defines and methods ************************ //
 
-__attribute__((weak)) nanos_lock_t nanos_default_critical_lock = { NANOS_LOCK_FREE };
+__attribute__((weak)) nanos_lock_t nanos_default_critical_lock/* = { NANOS_LOCK_FREE }*/;
 
-void NANOX_critical_start( void )
+void NANOS_critical_start( void )
 {
     nanos_err_t err = nanos_set_lock( &nanos_default_critical_lock );
     if( err != NANOS_OK )
         nanos_handle_error( err );
 }
 
-void NANOX_critical_end( void )
+void NANOS_critical_end( void )
 {
     nanos_err_t err = nanos_unset_lock( &nanos_default_critical_lock );
     if( err != NANOS_OK )
@@ -440,7 +529,10 @@ void NANOX_critical_end( void )
 
 
 
-void NANOX_atomic ( int op, int type, void * variable, void * operand )
+// ************************************************************************************ //
+// ************************* Nanos Atomic defines and methods ************************* //
+
+void NANOS_atomic ( int op, int type, void * variable, void * operand )
 {
   if ( ( type == 0 ) && ( op == 1 || op == 2 || op == 5 || op == 6 || op == 7) )
   { // variable has integer type and the operation is some kind of the following compound assignments:
@@ -476,8 +568,8 @@ void NANOX_atomic ( int op, int type, void * variable, void * operand )
     
     if (type == 1)
     { // Float type
-      float tmp = *((float *) operand);
-  
+      printf( "Nanos atomic operations with float elements are not yet supported.\n" );
+      exit(1);
     }
     else if (type == 2)
     { // Double type
@@ -521,7 +613,12 @@ void NANOX_atomic ( int op, int type, void * variable, void * operand )
   }
 }
 
-bool NANOX_single( void )
+// *********************** END Nanos Atomic defines and methods *********************** //
+// ************************************************************************************ //
+
+
+
+bool NANOS_single( void )
 {
     bool single_guard;
   
@@ -532,12 +629,12 @@ bool NANOX_single( void )
     return single_guard;
 }
 
-bool NANOX_master( void )
+bool NANOS_master( void )
 {
-  return (omp_get_thread_num() == 0);
+    return ( omp_get_thread_num() == 0 );
 }
 
-void NANOX_flush( void )
+void NANOS_flush( void )
 {
-  __sync_synchronize();
+    __sync_synchronize();
 }

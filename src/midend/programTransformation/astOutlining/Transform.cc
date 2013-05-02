@@ -34,10 +34,12 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
                                const std::string& func_name_str, // the name for the outlined function, we generate the name of struct based on this.
                                const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
                                ASTtools::VarSymSet_t& symsUsingAddress, // variables whose addresses are stored into the struct 
-                               SgScopeStatement* func_scope ) // the scope of the outlined function, could be different from s's global scope
+                               SgScopeStatement* func_scope, // the scope of the outlined function, could be different from s's global scope
+                               bool is_nanos_loop,
+                               const ASTtools::VarSymSet_t& nanos_red_syms ) 
 {
   SgClassDeclaration* result = NULL;
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY   
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY   
   // no need to generate the declaration if no variables are to be passed
   if (syms.empty())
   {
@@ -67,14 +69,16 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
   SgScopeStatement* def_scope = isSgScopeStatement (def);
   ROSE_ASSERT (def_scope != NULL);
 
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
     // Sara Royuela: it is important that this member is the first in the struct
-    // It is expected to be there in other methods as 'generateLoopFunction'
-    string member_name = "wsd";
-    SgType* member_type = buildOpaqueType( "nanos_loop_info_t", getGlobalScope( s ) );
-    
-    SgVariableDeclaration * member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
-    appendStatement( member_decl, def_scope );
+    // It is expected to be there in method 'generateLoopFunction'
+    if( is_nanos_loop )
+    {
+        string member_name = "wsd";
+        SgType* member_type = buildOpaqueType( "nanos_loop_info_t", getGlobalScope( s ) );
+        SgVariableDeclaration * member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
+        appendStatement( member_decl, def_scope );
+    }
 #endif
   
   for (ASTtools::VarSymSet_t::const_iterator i = syms.begin ();
@@ -97,6 +101,14 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
        // It also simplifies unparsing: unparsing the use of classA* has some complications. 
        // The downside is that type casting is needed for setting and using the pointer typed values
        member_type = buildPointerType(buildVoidType());
+       
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+      if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
+      {
+        member_name = "g_th_" + member_name;
+        member_type = buildPointerType( member_type );
+      }
+#endif
     }
 
     SgVariableDeclaration *member_decl = buildVariableDeclaration(member_name, member_type, NULL, def_scope);
@@ -534,9 +546,11 @@ static SgStatement* build_array_packing_statement( SgExpression * lhs, SgExpress
  * Nanos extra packing statements: wsd.lower, wsd.upper, wsd.step, wsd.chunk
  */
 std::string Outliner::generatePackingStatements( SgStatement* target, 
-                                                 ASTtools::VarSymSet_t & syms, ASTtools::VarSymSet_t & pdsyms, 
-                                                 SgClassDeclaration* struct_decl /* = NULL */,
-                                                 SgExpression * lower, SgExpression * upper, SgExpression * stride, SgExpression * chunk )
+                                                 const ASTtools::VarSymSet_t & syms, const ASTtools::VarSymSet_t & pdsyms,
+                                                 SgClassDeclaration* struct_decl /* = NULL */, 
+                                                 const ASTtools::VarSymSet_t & nanos_red_syms /*= NULL*/, 
+                                                 SgExpression * lower /* = NULL */, SgExpression * upper /* = NULL */, 
+                                                 SgExpression * stride /* = NULL */, SgExpression * chunk /* = NULL */ )
 {
   int var_count = syms.size();
   int counter=0;
@@ -544,7 +558,7 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
   SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()); 
   ROSE_ASSERT (class_def != NULL);
   
-#ifndef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
 // Nanos always requires the struct
     if (var_count==0) 
       return wrapper_name;
@@ -589,20 +603,35 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
       // two kinds of field: original type v.s. pointer type to the original type
       //  __out_argv1__1527__.i = i;
       //  __out_argv1__1527__.sum_p = &sum;
-      // Sara Royuela, Dec 12, 2012: There is a third type
-      // When LHS is an array, we must copy each position.
+      // Sara Royuela, Dec 12, 2012: Third type when LHS is an array, we must copy each position.
+      // Sara Royuela, Apr 30, 2013: Fourth type when packing variable that is a reduction symbol for Nanos RTL 
+      //                             These variables will always be pointers 
       SgInitializedName* i_name = (*i)->get_declaration();
       SgVariableSymbol * i_symbol = const_cast<SgVariableSymbol *>(*i);
       //SgType* i_type = i_symbol->get_type();
       string member_name= i_name->get_name ().str ();
-//     cout<<"Debug: Outliner::generatePackingStatements() symbol to be packed:"<<member_name<<endl;  
-      rhs = buildVarRefExp(i_symbol); 
-      if (pdsyms.find(i_symbol) != pdsyms.end()) // pointer type
+//     cout<<"Debug: Outliner::generatePackingStatements() symbol to be packed:"<<member_name<<endl;
+      
+      bool is_nanos_reduction = false;
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+      if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
       {
-        member_name = member_name+"_p";
-        // member_type = buildPointerType(member_type);
-        //rhs = buildAddressOfOp(rhs); 
-        rhs = buildCastExp( buildAddressOfOp(rhs), buildPointerType(buildVoidType())); 
+          member_name = "g_th_" + member_name + "_p";
+          rhs = buildCastExp( buildAddressOfOp( buildVarRefExp( "g_th_" + i_name->get_name( ), cur_scope ) ),
+                              buildPointerType( buildPointerType( buildVoidType( ) ) ) );
+          is_nanos_reduction = true; 
+      }
+#endif
+      if( !is_nanos_reduction )
+      {
+          rhs = buildVarRefExp(i_symbol);
+          if (pdsyms.find(i_symbol) != pdsyms.end()) // pointer type
+          {
+              member_name = member_name+"_p";
+              // member_type = buildPointerType(member_type);
+              //rhs = buildAddressOfOp(rhs); 
+              rhs = buildCastExp( buildAddressOfOp(rhs), buildPointerType(buildVoidType()));
+          }
       }
 
       lhs = buildDotExp ( buildVarRefExp(out_argv), buildVarRefExp (member_name, class_def));
@@ -635,7 +664,7 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
     SageInterface::insertStatementBefore(target, assignment);
   }
   
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
   // Add Nanos extra packing statements when comming from Loop: wsd.lower, wsd.upper, wsd.step, wsd.chunk
     if( ( lower != NULL ) && ( upper != NULL ) && ( stride != NULL ) && ( chunk != NULL ) )
     {

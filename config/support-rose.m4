@@ -834,9 +834,9 @@ ROSE_SUPPORT_OMNI_OPENMP
 # AM_CONDITIONAL is already included into the macro
 ROSE_WITH_GOMP_OPENMP_LIBRARY
 
-# call supporting macro for NANOX OpenMP runtime library
+# call supporting macro for NANOS OpenMP runtime library
 # AM_CONDITIONAL is already included into the macro
-ROSE_WITH_NANOX_OPENMP_LIBRARY
+ROSE_WITH_NANOS_OPENMP_LIBRARY
 
 # Call supporting macro for GCC OpenMP
 ROSE_SUPPORT_GCC_OMP

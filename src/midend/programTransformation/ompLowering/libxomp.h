@@ -46,16 +46,16 @@ extern void XOMP_terminate (int exitcode);
 extern void XOMP_parallel_start (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified, char* file_name, int line_no);
 extern void XOMP_parallel_end (char* file_name, int line_no);
 
-extern void XOMP_parallel_start_for_NANOX( void );
-// Method for parallel when NANOX library. In addition to the parameters of the regular XOMP call for parallel:
+extern void XOMP_parallel_start_for_NANOS( void );
+// Method for parallel when NANOS library. In addition to the parameters of the regular XOMP call for parallel:
 // data_size: size of the data segment used as argument of 'func'
 // get_data_align: method that will compute the alignment of the data segment used as argument of 'func' at runtime
 // get_empty_data: function that retrieves structs with the same type as 'data', but empty.
 //                 They are used to initialize the team, and 'data' is used to fill the empty struct after the team initialization
 // init_func: function that initialized 'empty_data' with the values of the members in 'data'
-extern void XOMP_parallel_for_NANOX( void (*func) (void*), void* data, unsigned ifClauseValue, unsigned numThreadsSpecified,
+extern void XOMP_parallel_for_NANOS( void (*func) (void*), void* data, unsigned ifClauseValue, unsigned numThreadsSpecified,
                                      long data_size, long (*get_data_align) (void), void* (*get_empty_data)(void), void (*init_func) (void*, void*) );
-extern void XOMP_parallel_end_for_NANOX( void );
+extern void XOMP_parallel_end_for_NANOS( void );
 
 /* Initialize sections and return the next section id (starting from 0) to be executed by the current thread */
 extern int XOMP_sections_init_next(int section_count); 
@@ -69,12 +69,12 @@ extern void XOMP_sections_end(void);
 /* Called after the current thread is told that all sections are executed. It does not synchronizes all threads. */
 extern void XOMP_sections_end_nowait(void);
 
-// Method for sections when NANOX library.
-extern void XOMP_sections_for_NANOX(int num_sections, bool must_wait, ... );
+// Method for sections when NANOS library.
+extern void XOMP_sections_for_NANOS(int num_sections, bool must_wait, ... );
 
 extern void XOMP_task (void (*) (void *), void *, void (*) (void *, void *),
                        long, long, bool, unsigned);
-extern void XOMP_task_for_NANOX(void (*fn) (void *), void *data, long data_size, long (*get_data_align) (void), 
+extern void XOMP_task_for_NANOS(void (*fn) (void *), void *data, long data_size, long (*get_data_align) (void), 
                                 bool if_clause, unsigned untied, void* empty_data, void (*init_func) (void*, void*));
 extern void XOMP_taskwait (void);
 
@@ -100,7 +100,7 @@ extern void XOMP_loop_ordered_guided_init(int lower, int upper, int stride, int 
 extern void XOMP_loop_ordered_runtime_init(int lower, int upper, int stride);
 
 // Specific method for Nanos++
-extern void XOMP_loop_for_NANOX ( void (*func) (void *), void *data, long arg_size, long (*get_arg_align)(void), 
+extern void XOMP_loop_for_NANOS ( void (*func) (void *), void *data, long arg_size, long (*get_arg_align)(void), 
                                   void * empty_data, void (* init_func) (void *, void *), int policy);
 
 // if (start), 
@@ -139,11 +139,16 @@ extern bool XOMP_master(void);
 
 extern void XOMP_atomic_start (void);
 extern void XOMP_atomic_end (void);
-extern void XOMP_atomic_for_NANOX (int, int, void *, void *);
+
+extern void XOMP_reduction_for_NANOS( int, void ( ** )( void *, void *, int ), void ( ** )( void **, void ** ), void ( * )( void * ), 
+                                      void *, void ***, void **, long *, int, const char *, int );
+extern void XOMP_atomic_for_NANOS ( int, int, void *, void * );
+extern int XOMP_get_nanos_thread_num( void );
 
 extern void XOMP_loop_end (void);
 extern void XOMP_loop_end_nowait (void);
-   // --- end loop functions ---
+   // --- end sync functions ---
+   
 // flush without variable list
 extern void XOMP_flush_all (void);
 // omp flush with variable list, flush one by one, given each's start address and size
@@ -160,7 +165,6 @@ extern void XOMP_ordered_end (void);
 
 // the max number of threads per thread block of the first available device
 size_t xomp_get_maxThreadsPerBlock(void);
-size_t xomp_get_maxThreadsPerBlock();
 
 //get the max number of 1D blocks for a given input length
 size_t xomp_get_max1DBlock(size_t ss);
@@ -173,7 +177,6 @@ size_t xomp_get_max1DBlock(size_t ss);
 //    y <= maxThreadsDim[1], 1024 
 //  maxThreadsDim[0] happens to be equal to  maxThreadsDim[1] so we use a single function to calculate max segments for both dimensions
 size_t xomp_get_max_threads_per_dimesion_2D (void);
-size_t xomp_get_max_threads_per_dimesion_2D ();
 
 // return the max number of segments for a dimension (either x or y) of a 2D block
 size_t xomp_get_maxSegmentsPerDimensionOf2DBlock(size_t dimension_size);
@@ -196,8 +199,6 @@ void* xomp_hostMalloc(size_t size);
 
 //get the time stamp for now, up to microsecond resolution: 1e-6 , but maybe 1e-4 in practice
 double xomp_time_stamp(void);
-double xomp_time_stamp();
-
 
 // memory copy from src to dest, return the pointer to dest. NULL pointer if anything is wrong 
 void * xomp_memcpyHostToDevice (void *dest, const void * src, size_t n_n);

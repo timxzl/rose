@@ -10,7 +10,7 @@ mptOmpLowering_lib_ltlibraries=\
 libxomp_la_LDFLAGS = -static
 
 libxomp_la_SOURCES=\
-	$(mptOmpLoweringPath)/libnanox.c \
+	$(mptOmpLoweringPath)/libnanos.c \
 	$(mptOmpLoweringPath)/xomp.c \
 	$(mptOmpLoweringPath)/run_me_callers.inc \
 	$(mptOmpLoweringPath)/run_me_defs.inc \
@@ -25,7 +25,7 @@ mptOmpLowering_includeHeaders=\
 	$(mptOmpLoweringPath)/nanos_reduction.h \
 	$(mptOmpLoweringPath)/nanos.h \
 	$(mptOmpLoweringPath)/nanos_omp.h \
-	$(mptOmpLoweringPath)/libnanox.h \
+	$(mptOmpLoweringPath)/libnanos.h \
 	$(mptOmpLoweringPath)/libgomp_g.h \
 	$(mptOmpLoweringPath)/libompc.h \
 	$(mptOmpLoweringPath)/libxomp.h \

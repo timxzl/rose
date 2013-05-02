@@ -212,7 +212,9 @@ namespace Outliner
         const std::string& func_name_str, // the name for the outlined function, we generate the name of struct based on this.
         const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
         ASTtools::VarSymSet_t& pdSyms, // variables must use pointer types (pointer dereferencing: pdf). The rest variables use pass-by-value
-        SgScopeStatement* func_scope ); // the scope of the outlined function, could be in another file
+        SgScopeStatement* func_scope, // the scope of the outlined function, could be in another file
+        bool is_nanos_loop = false, // indicates if we are generating the struct for a loop ( only usefull if Nanos RTL )
+        const ASTtools::VarSymSet_t& nanos_red_syms = ASTtools::VarSymSet_t( ) ); // variables that are a reduction symbol while using Nanos RTL
 
 
     /*!
@@ -262,9 +264,11 @@ namespace Outliner
      //return the unique wrapper parameter for the outlined function
      //target is the outlining target
     std::string generatePackingStatements( SgStatement * target, 
-                                           ASTtools::VarSymSet_t & syms, ASTtools::VarSymSet_t & pdsyms, 
-                                           SgClassDeclaration * struct_decl = NULL, 
-                                           SgExpression * lower = NULL, SgExpression * upper = NULL, SgExpression * stride = NULL, SgExpression * chunk = NULL );
+                                           const ASTtools::VarSymSet_t & syms, const ASTtools::VarSymSet_t & pdsyms, 
+                                           SgClassDeclaration * struct_decl = NULL,  
+                                           const ASTtools::VarSymSet_t & redution_syms = ASTtools::VarSymSet_t( ), 
+                                           SgExpression * lower = NULL, SgExpression * upper = NULL, 
+                                           SgExpression * stride = NULL, SgExpression * chunk = NULL );
 
     /*!
      * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed with a Nanos++ slicer
@@ -278,6 +282,19 @@ namespace Outliner
                           const std::set< SgInitializedName *>& restoreVars, // variables need to be restored after their clones finish computation
                           SgClassDeclaration* struct_decl, /*optional struct type to wrap parameters*/
                           SgScopeStatement* scope );
+    
+    /*!
+     * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed 
+     * with a Nanos++ reduction containing the code of 's'
+     */
+    SgFunctionDeclaration *
+            generateReductionFunction( SgBasicBlock* s,
+                                        const std::string& func_name_str,
+                                        const ASTtools::VarSymSet_t& syms,
+                                        const ASTtools::VarSymSet_t& pdSyms,
+                                        const ASTtools::VarSymSet_t& reduction_syms,
+                                        SgClassDeclaration* struct_decl,
+                                        SgScopeStatement* scope );
 
     /*!
      *  \brief Inserts an outlined-function declaration into global scope.

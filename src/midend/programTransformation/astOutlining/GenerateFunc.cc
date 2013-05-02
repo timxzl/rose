@@ -9,6 +9,7 @@
  *  can be isolated into their own, dynamically shareable modules.
  */
 // tps (01/14/2010) : Switching from rose.h to sage3.
+#include "rose_config.h"
 #include "sage3basic.h"
 #include "sageBuilder.h"
 #include <iostream>
@@ -330,7 +331,8 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
                   bool isPointerDeref, // must use pointer deference or not
                   const SgInitializedName* i_name, // original variable to be passed as the function parameter
                   SgClassDeclaration* struct_decl, // the struct declaration type used to wrap parameters 
-                  SgScopeStatement* scope) // the scope into which the statement will be inserted 
+                  SgScopeStatement* scope, // the scope into which the statement will be inserted 
+                  bool is_nanos_reduction = false )
 {
   ROSE_ASSERT(param && scope && i_name);
 
@@ -341,17 +343,19 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
  // decide on the type : local_type
   // the original data type of the variable passed via parameter
   SgType* orig_var_type = i_name ->get_type();
-
+  
+  
   if (! SageInterface::is_Fortran_language())
   {  
     // Convert an array type parameter's first dimension to a pointer type
     // This conversion is implicit for C/C++ language. 
     // We have to make it explicit to get the right type
     // Liao, 4/24/2009  TODO we should only adjust this for the case 1
-    if (isSgArrayType(orig_var_type)) 
+    // Sara, 1/1/2013 Add condition to apply this adjustment only in case 1 
+    if (isSgArrayType(orig_var_type) && !Outliner::useParameterWrapper) 
         // Sara Royuela, Dec 12, 2012: The scope of these variables can be a BasicBlock besides a FunctionDefinition
         if (isSgFunctionDefinition(i_name->get_scope()) || isSgBasicBlock(i_name->get_scope()))
-        orig_var_type = SageBuilder::buildPointerType(isSgArrayType(orig_var_type)->get_base_type());
+            orig_var_type = SageBuilder::buildPointerType(isSgArrayType(orig_var_type)->get_base_type());
   }
 
   SgType* local_type = NULL;
@@ -424,11 +428,19 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
         string field_name = orig_var_name;
         if (isPointerDeref)
           field_name = field_name+"_p";
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+        if( is_nanos_reduction )
+        {
+          field_name = "g_th_" + field_name;
+          local_type = buildPointerType(local_type);
+        }
+#endif
         // __out_argv->i  or __out_argv->sum_p , depending on if pointer deference is needed
         //param_ref = buildArrowExp(buildVarRefExp(param, scope), buildVarRefExp(field_name, struct_def));
         //We use void* for all pointer types elements within the data structure. So type casting is needed here
   //e.g.   class Hello **this__ptr__ = (class Hello **)(((struct OUT__1__1527___data *)__out_argv) -> this__ptr___p);
-        param_ref = buildCastExp(buildArrowExp(buildCastExp(buildVarRefExp(param, scope), buildPointerType(struct_decl->get_type())), 
+        param_ref = buildCastExp(buildArrowExp( buildCastExp(buildVarRefExp(param, scope), 
+                                                             buildPointerType(struct_decl->get_type())), 
                                                buildVarRefExp(field_name, struct_def)),
                                  local_type);
         //local_type
@@ -518,6 +530,10 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
 // printf ("In createUnpackDecl(): local_val = %p \n",local_val);
 //
 
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+    if( is_nanos_reduction )
+        local_name = "g_th_" + local_name;
+#endif
   SgVariableDeclaration* decl = buildVariableDeclaration(local_name,local_type,local_val,scope);
   return decl;
 }
@@ -891,13 +907,14 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
  */
 static
 void
-variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to the outlined function: //regular (shared) parameters?
-              const ASTtools::VarSymSet_t& pdSyms, // those must use pointer dereference: use pass-by-reference
-//              const std::set<SgInitializedName*> & readOnlyVars, // optional analysis: those which can use pass-by-value, used for classic outlining without parameter wrapping, and also for variable clone to decide on if write-back is needed
+variableHandling( const ASTtools::VarSymSet_t& syms, // all variables passed to the outlined function: //regular (shared) parameters?
+                  const ASTtools::VarSymSet_t& pdSyms, // those must use pointer dereference: use pass-by-reference
+//                const std::set<SgInitializedName*> & readOnlyVars, // optional analysis: those which can use pass-by-value, used for classic outlining without parameter wrapping, and also for variable clone to decide on if write-back is needed
 //              const std::set<SgInitializedName*> & liveOutVars, // optional analysis: used to control if a write-back is needed when variable cloning is used.
-              const std::set<SgInitializedName*> & restoreVars, // variables to be restored after variable cloning
-              SgClassDeclaration* struct_decl, // an optional struct wrapper for all variables
-              SgFunctionDeclaration* func) // the outlined function
+                  const std::set<SgInitializedName*> & restoreVars, // variables to be restored after variable cloning
+                  SgClassDeclaration* struct_decl, // an optional struct wrapper for all variables
+                  SgFunctionDeclaration* func,
+                  const ASTtools::VarSymSet_t& nanos_red_syms = ASTtools::VarSymSet_t( ) ) // the outlined function
 {
   VarSymRemap_t sym_remap; // variable remapping for regular(shared) variables: all passed by reference using pointer types?
   VarSymRemap_t private_remap; // variable remapping for private/firstprivate/reduction variables
@@ -1018,8 +1035,18 @@ variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to t
        // Not true: even without parameter wrapping, we still need to transfer the function parameter to a local declaration, which is also called unpacking
       // must be a case of using parameter wrapping
       // ROSE_ASSERT (Outliner::useStructureWrapper || Outliner::useParameterWrapper);
+
+      bool is_nanos_reduction = false;
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+      const SgVariableSymbol* i_symbol = isSgVariableSymbol( i_name->get_symbol_from_symbol_table( ) );
+      if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
+      {    
+          name_str = "g_th_" + name_str;
+          is_nanos_reduction = true;
+      }
+#endif  
       local_var_decl  = 
-        createUnpackDecl (p_init_name, counter, isPointerDeref, i_name , struct_decl, body);
+        createUnpackDecl (p_init_name, counter, isPointerDeref, i_name , struct_decl, body, is_nanos_reduction);
       ROSE_ASSERT (local_var_decl);
       prependStatement (local_var_decl,body);
       // regular and shared variables used the first local declaration
@@ -1312,7 +1339,7 @@ SgFunctionDeclaration *
         func->set_linkage( "C" );
     }
 
-    //step 2. Create the function body
+    //step 3. Create the function body
     SgBasicBlock* func_body = func->get_definition( )->get_body( );
     ROSE_ASSERT( func_body != NULL );
     SgStatement* orig_body_stmt = SageInterface::copyStatement( s );
@@ -1338,7 +1365,7 @@ SgFunctionDeclaration *
     
     //step 5. Introduce in the function code the statements for Nanos calls
     // We separete in two the construction of the function body because 
-    // we need variable handling to be done before building the nanox calls
+    // we need variable handling to be done before building the nanos calls
     // and we need the original code to be placed in the function code 
     // before the handling is made because it can cause replacement
     // For an input 's' such as:
@@ -1357,7 +1384,7 @@ SgFunctionDeclaration *
     // --------------------------------------------------------------------
   
     // Get the WSD member from the __out_argv parameter
-    SgInitializedNamePtrList& argsList = parameterList->get_args( );
+    SgInitializedNamePtrList& argsList = func->get_parameterList( )->get_args( );
     ROSE_ASSERT( argsList.size() == 1 );      // The only argument must be __out_argv
     
     SgClassSymbol * loop_info_sym = SageInterface::lookupClassSymbolInParentScopes( "nanos_loop_info_t", scope );
@@ -1398,9 +1425,12 @@ SgFunctionDeclaration *
     SgDeclarationStatementPtrList st_members = struct_decl->get_definition( )->get_members( );
     SgVariableDeclaration * wsd_member = isSgVariableDeclaration( *( st_members.begin( ) ) );
     SgInitializedName * wsd_name = wsd_member->get_decl_item( "wsd" );
-    SgExpression* wsd = buildCastExp( buildArrowExp( buildCastExp( buildVarRefExp( *argsList.begin( ), func_body ), 
+    SgInitializedName * n = *argsList.begin( );
+    SgExpression * param_expr = buildVarRefExp( n, func_body );
+    SgExpression * wsd_expr = buildVarRefExp( wsd_name, func_body );
+    SgExpression* wsd = buildCastExp( buildArrowExp( buildCastExp( param_expr, 
                                                                    buildPointerType( struct_decl->get_type( ) ) ),
-                                                     buildVarRefExp( wsd_name, func_body ) ),
+                                                     wsd_expr ),
                                       buildOpaqueType( "nanos_loop_info_t", func_body ) );
     // We don't cast to 'loop_info_sym->get_type( )' 
     // because 'nanos_loop_info_t' is a typedef in 'nanos-int.h', so we don't need to name 'struct'
@@ -1423,6 +1453,63 @@ SgFunctionDeclaration *
     SgForStatement* loop = isSgForStatement( *( loop_list.begin( ) ) );
     SageInterface::setLoopLowerBound( loop, buildVarRefExp( lower ) );
     SageInterface::setLoopUpperBound( loop, buildVarRefExp( upper ) );
+    
+    return func;
+}
+
+SgFunctionDeclaration *
+        Outliner::generateReductionFunction( SgBasicBlock* s,
+                                             const std::string& func_name_str,
+                                             const ASTtools::VarSymSet_t& syms,
+                                             const ASTtools::VarSymSet_t& pdSyms,
+                                             const ASTtools::VarSymSet_t& reduction_syms,
+                                             SgClassDeclaration* struct_decl,
+                                             SgScopeStatement* scope )
+{
+    ROSE_ASSERT( s && scope );
+    ROSE_ASSERT( isSgGlobal( scope ) );
+    
+    //step 1. Create function skeleton, 'func'.
+    SgFunctionParameterList* parameterList = buildFunctionParameterList( );
+    SgFunctionDeclaration* func = createFuncSkeleton( func_name_str, buildVoidType( ), parameterList, scope );
+    ROSE_ASSERT( func );
+    if( SageInterface::is_Cxx_language( ) || is_mixed_C_and_Cxx_language( ) )
+    {   // Enable C code to call this outlined function making the function 'extern "C"'
+        func->get_declarationModifier( ).get_storageModifier( ).setExtern( );
+        func->set_linkage( "C" );
+    }
+            
+    //step 3. Create the function body
+    SgBasicBlock* func_body = func->get_definition( )->get_body( );
+    ROSE_ASSERT( func_body != NULL );
+            // We don't want the '{' '}' of the Basic Block to by ducplicated inside the function
+    SgStatementPtrList s_stmts = s->get_statements( );
+    for( SgStatementPtrList::iterator ss = s_stmts.begin( ); ss != s_stmts.end( ); ++ss )
+    {
+        appendStatement( SageInterface::copyStatement( * ss ), func_body );
+    }
+    for( ASTtools::VarSymSet_t::const_iterator i = reduction_syms.begin (); i != reduction_syms.end (); ++i )
+    {
+        SgFunctionCallExp* func_call_exp = buildFunctionCallExp( "XOMP_get_nanos_thread_num", buildIntType( ), 
+                                                                 buildExprListExp( ), func_body );
+        const SgVariableSymbol* r_sym = isSgVariableSymbol( *i );
+        SgExprStatement* thread_reduction = 
+                buildAssignStatement( buildPointerDerefExp( buildPntrArrRefExp( buildVarRefExp( "g_th_" + r_sym->get_name( ), func_body ),
+                                                            func_call_exp ) ),
+                                      buildVarRefExp( "_p_" + r_sym->get_name( ), func_body ) );
+        appendStatement( thread_reduction, func_body );
+    }
+    if( Outliner::useNewFile )
+        ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
+
+    const std::set< SgInitializedName *> restoreVars;
+    variableHandling( syms, pdSyms, restoreVars, struct_decl, func, reduction_syms );
+    func->set_type( buildFunctionType( func->get_type()->get_return_type( ), 
+                    buildFunctionParameterTypeList( func->get_parameterList( ) ) ) );
+    
+    // Retest this...
+    ROSE_ASSERT( func_body->get_parent( ) == func->get_definition( ) );
+    ROSE_ASSERT( scope->lookup_function_symbol( func->get_name( ) ) );
     
     return func;
 }

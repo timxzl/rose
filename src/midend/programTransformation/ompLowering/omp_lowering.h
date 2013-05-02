@@ -116,24 +116,24 @@ namespace OmpSupport
   SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, 
           std::set<SgVariableSymbol*>& syms, SgClassDeclaration*& struct_decl);
  
-#ifdef USE_ROSE_NANOX_OPENMP_LIBRARY
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
 
   //! Create an empty object with type the struct to be passed to an OpenMP outlined function in Nanos
   //! Returns an expression containing the new object
-  SgExpression* build_nanox_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 
+  SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 
                                           SgType* struct_type, std::string base_name );
 
   //! Create the function retrieving the empty struct to be passed to an OpenMP outlined function in Nanos
   //! Returns an expression containing a call to the function
-  SgExpression* build_nanox_get_empty_struct( SgStatement* ancestor, SgScopeStatement* expr_sc, 
+  SgExpression* build_nanos_get_empty_struct( SgStatement* ancestor, SgScopeStatement* expr_sc, 
                                               SgType* struct_type, std::string base_name );
 
   //! Create the function that initializes an empty structure with the arguments to the outlined OpenMP parallel or task in Nanos
-  SgExpression* build_nanox_init_arguments_struct_function( SgStatement* ancestor, std::string& wrapper_name, 
+  SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor, std::string& wrapper_name, 
                                                             SgClassDeclaration* struct_decl, bool init_wsd );
 
   //! Create the function that retrieves the alignement of an struct
-  SgExpression* build_nanox_get_alignof( SgStatement* ancestor, std::string& wrapper_name, 
+  SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapper_name, 
                                          SgClassDeclaration* struct_decl );
 
   //! A helper function to generate explicit task for omp loop
