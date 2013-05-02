@@ -1,0 +1,57 @@
+diff --git a/src/3rdPartyLibraries/java-parser/JavaParserSupport.java b/src/3rdPartyLibraries/java-parser/JavaParserSupport.java
+index 763dee8..b0b10a7 100644
+--- a/src/3rdPartyLibraries/java-parser/JavaParserSupport.java
++++ b/src/3rdPartyLibraries/java-parser/JavaParserSupport.java
+@@ -607,7 +607,6 @@ catch(NoClassDefFoundError e){
+                 ee.printStackTrace();
+             }
+             catch (NoClassDefFoundError eee) {
+-System.out.println("Looking at class " + cls.getCanonicalName());
+                 eee.printStackTrace();
+             }
+         }
+@@ -804,7 +803,7 @@ Constructor getRawConstructor(MethodBinding constructor_binding) {
+         this.unit = unit;
+         this.unitPackageName = (unit.currentPackage == null ? "" : new String(CharOperation.concatWith(unit.currentPackage.tokens, '.')));
+         this.posFactory = new JavaSourcePositionInformationFactory(unit);
+-        this.defaultLocation = new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(1)); // createJavaToken(unit, unit); // new JavaToken("Dummy JavaToken (see createJavaToken)", pos)
++        this.defaultLocation = new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)); // createJavaToken(unit, unit); // new JavaToken("Dummy JavaToken (see createJavaToken)", pos)
+ 
+         //
+         // Make sure that Object is processed first!
+@@ -1313,7 +1312,7 @@ System.out.println("    Class Name           " + ": " + (cls == null ? "What!?"
+                 assert(node == null); // TODO: simplify next statement if this is true!
+                 JavaToken location = (node != null
+                                             ? createJavaToken(node)
+-                                            : defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
++                                            : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
+                 JavaParser.cactionPushPackage(package_name, location);
+                 insertClasses(base_class);
+                 traverseClass(base_class);
+@@ -1339,7 +1338,7 @@ System.out.println("    Class Name           " + ": " + (cls == null ? "What!?"
+ 
+         JavaToken location = (node != null
+                                     ? createJavaToken(node)
+-                                    : defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
++                                    : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
+ 
+         String class_name = (special_type != null 
+                                            ? (special_type.isAnonymous() ? special_type.typename : special_type.simplename)
+@@ -1411,7 +1410,7 @@ else System.out.println("NO type parameters!!!");
+ 
+         JavaToken location = (node != null
+                                     ? createJavaToken(node)
+-                                    : defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
++                                    : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
+ 
+         String class_name = (special_type != null 
+                                     ? (special_type.isAnonymous() ? special_type.typename : special_type.simplename)
+@@ -1999,7 +1998,7 @@ System.out.println();
+         TypeDeclaration node = userTypeTable.get(cls);
+         JavaToken location = (node != null
+                                     ? createJavaToken(node)
+-                                    : defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
++                                    : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
+  
+         int num_dimensions = 0;
+         while (cls.isArray()) {

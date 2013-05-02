@@ -1,0 +1,348 @@
+diff --git a/src/frontend/ECJ_ROSE_Connection/java_support.C b/src/frontend/ECJ_ROSE_Connection/java_support.C
+index 657692c..aad6535 100644
+--- a/src/frontend/ECJ_ROSE_Connection/java_support.C
++++ b/src/frontend/ECJ_ROSE_Connection/java_support.C
+@@ -488,7 +488,14 @@ void setJavaSourcePosition(SgLocatedNode*locatedNode, JavaSourceCodePosition *po
+     // This function sets the source position if java position information has been provided
+     // (posInfo != NULL), otherwise it is marked as not available.
+     // These nodes WILL be unparsed in the code generation phase.
+-    if (posInfo -> getLineStart() == 0) {
++    // if (posInfo -> getLineStart() == 0) {
++    if (posInfo -> getLineEnd() == 0) {
++        if (locatedNode -> get_startOfConstruct() == NULL){
++            locatedNode -> set_startOfConstruct(Sg_File_Info::generateDefaultFileInfoForCompilerGeneratedNode());
++        }
++        if (locatedNode -> get_endOfConstruct() == NULL){
++            locatedNode -> set_endOfConstruct(Sg_File_Info::generateDefaultFileInfoForCompilerGeneratedNode());
++        }
+         setJavaSourcePositionUnavailableInFrontend(locatedNode);
+         return;
+     }
+@@ -677,12 +684,25 @@ string convertJavaPackageNameToCxxString(JNIEnv *env, const jstring &java_string
+     return package_name;
+ }
+ 
++SgClassDeclaration *buildDefiningClassDeclaration(SgName class_name, SgScopeStatement *scope) {
++     SgClassDeclaration* nonDefiningDecl              = NULL;
++     bool buildTemplateInstantiation                  = false;
++     SgTemplateArgumentPtrList* templateArgumentsList = NULL;
++
++     SgClassDeclaration* declaration = SageBuilder::buildClassDeclaration_nfi(class_name, SgClassDeclaration::e_class, scope, nonDefiningDecl /*, buildTemplateInstantiation, templateArgumentsList */);
++     ROSE_ASSERT(declaration != NULL);
++     declaration -> set_parent(scope);
++     declaration -> set_scope(scope);
++
++     return declaration;
++}
++
+ 
+ SgClassDefinition *findOrInsertPackage(const SgName &original_package_name, const SgName &converted_package_name, JNIEnv *env, jobject loc) {
+     SgClassSymbol *namespace_symbol = ::globalScope -> lookup_class_symbol(converted_package_name);
+     SgClassDeclaration *declaration;
+     if (namespace_symbol == NULL) {
+-        declaration = SageBuilder::buildDefiningClassDeclaration(converted_package_name, ::globalScope);
++        declaration = buildDefiningClassDeclaration(converted_package_name, ::globalScope); // SageBuilder::buildDefiningClassDeclaration(converted_package_name, ::globalScope);
+         declaration -> setAttribute("namespace", new AstRegExAttribute(original_package_name));
+         SgClassDefinition *definition = declaration -> get_definition();
+         ROSE_ASSERT(definition);
+@@ -705,7 +725,7 @@ SgClassDefinition *findOrInsertPackage(const SgName &original_package_name, cons
+ 
+ SgMemberFunctionDeclaration *buildDefiningMemberFunction(const SgName &inputName, SgClassDefinition *class_definition, int num_arguments, JNIEnv *env, jobject method_location, jobject args_location) {
+     if (SgProject::get_verbose() > 0)
+-        printf ("Inside of memberFunctionSetup(): name = %s in scope = %p = %s = %s \n", inputName.str(), class_definition, class_definition -> class_name().c_str(), class_definition -> get_declaration() -> get_name().str());
++        printf ("Inside of buildDefiningMemberFunction(): name = %s in scope = %p = %s = %s \n", inputName.str(), class_definition, class_definition -> class_name().c_str(), class_definition -> get_declaration() -> get_name().str());
+ 
+     // This is abstracted so that we can build member functions as require to define Java specific default functions (e.g. super()).
+ 
+@@ -769,8 +789,8 @@ cout.flush();
+ 
+     // Specify if this is const, volatile, or restrict (0 implies normal member function).
+     unsigned int mfunc_specifier = 0;
+-    SgMemberFunctionType *memberFunctionType = SageBuilder::buildMemberFunctionType(return_type, typeList, class_definition, mfunc_specifier);
+-    ROSE_ASSERT(memberFunctionType != NULL);
++    SgMemberFunctionType *member_function_type = SageBuilder::buildMemberFunctionType(return_type, typeList, class_definition, mfunc_specifier);
++    ROSE_ASSERT(member_function_type != NULL);
+ 
+     // parameterlist = SageBuilder::buildFunctionParameterList(typeList);
+     ROSE_ASSERT(parameterlist != NULL);
+@@ -785,7 +805,7 @@ cout.flush();
+     bool func_symbol_found = true;
+     while (func_symbol_found == true) {
+         // DQ (3/24/2011): This function should not already exist (else it should be an error).
+-        func_symbol = class_definition -> lookup_function_symbol(name, memberFunctionType);
++        func_symbol = class_definition -> lookup_function_symbol(name, member_function_type);
+         // ROSE_ASSERT(func_symbol == NULL);
+ 
+         if (func_symbol != NULL) {
+@@ -800,9 +820,26 @@ cout.flush();
+             func_symbol_found = false;
+         }
+     }
++    ROSE_ASSERT(name.getString().compare(inputName.getString()) == 0); // PC - 04-03-13 - added this check because I don't understand the reason for the code above.
++
++    //SgMemberFunctionDeclaration*
++    //buildNondefiningMemberFunctionDeclaration (const SgName & name, SgType* return_type, SgFunctionParameterList *parlist, SgScopeStatement* scope, SgExprListExp* decoratorList, unsigned int functionConstVolatileFlags, bool buildTemplateInstantiation, SgTemplateArgumentPtrList* templateArgumentsList);
++    //
++    // TODO: This line is needed for EDG4
++    //    SgMemberFunctionDeclaration *nondefining_function_declaration = SageBuilder::buildNondefiningMemberFunctionDeclaration(name, return_type, parameterlist, class_definition, NULL, 0, false, NULL);
++
++    //
++    //SgMemberFunctionDeclaration*
++    //buildDefiningMemberFunctionDeclaration (const SgName & name, SgType* return_type, SgFunctionParameterList *parlist, SgScopeStatement* scope, SgExprListExp* decoratorList, bool buildTemplateInstantiation, unsigned int functionConstVolatileFlags, SgMemberFunctionDeclaration* first_nondefinng_declaration, SgTemplateArgumentPtrList* templateArgumentsList);
++    //
++    // TODO: This line is needed for EDG4
++    //    SgMemberFunctionDeclaration *function_declaration = SageBuilder::buildDefiningMemberFunctionDeclaration(name, return_type, parameterlist, class_definition, NULL, false, 0, nondefining_function_declaration, NULL);
++
++    // TODO: Remove the EDG3 line below.
++    SgMemberFunctionDeclaration *function_declaration = SageBuilder::buildDefiningMemberFunctionDeclaration(name, member_function_type, parameterlist, class_definition, NULL);
++    ROSE_ASSERT(function_declaration);
+ 
+-    SgMemberFunctionDeclaration *functionDeclaration = SageBuilder::buildDefiningMemberFunctionDeclaration(name, memberFunctionType, parameterlist, class_definition);
+-    vector<SgInitializedName *> args = functionDeclaration -> get_args();
++    vector<SgInitializedName *> args = function_declaration -> get_args();
+     setJavaSourcePosition(parameterlist, env, args_location);
+     for (vector<SgInitializedName *>::iterator name_it = args.begin(); name_it != args.end(); name_it++) {
+         SgInitializedName *locatedNode = *name_it;
+@@ -815,13 +852,13 @@ cout.flush();
+     }
+     ROSE_ASSERT(startLocation.empty());
+     ROSE_ASSERT(endLocation.empty());
+-    ROSE_ASSERT(functionDeclaration != NULL);
+-    ROSE_ASSERT(functionDeclaration -> get_definingDeclaration() != NULL);
+-    ROSE_ASSERT(functionDeclaration -> get_definition() != NULL);
++    ROSE_ASSERT(function_declaration != NULL);
++    ROSE_ASSERT(function_declaration -> get_definingDeclaration() != NULL);
++    ROSE_ASSERT(function_declaration -> get_definition() != NULL);
+ 
+-    setJavaSourcePosition(functionDeclaration -> get_definition(), env, method_location);
++    setJavaSourcePosition(function_declaration -> get_definition(), env, method_location);
+ 
+-    return functionDeclaration;
++    return function_declaration;
+ }
+ 
+ 
+@@ -946,7 +983,7 @@ cout.flush();
+ 
+     ROSE_ASSERT(method_declaration);
+ 
+-    SgSymbol *symbol =  method_declaration -> get_symbol_from_symbol_table();
++    SgSymbol *symbol =  method_declaration -> search_for_symbol_from_symbol_table();
+     ROSE_ASSERT(symbol);
+     SgMemberFunctionSymbol *function_symbol = isSgMemberFunctionSymbol(symbol);
+     ROSE_ASSERT(function_symbol);
+@@ -955,94 +992,6 @@ cout.flush();
+ }
+ 
+ 
+-SgClassDeclaration *buildJavaClass(const SgName &className, SgScopeStatement *scope, JNIEnv *env, jobject jToken) {
+-    ROSE_ASSERT(scope != NULL);
+-
+-    // Note that this will also build the non-defining declaration.
+-    SgClassDeclaration *declaration = SageBuilder::buildDefiningClassDeclaration (className, scope);
+-    ROSE_ASSERT(declaration != NULL);
+-    ROSE_ASSERT(declaration -> get_type() != NULL);
+-
+-    SgScopeStatement *type_scope = isSgClassType(declaration -> get_type())-> getAssociatedDeclaration() -> get_scope();
+-    if (type_scope != scope) {
+-        cout << endl
+-             << "ROSE bug - Invalid sharing of type "
+-             << className.getString()
+-             << " in scopes: "
+-             << (isSgClassDefinition(scope) ? isSgClassDefinition(scope) -> get_qualified_name().getString() : scope -> class_name())
+-             << " and "
+-             << (isSgClassDefinition(type_scope) ? isSgClassDefinition(type_scope) -> get_qualified_name().getString() : type_scope -> class_name())
+-             << endl
+-             << endl;
+-        cout.flush();
+-        ROSE_ASSERT(false);
+-    }
+-
+-    ROSE_ASSERT(declaration -> get_scope() != NULL);
+-    ROSE_ASSERT(declaration -> get_firstNondefiningDeclaration() != NULL);
+-
+-    // DQ (3/24/2011): I think we should be able to assect this since the scope was valid.
+-    ROSE_ASSERT(declaration -> get_symbol_from_symbol_table() == NULL);
+-    ROSE_ASSERT(declaration -> get_firstNondefiningDeclaration() -> get_symbol_from_symbol_table() != NULL);
+-
+-    // Make sure that the new class has been added to the correct synbol table.
+-    ROSE_ASSERT (scope -> lookup_class_symbol(declaration -> get_name()) != NULL);
+-
+-    setJavaSourcePosition(declaration, env, jToken);
+-
+-    ROSE_ASSERT(astJavaScopeStack.empty() == false);
+-    SgClassDefinition *class_definition = declaration -> get_definition(); // SageBuilder::buildClassDefinition(declaration);
+-    ROSE_ASSERT(class_definition != NULL);
+-    // TODO: Remove this!!!  Replaced by code above.
+-    //    SgClassDefinition *class_definition = SageBuilder::buildClassDefinition(declaration);
+-    //    ROSE_ASSERT(class_definition != NULL);
+-
+-    setJavaSourcePosition(class_definition, env, jToken);
+-
+-    // DQ (3/25/2011): Added testing.
+-    ROSE_ASSERT(class_definition -> get_declaration() == declaration);
+-    ROSE_ASSERT(class_definition -> get_declaration() != NULL);
+-    ROSE_ASSERT(class_definition -> get_declaration() != NULL && class_definition -> get_declaration() -> get_symbol_from_symbol_table() == NULL);
+-    ROSE_ASSERT(class_definition -> get_declaration() != NULL && class_definition -> get_declaration() -> get_firstNondefiningDeclaration() -> get_symbol_from_symbol_table() != NULL);
+-
+-    size_t declarationListSize = class_definition -> generateStatementList().size();
+-
+-    if (SgProject::get_verbose() > 0)
+-        printf ("declarationListSize = %zu \n", declarationListSize);
+-
+-    ROSE_ASSERT(declarationListSize == 0);
+-
+-    return declaration;
+-}
+-
+-
+-// TODO: Remove this !!!
+-/*
+-SgVariableDeclaration *buildSimpleVariableDeclaration(const SgName &name, SgType *type) {
+-    if (SgProject::get_verbose() > 0)
+-        printf ("Building a variable (%s) within scope = %p = %s \n", name.str(), astJavaScopeStack.top(), astJavaScopeStack.top() -> class_name().c_str());
+-
+-    // We are not supporting an initialized at this point in the implementation of the Java support.
+-    SgVariableDeclaration *variableDeclaration = SageBuilder::buildVariableDeclaration(name, type, NULL, astJavaScopeStack.top());
+-    ROSE_ASSERT(variableDeclaration != NULL);
+-
+-    // DQ (8/21/2011): Note that the default access permission is default, but this is the same enum value as public.
+-    // Most language support ignores this in the unparser, but we might want to set it better than this.
+-
+-    // DQ (8/21/2011): Debugging declarations in local function should (should not be marked as public).
+-    // ROSE_ASSERT(variableDeclaration -> get_declarationModifier().get_accessModifier().isPublic() == false);
+-
+-    // DQ (7/16/2011): This is a test to debug failing test in resetParentPointers.C:1733
+-    ROSE_ASSERT(SageInterface::is_Fortran_language() == false);
+-    SgInitializedName *initializedName = variableDeclaration -> get_decl_item (name);
+-    ROSE_ASSERT(initializedName != NULL);
+-    ROSE_ASSERT(initializedName -> get_scope() != NULL);
+-
+-    return variableDeclaration;
+-}
+-*/
+-
+-
+ list<SgName> generateQualifierList (const SgName &classNameWithQualification) {
+     list<SgName> returnList;
+     SgName classNameWithoutQualification;
+@@ -1367,119 +1316,6 @@ cout.flush();
+ }
+ 
+ 
+-// TODO: Remove this !!!
+-/*
+-SgClassSymbol *lookupSymbolFromQualifiedName(string className) {
+-    // Java qualified names are separate by "." and can refer to classes that
+-    // are implicit (not appearing in the source code).  ROSE determines all
+-    // referenced implicit classes (recursively) and includes them in the AST
+-    // to support a proper AST with full type resolution, etc.  This can make 
+-    // the AST for even a trivial Java program rather large.
+-
+-    list<SgName> qualifiedClassName = generateQualifierList(className);
+-
+-    SgClassSymbol *previousClassSymbol = NULL;
+-    SgScopeStatement *previousClassScope = astJavaScopeStack.top();
+-    ROSE_ASSERT(previousClassScope != NULL);
+-
+-    // Traverse all of the classes to get to the class containing the functionName.
+-    for (list<SgName>::iterator i = qualifiedClassName.begin(); i != qualifiedClassName.end(); i++) {
+-        // Get the class from the current scope of the nearest outer most scope.
+-
+-        ROSE_ASSERT(previousClassScope != NULL);
+-
+-        if (SgProject::get_verbose() > 2)
+-            printf ("Lookup SgSymbol for name = %s in scope = %p = %s = %s \n", (*i).str(), previousClassScope, previousClassScope -> class_name().c_str(), SageInterface::get_name(previousClassScope).c_str());
+-
+-        SgSymbol *tmpSymbol = SageInterface::lookupSymbolInParentScopes(*i, previousClassScope);
+-        // ROSE_ASSERT(tmpSymbol != NULL);
+-        if (tmpSymbol != NULL) {
+-            if (SgProject::get_verbose() > 2)
+-                printf ("Found a symbol tmpSymbol = %s = %s \n", tmpSymbol -> class_name().c_str(), tmpSymbol -> get_name().str());
+-
+-            // This is either a proper class or an alias to a class where the class is implicit or included via an import statement.
+-            SgClassSymbol *classSymbol       = isSgClassSymbol(tmpSymbol);
+-            SgVariableSymbol *variableSymbol = isSgVariableSymbol(tmpSymbol);
+-            SgAliasSymbol *aliasSymbol       = isSgAliasSymbol(tmpSymbol);
+-
+-            if (classSymbol == NULL && aliasSymbol != NULL) {
+-                // printf ("Trace through the alias to the proper symbol in another scope. \n");
+-                classSymbol = isSgClassSymbol(aliasSymbol -> get_alias());
+-            }
+-            else {
+-                // This could be a call to "System.out.println();" (see test2011_04.java) in which case
+-                // this is a variableSymbol and the type of the variable is the class which has the 
+-                // "println();" function.
+-                if (classSymbol == NULL && variableSymbol != NULL) {
+-                    // Find the class associated with the type of the variable (this could be any expression so this get's messy!)
+-                    SgType *tmpType = variableSymbol -> get_type();
+-                    ROSE_ASSERT(tmpType != NULL);
+-
+-                    printf ("variable type = %p = %s \n", tmpType, tmpType -> class_name().c_str());
+-
+-                    // This should be a SgClassType but currently all variables are build with SgTypeInt.
+-                    // So this is the next item to fix in the AST.
+-                    SgClassType *classType = isSgClassType(tmpType);
+-
+-                    // ROSE_ASSERT(classType != NULL);
+-                    if (classType != NULL) {
+-                        ROSE_ASSERT(classType -> get_declaration() != NULL);
+-                        SgClassDeclaration *class_declaration = isSgClassDeclaration(classType -> get_declaration());
+-                        ROSE_ASSERT(class_declaration != NULL);
+-
+-                        SgSymbol *tmpSymbol = class_declaration -> search_for_symbol_from_symbol_table();
+-                        ROSE_ASSERT(tmpSymbol != NULL);
+-                        classSymbol = isSgClassSymbol(tmpSymbol);
+-                        ROSE_ASSERT(classSymbol != NULL);
+-                    }
+-                    else {
+-                        // This case happens when we are debugging the Java support and we have not built all the 
+-                        // implicit classes and yet we discover a type used in a function argument list or retun 
+-                        // type that is missing. In this case return NULL and it will be handled by the calling function.
+-                        printf ("WARNING: lookupSymbolFromQualifiedName(name = %s) is returning NULL since the class type was not found (debug mode) \n", className.c_str());
+-                        return NULL;
+-                    }
+-                }
+-                else {
+-                    // DQ (7/17/2011): This is not from a variable, it can be associated with a function when we started inside of the class.  See test2011_21.java.
+-                    SgFunctionSymbol *functionSymbol = isSgFunctionSymbol(tmpSymbol);
+-                    if (functionSymbol != NULL) {
+-                        // printf ("This could/should the constructor for the class we want, we just want the class... \n");
+-
+-                        // Get the class directly since it is likely a parent class of the current scope.
+-                        classSymbol = SageInterface::lookupClassSymbolInParentScopes(*i, previousClassScope);
+-                        ROSE_ASSERT(classSymbol != NULL);
+-                    }
+-
+-                    ROSE_ASSERT(classSymbol != NULL);
+-                }
+-
+-                ROSE_ASSERT(aliasSymbol == NULL);
+-            }
+-
+-            ROSE_ASSERT(classSymbol != NULL);
+-
+-            if (SgProject::get_verbose() > 2)
+-                printf ("classSymbol = %p for class name = %s \n", classSymbol, (*i).str());
+-
+-            previousClassSymbol = classSymbol;
+-            SgClassDeclaration *class_declaration = isSgClassDeclaration(classSymbol -> get_declaration() -> get_definingDeclaration());
+-            ROSE_ASSERT(class_declaration != NULL);
+-            // previousClassScope = classSymbol -> get_declaration() -> get_scope();
+-            previousClassScope = class_declaration -> get_definition();
+-            ROSE_ASSERT(previousClassScope != NULL);
+-        }
+-        else {
+-            // This is OK when we are only processing a small part of the implicit class space (debugging mode) and have not built all the SgClassDeclarations. 
+-            // printf ("WARNING: SgClassSymbol NOT FOUND in lookupSymbolFromQualifiedName(): name = %s \n", className.c_str());
+-            previousClassSymbol = NULL;
+-        }
+-    }
+-
+-    return previousClassSymbol;
+-}
+-*/
+-
+ //
+ //
+ //
