@@ -365,6 +365,8 @@ endif()
 
 option(enable-java "Enable Java support in ROSE." ON)
 if (enable-java)
+  message(Status "Looking for JAVA ...")
+  include(FindJava)
   find_package(JNI)
   add_definitions(-DROSE_BUILD_JAVA_LANGUAGE_SUPPORT)
 endif()
@@ -555,9 +557,6 @@ if (NOT WIN32)
 include(FindOpenSSL)
 include(FindSQLITE3)
 endif (NOT WIN32)
-
-message(Status "Looking for JAVA ...")
-include(FindJava)
 
 message(Status "Looking for flex ...")
 find_package(FLEX)
