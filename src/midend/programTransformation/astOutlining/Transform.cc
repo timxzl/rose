@@ -80,7 +80,7 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
         appendStatement( member_decl, def_scope );
     }
 #endif
-  
+
   for (ASTtools::VarSymSet_t::const_iterator i = syms.begin ();
       i != syms.end (); ++i)
   {

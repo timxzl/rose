@@ -23,6 +23,9 @@
 #include <string>
 #include <ASTtools.hh>
 #include <VarSym.hh>
+
+#include "rose_config.h"
+
 //! \name Forward declarations to relevant Sage classes.
 //@{
 class SgProject;
@@ -270,6 +273,7 @@ namespace Outliner
                                            SgExpression * lower = NULL, SgExpression * upper = NULL, 
                                            SgExpression * stride = NULL, SgExpression * chunk = NULL );
 
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
     /*!
      * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed with a Nanos++ slicer
      * containing the code of 's' and the corresponding Nanos statements to iterate over the slicer
@@ -284,17 +288,32 @@ namespace Outliner
                           SgScopeStatement* scope );
     
     /*!
+     * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed with a Nanos++ slicer
+     * containing the code of 's' and the corresponding Nanos statements to iterate over the slicer
+     */
+    SgFunctionDeclaration * 
+    generateSectionsFunction( SgBasicBlock* s,
+                              const std::string& func_name_str,
+                              const ASTtools::VarSymSet_t& syms,
+                              const ASTtools::VarSymSet_t& pdSyms,
+                              const std::set< SgInitializedName *>& restoreVars,
+                              SgClassDeclaration* struct_decl,
+                              SgScopeStatement* scope );
+    
+    /*!
      * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed 
      * with a Nanos++ reduction containing the code of 's'
+     * It is slightly different since the code performing the reduction is already wraped in a function
      */
     SgFunctionDeclaration *
-            generateReductionFunction( SgBasicBlock* s,
-                                        const std::string& func_name_str,
-                                        const ASTtools::VarSymSet_t& syms,
-                                        const ASTtools::VarSymSet_t& pdSyms,
-                                        const ASTtools::VarSymSet_t& reduction_syms,
-                                        SgClassDeclaration* struct_decl,
-                                        SgScopeStatement* scope );
+        generateReductionFunction( SgFunctionDeclaration * reduction_function,
+                               const std::string& func_name_str,
+                               const ASTtools::VarSymSet_t& syms,
+                               const ASTtools::VarSymSet_t& pdSyms,
+                               const ASTtools::VarSymSet_t& reduction_syms,
+                               SgClassDeclaration* struct_decl,
+                               SgScopeStatement* scope );
+#endif
 
     /*!
      *  \brief Inserts an outlined-function declaration into global scope.

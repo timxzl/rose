@@ -1,4 +1,5 @@
 #include "astQuery.h"
+#include "rose_config.h"
 //#include "sage3basic.h"
 
 /*!
@@ -135,19 +136,24 @@ namespace OmpSupport
   //! Create the function that retrieves the alignement of an struct
   SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapper_name, 
                                          SgClassDeclaration* struct_decl );
-
+  
+  //! Create all functions involved in the execution of a reduction
+  SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reduction_func,
+          SgOmpClauseBodyStatement * target, SgClassDeclaration*& struct_decl, std::string func_name,
+          std::set<SgInitializedName*>& syms, std::set<SgInitializedName*>& pdSyms );
+  
   //! A helper function to generate explicit task for omp loop
   //! Inspired in method 'generateOutlinedTask'
   SgFunctionDeclaration* generateOutlinedLoop( SgNode* node, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, 
                                                std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
                                                SgClassDeclaration*& struct_decl,
                                                SgExpression * lower, SgExpression * upper, SgExpression * stride, SgExpression * chunk );
-
+  
   //! A helper function to generate explicit task for omp section
   //! Inspired in method 'generateOutlinedTask'
-  SgFunctionDeclaration* generateOutlinedSection( SgNode* section, SgNode* sections, std::string& wrapper_name, 
-                                                  std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars,
-                                                  std::set<SgVariableSymbol*>& pdSyms3, SgClassDeclaration*& struct_decl );
+  SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wrapper_name, std::set<SgVariableSymbol*>& syms, 
+                                                   std::set<SgInitializedName *> & readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
+                                                   SgClassDeclaration * & struct_decl );
 #endif
   
   //! Translate OpenMP variables associated with an OpenMP pragma, such as private, firstprivate, lastprivate, reduction, etc. bb1 is the translation generated code block in which the variable handling statements will be inserted. Original loop upper bound is needed for implementing lastprivate (check if it is the last iteration). withinAcceleratorModel means if we only translate private() variables, used to support accelerator model

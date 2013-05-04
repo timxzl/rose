@@ -70,7 +70,7 @@ extern void XOMP_sections_end(void);
 extern void XOMP_sections_end_nowait(void);
 
 // Method for sections when NANOS library.
-extern void XOMP_sections_for_NANOS(int num_sections, bool must_wait, ... );
+extern void XOMP_sections_for_NANOS( void ( * ) ( int, void * ), void *, bool );
 
 extern void XOMP_task (void (*) (void *), void *, void (*) (void *, void *),
                        long, long, bool, unsigned);

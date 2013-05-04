@@ -1311,14 +1311,14 @@ SgFunctionDeclaration *
                                      const string& func_name_str,
                                      const ASTtools::VarSymSet_t& syms,
                                      const ASTtools::VarSymSet_t& pdSyms,
-                                     const std::set< SgInitializedName *>& restoreVars, // variables need to be restored after their clones finish computation
+                                     const std::set< SgInitializedName *>& restoreVars,
                                      SgClassDeclaration* struct_decl, 
                                      SgScopeStatement* scope )
 {
     ROSE_ASSERT( s && scope );
     ROSE_ASSERT( isSgGlobal( scope ) );
     
-    //step 2. Create function skeleton, 'func'.
+    //step 1. Create function skeleton, 'func'.
     SgName func_name( func_name_str );
     SgFunctionParameterList* parameterList = buildFunctionParameterList( );
     SgFunctionDeclaration* func = createFuncSkeleton( func_name, buildVoidType( ), parameterList, scope );
@@ -1339,9 +1339,11 @@ SgFunctionDeclaration *
         func->set_linkage( "C" );
     }
 
-    //step 3. Create the function body
+    //step 2. Create the function body
     SgBasicBlock* func_body = func->get_definition( )->get_body( );
     ROSE_ASSERT( func_body != NULL );
+    ROSE_ASSERT( func_body->get_statements( ).empty( ) == true );
+    SageInterface::moveStatementsBetweenBlocks( s, func_body );
     SgStatement* orig_body_stmt = SageInterface::copyStatement( s );
     SgBasicBlock* sliced_stmt = isSgBasicBlock( orig_body_stmt );
     appendStatement( sliced_stmt, func_body );
@@ -1349,7 +1351,7 @@ SgFunctionDeclaration *
     if( Outliner::useNewFile )
         ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
   
-    //step 4: variable handling, including: 
+    //step 3: variable handling, including: 
     // -----------------------------------------
     //   create parameters of the outlined functions
     //   add statements to unwrap the parameters
@@ -1359,11 +1361,11 @@ SgFunctionDeclaration *
     ROSE_ASSERT( func != NULL );
     func->set_type( buildFunctionType( func->get_type()->get_return_type( ), 
                     buildFunctionParameterTypeList( func->get_parameterList( ) ) ) );
-    //   // Retest this...
+    // Retest this...
     ROSE_ASSERT( func_body->get_parent( ) == func->get_definition( ) );
     ROSE_ASSERT( scope->lookup_function_symbol( func->get_name( ) ) );
     
-    //step 5. Introduce in the function code the statements for Nanos calls
+    //step 4. Introduce in the function code the statements for Nanos calls
     // We separete in two the construction of the function body because 
     // we need variable handling to be done before building the nanos calls
     // and we need the original code to be placed in the function code 
@@ -1457,8 +1459,72 @@ SgFunctionDeclaration *
     return func;
 }
 
+SgFunctionDeclaration * 
+        Outliner::generateSectionsFunction( SgBasicBlock* s,
+                                            const std::string& func_name_str,
+                                            const ASTtools::VarSymSet_t& syms,
+                                            const ASTtools::VarSymSet_t& pdSyms,
+                                            const std::set<SgInitializedName *>& restoreVars,
+                                            SgClassDeclaration* struct_decl,
+                                            SgScopeStatement* scope )
+{
+    ROSE_ASSERT( s && scope );
+    ROSE_ASSERT( isSgGlobal( scope ) );
+    
+    //step 1. Create function skeleton, 'func'.
+    SgInitializedName * index = buildInitializedName( "index", buildIntType( ) );
+    SgFunctionParameterList* parameterList = buildFunctionParameterList( index );
+    SgFunctionDeclaration* func = createFuncSkeleton( func_name_str, buildVoidType( ), parameterList, scope );
+    ROSE_ASSERT( func );
+    if( SageInterface::is_Cxx_language( ) || is_mixed_C_and_Cxx_language( ) )
+    {   // Enable C code to call this outlined function making the function 'extern "C"'
+        func->get_declarationModifier( ).get_storageModifier( ).setExtern( );
+        func->set_linkage( "C" );
+    }
+    
+    //step 2. Create the function body
+    SgBasicBlock * func_body = func->get_definition( )->get_body( );
+    ROSE_ASSERT( func_body != NULL );
+            // copy all statements until we find the sections block: local declarations
+    SgStatementPtrList & stmt_list = s->get_statements( );
+    SgStatementPtrList::iterator it = stmt_list.begin( );
+    while( !isSgOmpSectionStatement( *it ) )
+    {
+        appendStatement( SageInterface::copyStatement( *it ), func_body );
+        ++it;
+    }
+    ROSE_ASSERT( isSgOmpSectionStatement( *it ) );
+            // outline the actual switch
+    SgBasicBlock * switch_body = buildBasicBlock( );
+    SgSwitchStatement * switch_stmt = buildSwitchStatement( buildExprStatement( buildVarRefExp( index ) ), switch_body );
+    Rose_STL_Container<SgNode *> section_list = NodeQuery::querySubTree( s, V_SgOmpSectionStatement );
+    int section_count = section_list.size( );
+    for( int i = 0; i < section_count; i++ )
+    {
+        SgBasicBlock * case_block = buildBasicBlock( isSgOmpSectionStatement( section_list[i] )->get_body( ), 
+                                                                              buildBreakStmt( ) );
+        SgCaseOptionStmt * option_stmt = buildCaseOptionStmt( buildIntVal( i ), case_block );
+        switch_stmt->append_case( option_stmt );
+    }
+    appendStatement( switch_stmt, func_body );    
+    if( Outliner::useNewFile )
+        ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
+    
+    //step 3: variable handling: create parameters, packing and unpacking statements and replace variables
+    variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
+    
+    func->set_type( buildFunctionType( func->get_type( )->get_return_type( ), 
+                                       buildFunctionParameterTypeList( func->get_parameterList( ) ) ) );
+    
+    // Retest this...
+    ROSE_ASSERT( func_body->get_parent( ) == func->get_definition( ) );
+    ROSE_ASSERT( scope->lookup_function_symbol( func->get_name( ) ) );
+    
+    return func;
+}
+
 SgFunctionDeclaration *
-        Outliner::generateReductionFunction( SgBasicBlock* s,
+        Outliner::generateReductionFunction( SgFunctionDeclaration * reduction_function,
                                              const std::string& func_name_str,
                                              const ASTtools::VarSymSet_t& syms,
                                              const ASTtools::VarSymSet_t& pdSyms,
@@ -1466,11 +1532,12 @@ SgFunctionDeclaration *
                                              SgClassDeclaration* struct_decl,
                                              SgScopeStatement* scope )
 {
-    ROSE_ASSERT( s && scope );
+    ROSE_ASSERT( reduction_function && scope );
     ROSE_ASSERT( isSgGlobal( scope ) );
     
     //step 1. Create function skeleton, 'func'.
-    SgFunctionParameterList* parameterList = buildFunctionParameterList( );
+    SgFunctionParameterList* parameterList = 
+            isSgFunctionParameterList( SageInterface::copyStatement( reduction_function->get_parameterList( ) ) );
     SgFunctionDeclaration* func = createFuncSkeleton( func_name_str, buildVoidType( ), parameterList, scope );
     ROSE_ASSERT( func );
     if( SageInterface::is_Cxx_language( ) || is_mixed_C_and_Cxx_language( ) )
@@ -1482,12 +1549,10 @@ SgFunctionDeclaration *
     //step 3. Create the function body
     SgBasicBlock* func_body = func->get_definition( )->get_body( );
     ROSE_ASSERT( func_body != NULL );
-            // We don't want the '{' '}' of the Basic Block to by ducplicated inside the function
-    SgStatementPtrList s_stmts = s->get_statements( );
-    for( SgStatementPtrList::iterator ss = s_stmts.begin( ); ss != s_stmts.end( ); ++ss )
-    {
-        appendStatement( SageInterface::copyStatement( * ss ), func_body );
-    }
+            // Copy all the statements from the function containing the reduction to the new function
+    appendStatement( SageInterface::copyStatement( reduction_function->get_definition( )->get_body( ) ), 
+                     func_body );
+            // Add the current thread computation to the array containing all threads computation
     for( ASTtools::VarSymSet_t::const_iterator i = reduction_syms.begin (); i != reduction_syms.end (); ++i )
     {
         SgFunctionCallExp* func_call_exp = buildFunctionCallExp( "XOMP_get_nanos_thread_num", buildIntType( ), 

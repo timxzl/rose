@@ -23,7 +23,7 @@ void NANOS_parallel( void (*) (void *), void *, unsigned, long, long (*) (void),
 void NANOS_task( void (*) (void *), void (*), long, long (*) (void), bool, unsigned, void *, void (*) (void *, void *) );
 
 void NANOS_loop( void (*) (void *), void *, long, long (*)(void), void *, void (*) (void *, void *), int );
-void NANOS_sections( int, bool, va_list );
+void NANOS_sections( void (*) (int, void *), void *, bool );
 
 int NANOS_get_thread_num( void );
 int NANOS_get_num_threads( void );

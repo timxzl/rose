@@ -399,16 +399,9 @@ void XOMP_sections_end_nowait(void)
 
 #else
 
-void XOMP_sections_for_NANOS(int num_sections, bool must_wait, ... )
+void XOMP_sections_for_NANOS( void ( * func ) ( int i, void * section_data ), void * data, bool wait )
 {
-  // Grab variable parameters (they depend on the number of section blocks)
-  // All parameters are passed by value
-  va_list sections_args;
-  va_start (sections_args, must_wait);
-
-  NANOS_sections(num_sections, must_wait, sections_args);
-
-  va_end (sections_args);
+  NANOS_sections( func, data, wait );
 }
 
 #endif
