@@ -70,7 +70,7 @@ extern void XOMP_sections_end(void);
 extern void XOMP_sections_end_nowait(void);
 
 // Method for sections when NANOS library.
-extern void XOMP_sections_for_NANOS( void ( * ) ( int, void * ), void *, bool );
+extern void XOMP_sections_for_NANOS( void ( * ) ( void *, int i ), void *, int, bool );
 
 extern void XOMP_task (void (*) (void *), void *, void (*) (void *, void *),
                        long, long, bool, unsigned);
@@ -140,7 +140,7 @@ extern bool XOMP_master(void);
 extern void XOMP_atomic_start (void);
 extern void XOMP_atomic_end (void);
 
-extern void XOMP_reduction_for_NANOS( int, void ( ** )( void *, void *, int ), void ( ** )( void **, void ** ), void ( * )( void * ), 
+extern void XOMP_reduction_for_NANOS( int, void ( ** )( void *, void *, int ), void ( ** )( void **, void ** ), void ( * )( void *, int ), 
                                       void *, void ***, void **, long *, int, const char *, int );
 extern void XOMP_atomic_for_NANOS ( int, int, void *, void * );
 extern int XOMP_get_nanos_thread_num( void );

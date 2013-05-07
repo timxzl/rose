@@ -864,8 +864,8 @@ static SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_opera
 
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
 
-SgExpression* build_nanos_get_empty_struct( SgStatement* ancestor, SgScopeStatement* expr_sc, 
-                                            SgType* struct_type, std::string base_name )
+static SgExpression* build_nanos_get_empty_struct( SgStatement* ancestor, SgScopeStatement* expr_sc, 
+                                                   SgType* struct_type, std::string base_name )
 {
     // void* (*get_empty_data)()
     SgScopeStatement* decl_sc = ancestor->get_scope( );
@@ -904,8 +904,8 @@ SgExpression* build_nanos_get_empty_struct( SgStatement* ancestor, SgScopeStatem
     return buildCastExp( buildFunctionRefExp( func_sym ), buildPointerType( casting_func_type ) );
 }
 
-SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 
-                                        SgType* struct_type, std::string base_name )
+static SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 
+                                               SgType* struct_type, std::string base_name )
 {
   SgName empty_struct_name = "empty_" + base_name;
   SgAssignInitializer * init = buildAssignInitializer( buildCastExp( buildIntVal( 0 ), buildPointerType( struct_type ) ) );
@@ -916,8 +916,8 @@ SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement*
   return buildVarRefExp( empty_struct_name, stmt_sc );
 }
 
-SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor, std::string& wrapper_name, 
-        SgClassDeclaration* struct_decl, bool init_wsd /* true if Loop, false otherwise*/ )
+static SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor, std::string& wrapper_name, 
+                                                                 SgClassDeclaration* struct_decl, bool init_wsd /* true if Loop */ )
 {
     SgScopeStatement* decl_sc = ancestor->get_scope( );
     ROSE_ASSERT( decl_sc != NULL );
@@ -993,7 +993,7 @@ SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor,
   return buildCastExp( buildFunctionRefExp( func_sym ), buildPointerType( casting_func_type ) );
 }
 
-SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapper_name, SgClassDeclaration* struct_decl )
+static SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapper_name, SgClassDeclaration* struct_decl )
 {
     SgScopeStatement* decl_sc = ancestor->get_scope( );
     ROSE_ASSERT( decl_sc != NULL );
@@ -1025,17 +1025,18 @@ SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapp
     return buildFunctionRefExp( func_sym );
 }
 
-SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reduction_func,
+static void generate_nanos_reduction( SgFunctionDeclaration * func,
         SgOmpClauseBodyStatement * target, SgClassDeclaration*& struct_decl, std::string func_name,
-        const ASTtools::VarSymSet_t& syms, const ASTtools::VarSymSet_t& pdSyms )
+        const ASTtools::VarSymSet_t& syms, const ASTtools::VarSymSet_t& pdSyms, std::set<SgVariableDeclaration *> unpacking_stmts, 
+        bool add_index_parameter = false )
 {
-    SgFunctionDeclaration* result = NULL;
-    SgGlobal* g_scope = SageInterface::getGlobalScope( reduction_func );
+    SgGlobal* g_scope = SageInterface::getGlobalScope( func );
     
     // 1. Outlined the basic block into a new function with the code of the reduction
     //    Creating the additional statment that actually performs the thread reduction
+    //    Unpacking statements must remain in the original outlined function!
     // ---------------------------------------------------------------------------
-    std::string reduction_func_name = Outliner::generateFuncName( reduction_func );
+    std::string reduction_func_name = Outliner::generateFuncName( func );
             
     VariantVector vvt = VariantVector( V_SgOmpReductionClause );
     SgInitializedNamePtrList reduction_vars = collectClauseVariables( target, vvt );
@@ -1047,20 +1048,24 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
     ASTtools::VarSymSet_t pdSyms_;
     pdSyms_.insert( pdSyms.begin( ), pdSyms.end( ) );
     pdSyms_.insert( reduction_syms.begin( ), reduction_syms.end( ) );
+    SgBasicBlock * reduction_code = func->get_definition( )->get_body( );
+            // Create the new outlined function
     SgClassDeclaration * reduction_struct_decl = 
-            Outliner::generateParameterStructureDeclaration( reduction_func->get_definition( )->get_body( ), 
-            reduction_func_name, syms_, pdSyms_, g_scope, false, reduction_syms );
-    SgFunctionDeclaration * new_reduction_func = 
-            Outliner::generateReductionFunction( reduction_func, reduction_func_name, syms_, pdSyms_, reduction_syms,
-            reduction_struct_decl, g_scope );
-    ROSE_ASSERT( new_reduction_func != NULL );
-    Outliner::insert( new_reduction_func, g_scope, reduction_func->get_definition( )->get_body( ) );
-    if( new_reduction_func->get_definingDeclaration( ) != NULL )
-        SageInterface::setStatic( new_reduction_func->get_definingDeclaration( ) );
-    if( new_reduction_func->get_firstNondefiningDeclaration( ) != NULL )
-        SageInterface::setStatic( new_reduction_func->get_firstNondefiningDeclaration( ) );
-            
+            Outliner::generateParameterStructureDeclaration( reduction_code, reduction_func_name, syms_, pdSyms_, 
+                                                             g_scope, false, reduction_syms );
+    SgFunctionDeclaration * result = 
+            Outliner::generateReductionFunction( func->get_definition( )->get_body( ), reduction_func_name, 
+                                                 syms_, pdSyms_, reduction_syms, reduction_struct_decl, g_scope, unpacking_stmts,
+                                                 add_index_parameter );
+    ROSE_ASSERT( result != NULL );
+    Outliner::insert( result, g_scope, reduction_code );
+    if( result->get_definingDeclaration( ) != NULL )
+        SageInterface::setStatic( result->get_definingDeclaration( ) );
+    if( result->get_firstNondefiningDeclaration( ) != NULL )
+        SageInterface::setStatic( result->get_firstNondefiningDeclaration( ) );    
+    
     // 2. Create the new basic block containing:
+    //    - the original unpacking statements 
     //    - data structure with the parameters to be outlined to the reduction function
     //    - an array containing all global data symbols
     //    - an array containing the size of all global data symbol
@@ -1068,9 +1073,14 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
     //    - an array containing the calls to the functions that initialize each nanos reduction
     //    - an array containing the calls to the functions that performs the threads reduction for each nanos reduction
     // ---------------------------------------------------------------------------
-    SgBasicBlock* new_body_block = buildBasicBlock( );
-    replaceStatement( new_reduction_func->get_definition( )->get_body( ), new_body_block );
-            
+    SgBasicBlock* new_func_body = buildBasicBlock( );
+    replaceStatement( func->get_definition( )->get_body( ), new_func_body );
+    
+    for( std::set<SgVariableDeclaration *>::iterator it = unpacking_stmts.begin( ); it != unpacking_stmts.end( ); ++it )
+    {
+        new_func_body->append_statement( *it );
+    }
+        
     int n_reductions = reduction_syms.size( );
     SgExprListExp * global_data_initializers = buildExprListExp( );
     SgExprListExp * global_data_size_initializers = buildExprListExp( );
@@ -1081,20 +1091,20 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
         const SgVariableSymbol* r_sym = isSgVariableSymbol( *rs );
         SgName current_global_data_name = "g_th_" + r_sym->get_name( );
         SgFunctionCallExp* get_num_threads = buildFunctionCallExp( "XOMP_get_nanos_num_threads", buildIntType( ), 
-                buildExprListExp( ), new_body_block );
+                buildExprListExp( ), new_func_body );
         SgVariableDeclaration* global_data_array_decl = 
                 buildVariableDeclaration( current_global_data_name, buildArrayType( r_sym->get_type( ), get_num_threads ),
-                                                  /*init*/ NULL, new_body_block );
-        new_body_block->append_statement( global_data_array_decl );
+                                                  /*init*/ NULL, new_func_body );
+        new_func_body->append_statement( global_data_array_decl );
                 
                 // Initializer of the current symbol for the array of symbols
         global_data_initializers->append_expression( 
-                buildAssignInitializer( buildAddressOfOp( buildVarRefExp( r_sym->get_name( ), new_body_block ) ), 
+                buildAssignInitializer( buildVarRefExp( r_sym->get_name( ), new_func_body ), 
                                         buildPointerType( buildVoidType( ) ) ) );
         global_data_size_initializers->append_expression( buildSizeOfOp( r_sym->get_type( ) ) );
         global_th_data_initializers->append_expression( 
                 buildAssignInitializer( buildCastExp( buildAddressOfOp( buildVarRefExp( current_global_data_name, 
-                                        new_body_block ) ), 
+                                        new_func_body ) ), 
         buildPointerType( buildPointerType( buildVoidType( ) ) ) ), 
         buildPointerType( buildPointerType( buildVoidType( ) ) ) ) );
     }
@@ -1106,8 +1116,8 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
             buildVariableDeclaration( global_data_array_name, 
                                       buildArrayType( buildPointerType( buildVoidType( ) ), 
                                               buildIntVal( n_reductions ) ),
-                                      global_data_array_initializer, new_body_block );
-    new_body_block->append_statement( global_data_array );
+                                      global_data_array_initializer, new_func_body );
+    new_func_body->append_statement( global_data_array );
             // Actual array of per thread sizes
     SgAggregateInitializer * global_data_size_array_initializer = 
             buildAggregateInitializer( global_data_size_initializers, buildPointerType( buildVoidType( ) ) );
@@ -1115,8 +1125,8 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
     SgVariableDeclaration * global_data_size_array = 
             buildVariableDeclaration( global_data_size_array_name, 
                                       buildArrayType( buildLongType( ), buildIntVal( n_reductions ) ),
-                                      global_data_size_array_initializer, new_body_block );
-    new_body_block->append_statement( global_data_size_array );
+                                      global_data_size_array_initializer, new_func_body );
+    new_func_body->append_statement( global_data_size_array );
             // Actual array of per thread symbols
     SgAggregateInitializer * global_th_data_array_initializer = 
             buildAggregateInitializer( global_th_data_initializers, 
@@ -1126,8 +1136,8 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
             buildVariableDeclaration( global_th_data_array_name, 
                                       buildArrayType( buildPointerType( buildPointerType( buildVoidType( ) ) ), 
                                               buildIntVal( n_reductions ) ),
-                                      global_th_data_array_initializer, new_body_block );
-    new_body_block->append_statement( global_th_data_array );
+                                      global_th_data_array_initializer, new_func_body );
+    new_func_body->append_statement( global_th_data_array );
             
             // We must call this function here, so we have created the statement 
             // that is going to be immediately after the packing statements ( global_data_array)
@@ -1168,7 +1178,7 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
         appendArg( params, nanos_red_param );
         SgFunctionDeclaration* func_def = buildDefiningFunctionDeclaration( init_th_func_name, reduc_func_return_type, params, g_scope );
         SageInterface::setStatic( func_def );
-        insertStatementAfter( new_reduction_func, func_def );
+        insertStatementAfter( func, func_def );
                 
         SgBasicBlock* func_body = func_def->get_definition( )->get_body( );
         ROSE_ASSERT( func_body != NULL );
@@ -1182,7 +1192,7 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
                 // Build the function declaration
         SgFunctionDeclaration* func_decl = buildNondefiningFunctionDeclaration( func_def, g_scope );
         SageInterface::setStatic( func_decl );
-        insertStatementBefore( new_reduction_func, func_decl );
+        insertStatementBefore( func, func_decl );
                 
                 // Add the function expression to the initializer array to be passed to nanos
         SgAssignInitializer* reduction_func_initializer = buildAssignInitializer(
@@ -1192,12 +1202,12 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
     }
     SgAggregateInitializer * init_thread_reduction_initializer = 
             buildAggregateInitializer( nanos_red_init_funcs_array, buildPointerType( reduction_func_type ) );
-    SgName init_thread_reduction_func_array_name = SageInterface::generateUniqueVariableName( new_body_block, "init_thread_reduction_array_" );
+    SgName init_thread_reduction_func_array_name = SageInterface::generateUniqueVariableName( new_func_body, "init_thread_reduction_array_" );
     SgVariableDeclaration * init_thread_reduction_func_array = 
             buildVariableDeclaration( init_thread_reduction_func_array_name, 
                                       buildArrayType( buildPointerType( reduction_func_type ), buildIntVal( reduction_syms.size( ) ) ),
-                                      init_thread_reduction_initializer, new_body_block );
-    new_body_block->append_statement( init_thread_reduction_func_array );
+                                      init_thread_reduction_initializer, new_func_body );
+    new_func_body->append_statement( init_thread_reduction_func_array );
     
     // 4. Create the function that computes the reduction of each thread partial reduction
     //    There will be one function per reduction
@@ -1234,7 +1244,7 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
         appendArg( params, n_scalar_param );
         SgFunctionDeclaration* func_def = buildDefiningFunctionDeclaration( all_th_func_name, all_th_reduc_func_return_type, params, g_scope );
         SageInterface::setStatic( func_def );
-        insertStatementAfter( new_reduction_func, func_def );
+        insertStatementAfter( func, func_def );
 
         SgBasicBlock* func_body = func_def->get_definition( )->get_body( );
         ROSE_ASSERT( func_body != NULL );
@@ -1289,7 +1299,7 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
         // Build the function declaration
         SgFunctionDeclaration* func_decl = buildNondefiningFunctionDeclaration( func_def, g_scope );
         SageInterface::setStatic( func_decl );
-        insertStatementBefore( new_reduction_func, func_decl );
+        insertStatementBefore( func, func_decl );
                 
         // Add the function expression to the initializer array to be passed to nanos
         SgFunctionSymbol * func_sym = isSgFunctionSymbol( func_decl->get_symbol_from_symbol_table( ) );
@@ -1300,25 +1310,25 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
     }
     SgAggregateInitializer * nanos_all_th_red_initializer = 
             buildAggregateInitializer( nanos_all_th_red_funcs_array, buildPointerType( all_th_reduction_func_type ) );
-    SgName nanos_all_th_red_funcs_array_name = SageInterface::generateUniqueVariableName( new_body_block, "nanos_all_thread_reduction_array_" );
+    SgName nanos_all_th_red_funcs_array_name = SageInterface::generateUniqueVariableName( new_func_body, "nanos_all_thread_reduction_array_" );
     SgVariableDeclaration * nanos_all_th_red_func_array = 
             buildVariableDeclaration( nanos_all_th_red_funcs_array_name, 
                                       buildArrayType( buildPointerType( all_th_reduction_func_type ), buildIntVal( reduction_syms.size( ) ) ),
-                                      nanos_all_th_red_initializer, new_body_block );
-    new_body_block->append_statement( nanos_all_th_red_func_array );
+                                      nanos_all_th_red_initializer, new_func_body );
+    new_func_body->append_statement( nanos_all_th_red_func_array );
             
     // 5. Generate the call to the Nanos reduction function
     // ---------------------------------------------------------------------------
     SgExprListExp* parameters = NULL;
     SgExpression * p1_num_reductions = buildIntVal( reduction_syms.size( ) );
-    SgExpression * p2_all_th_reductions = buildVarRefExp( nanos_all_th_red_funcs_array_name, new_body_block );
-    SgExpression * p3_th_data_init = buildVarRefExp( init_thread_reduction_func_array_name, new_body_block );
+    SgExpression * p2_all_th_reductions = buildVarRefExp( nanos_all_th_red_funcs_array_name, new_func_body );
+    SgExpression * p3_th_data_init = buildVarRefExp( init_thread_reduction_func_array_name, new_func_body );
     SgExpression * p4_single_th_reduction = 
             buildFunctionRefExp( isSgFunctionSymbol( g_scope->lookup_function_symbol( reduction_func_name ) ) );
-    SgExpression * p5_single_th_data = buildAddressOfOp( buildVarRefExp( reduction_wrapper_name, new_body_block ) );
-    SgExpression * p6_global_th_datas = buildVarRefExp( global_th_data_array_name, new_body_block );
-    SgExpression * p7_global_datas = buildVarRefExp( global_data_array_name, new_body_block );
-    SgExpression * p8_global_data_sizes = buildVarRefExp( global_data_size_array_name, new_body_block );
+    SgExpression * p5_single_th_data = buildAddressOfOp( buildVarRefExp( reduction_wrapper_name, new_func_body ) );
+    SgExpression * p6_global_th_datas = buildVarRefExp( global_th_data_array_name, new_func_body );
+    SgExpression * p7_global_datas = buildVarRefExp( global_data_array_name, new_func_body );
+    SgExpression * p8_global_data_sizes = buildVarRefExp( global_data_size_array_name, new_func_body );
     SgExpression * p9_num_scalars = buildIntVal( 1 );
     SgExpression * p10_filename = buildStringVal( target->get_file_info( )->get_filename( ) );
     SgExpression * p11_fileline = buildIntVal( target->get_file_info( )->get_line( ) );
@@ -1336,24 +1346,8 @@ SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reducti
     param_list.push_back( p11_fileline );
     parameters = buildExprListExp( param_list );
     SgExprStatement * nanos_reduction_call = buildFunctionCallStmt( "XOMP_reduction_for_NANOS", buildVoidType( ), 
-            parameters, new_body_block );
-    new_body_block->append_statement( nanos_reduction_call );
-            
-    // 5. Generate the outlined task function
-    /* Parameter list
-        SgBasicBlock* s,  // block to be outlined
-        const string& func_name_str, // function name
-        const ASTtools::VarSymSet_t& syms, // parameter list for all variables to be passed around
-        const ASTtools::VarSymSet_t& pdSyms, // variables must use pointer dereferencing (pass-by-reference)
-        const ASTtools::VarSymSet_t& psyms, // private or dead variables (not live-in, not live-out)
-        SgClassDeclaration* struct_decl,  // an optional wrapper structure for parameters
-        Depending on the internal flag, unpacking/unwrapping statements are generated inside the outlined function to use wrapper parameters.
-    */
-    std::set< SgInitializedName *> restoreVars;
-    result = Outliner::generateFunction( new_body_block, func_name, syms, pdSyms, restoreVars, struct_decl, g_scope );
-    Outliner::insert( result, g_scope, new_body_block );
-    
-    return result;
+                                                                    parameters, new_func_body );
+    new_func_body->append_statement( nanos_reduction_call );
 }
 
 #endif      // USE_ROSE_NANOS_OPENMP_LIBRARY
@@ -1690,14 +1684,50 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
     
     // lastprivate and reduction variables cannot be excluded  since write access to their shared copies
     
+    // Add sizes of array variables when those are also variables
+    ASTtools::VarSymSet_t new_syms;
+    for (ASTtools::VarSymSet_t::const_iterator i = syms.begin (); i != syms.end (); ++i)
+    {
+        SgType* i_type = (*i)->get_declaration()->get_type();
+    
+        while (isSgArrayType(i_type))
+        {
+            // Get most significant dimension
+            SgExpression* index = ((SgArrayType*) i_type)->get_index();
+        
+            // Get the variables used to compute the dimension
+            // FIXME We insert a new statement and delete it afterwards in order to use "collectVars" function
+            //       Think about implementing an specific function for expressions
+            ASTtools::VarSymSet_t a_syms, a_pSyms;
+            SgExprStatement* index_stmt = buildExprStatement(index);
+            appendStatement(index_stmt, body_block);
+            Outliner::collectVars(index_stmt, a_syms);
+            SageInterface::removeStatement(index_stmt);
+            for(ASTtools::VarSymSet_t::iterator j = a_syms.begin(); j != a_syms.end(); ++j)
+            {
+                const SgVariableSymbol* s = *j;
+                new_syms.insert(s);   // If the symbol is not in the symbol list, it is added
+            }
+            
+            // Advance over the type
+            i_type = ((SgArrayType*) i_type)->get_base_type();
+        }
+    }
+    for (ASTtools::VarSymSet_t::const_iterator i = new_syms.begin (); i != new_syms.end (); ++i)
+    {
+        const SgVariableSymbol* s = *i;
+        syms.insert(s);
+    }
+    
     // Data structure used to wrap parameters
     struct_decl = Outliner::generateParameterStructureDeclaration( body_block, func_name, syms, pdSyms3, g_scope, /*is loop*/ true );
     
     // Generate the outlined function
     std::set<SgInitializedName *> restoreVars;
+    std::set<SgVariableDeclaration *> unpacking_stmts;
     SgFunctionDeclaration * result = Outliner::generateLoopFunction( body_block, func_name, 
                                                                      syms, pdSyms3, restoreVars, 
-                                                                     struct_decl, g_scope );
+                                                                     struct_decl, g_scope, unpacking_stmts );
     ROSE_ASSERT( result != NULL );
     
     Outliner::insert( result, g_scope, body_block );
@@ -2336,79 +2366,79 @@ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_n
                std::inserter( syms, syms.begin( ) ) );
 #endif
   
-  // Assume all parameters need to be passed by reference/pointers first
-  std::copy(syms.begin(), syms.end(), std::inserter(pdSyms,pdSyms.begin()));
-
-  //exclude firstprivate variables: they are read only in fact
-  //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
-  SgInitializedNamePtrList fp_vars = collectClauseVariables (target, V_SgOmpFirstprivateClause);
-  ASTtools::VarSymSet_t fp_syms, pdSyms2;
-  convertAndFilter (fp_vars, fp_syms);
-  set_difference (pdSyms.begin(), pdSyms.end(),
-      fp_syms.begin(), fp_syms.end(),
-      std::inserter(pdSyms2, pdSyms2.begin()));
- //  ROSE_ASSERT (pdSyms.size() == pdSyms2.size());  this means the previous set_difference is neccesary !
- 
+    // Assume all parameters need to be passed by reference/pointers first
+    std::copy(syms.begin(), syms.end(), std::inserter(pdSyms,pdSyms.begin()));
+    
+    //exclude firstprivate variables: they are read only in fact
+    //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
+    SgInitializedNamePtrList fp_vars = collectClauseVariables (target, V_SgOmpFirstprivateClause);
+    ASTtools::VarSymSet_t fp_syms, pdSyms2;
+    convertAndFilter (fp_vars, fp_syms);
+    set_difference (pdSyms.begin(), pdSyms.end(),
+        fp_syms.begin(), fp_syms.end(),
+        std::inserter(pdSyms2, pdSyms2.begin()));
+    //  ROSE_ASSERT (pdSyms.size() == pdSyms2.size());  this means the previous set_difference is neccesary !
+    
 #if 0
-  // Similarly , exclude private variable, also read only
-  // TODO: is this necessary? private variables should  be handled already in transOmpVariables(). So Outliner::collectVars() will not collect them at all!
-  SgInitializedNamePtrList p_vars = collectClauseVariables (target, V_SgOmpPrivateClause);
-  ASTtools::VarSymSet_t p_syms; //, pdSyms3;
-  convertAndFilter (p_vars, p_syms);
-  //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
-  set_difference (pdSyms2.begin(), pdSyms2.end(),
-      p_syms.begin(), p_syms.end(),
-      std::inserter(pdSyms3, pdSyms3.begin()));
-
-  ROSE_ASSERT (pdSyms2.size() == pdSyms3.size());
+    // Similarly , exclude private variable, also read only
+    // TODO: is this necessary? private variables should  be handled already in transOmpVariables(). So Outliner::collectVars() will not collect them at all!
+    SgInitializedNamePtrList p_vars = collectClauseVariables (target, V_SgOmpPrivateClause);
+    ASTtools::VarSymSet_t p_syms; //, pdSyms3;
+    convertAndFilter (p_vars, p_syms);
+    //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
+    set_difference (pdSyms2.begin(), pdSyms2.end(),
+        p_syms.begin(), p_syms.end(),
+        std::inserter(pdSyms3, pdSyms3.begin()));
+    
+    ROSE_ASSERT (pdSyms2.size() == pdSyms3.size());
 #endif
-  pdSyms3 = pdSyms2;
+    pdSyms3 = pdSyms2;
 
-  // lastprivate and reduction variables cannot be excluded  since write access to their shared copies
-
-  // Sara Royuela 24/04/2012
-  // When unpacking array variables in the outlined function, it is needed to have access to the size of the array.
-  // When this size is a variable (or a operation containing variables), this variable must be added to the arguments of the outlined function.
-  // Example:
-  //    Input snippet:                      Outlined function:
-  //        int N = 1;                          static void OUT__1__5493__(void *__out_argv) {
-  //        int a[N];                               int (*a)[N] = (int (*)[N])(((struct OUT__1__5493___data *)__out_argv) -> a_p);
-  //        #pragma omp task shared(a)              ( *a)[0] = 1;
-  //            a[0] = 1;                       }
-  ASTtools::VarSymSet_t new_syms;
-  for (ASTtools::VarSymSet_t::const_iterator i = syms.begin (); i != syms.end (); ++i)
-  {
-    SgType* i_type = (*i)->get_declaration()->get_type();
-
-    while (isSgArrayType(i_type))
+    // lastprivate and reduction variables cannot be excluded  since write access to their shared copies
+    
+    // Sara Royuela 24/04/2012
+    // When unpacking array variables in the outlined function, it is needed to have access to the size of the array.
+    // When this size is a variable (or a operation containing variables), this variable must be added to the arguments of the outlined function.
+    // Example:
+    //    Input snippet:                      Outlined function:
+    //        int N = 1;                          static void OUT__1__5493__(void *__out_argv) {
+    //        int a[N];                               int (*a)[N] = (int (*)[N])(((struct OUT__1__5493___data *)__out_argv) -> a_p);
+    //        #pragma omp task shared(a)              ( *a)[0] = 1;
+    //            a[0] = 1;                       }
+    ASTtools::VarSymSet_t new_syms;
+    for (ASTtools::VarSymSet_t::const_iterator i = syms.begin (); i != syms.end (); ++i)
     {
-      // Get most significant dimension
-      SgExpression* index = ((SgArrayType*) i_type)->get_index();
-
-      // Get the variables used to compute the dimension
-      // FIXME We insert a new statement and delete it afterwards in order to use "collectVars" function
-      //       Think about implementing an specific function for expressions
-      ASTtools::VarSymSet_t a_syms, a_pSyms;
-      SgExprStatement* index_stmt = buildExprStatement(index);
-      appendStatement(index_stmt, body_block);
-      Outliner::collectVars(index_stmt, a_syms);
-      SageInterface::removeStatement(index_stmt);
-      for(ASTtools::VarSymSet_t::iterator j = a_syms.begin(); j != a_syms.end(); ++j)
-      {
-        const SgVariableSymbol* s = *j;
-        new_syms.insert(s);   // If the symbol is not in the symbol list, it is added
-      }
-      
-      // Advance over the type
-      i_type = ((SgArrayType*) i_type)->get_base_type();
+        SgType* i_type = (*i)->get_declaration()->get_type();
+    
+        while (isSgArrayType(i_type))
+        {
+            // Get most significant dimension
+            SgExpression* index = ((SgArrayType*) i_type)->get_index();
+        
+            // Get the variables used to compute the dimension
+            // FIXME We insert a new statement and delete it afterwards in order to use "collectVars" function
+            //       Think about implementing an specific function for expressions
+            ASTtools::VarSymSet_t a_syms, a_pSyms;
+            SgExprStatement* index_stmt = buildExprStatement(index);
+            appendStatement(index_stmt, body_block);
+            Outliner::collectVars(index_stmt, a_syms);
+            SageInterface::removeStatement(index_stmt);
+            for(ASTtools::VarSymSet_t::iterator j = a_syms.begin(); j != a_syms.end(); ++j)
+            {
+                const SgVariableSymbol* s = *j;
+                new_syms.insert(s);   // If the symbol is not in the symbol list, it is added
+            }
+            
+            // Advance over the type
+            i_type = ((SgArrayType*) i_type)->get_base_type();
+        }
     }
-  }
-
-  for (ASTtools::VarSymSet_t::const_iterator i = new_syms.begin (); i != new_syms.end (); ++i)
-  {
-    const SgVariableSymbol* s = *i;
-    syms.insert(s);
-  }
+    
+    for (ASTtools::VarSymSet_t::const_iterator i = new_syms.begin (); i != new_syms.end (); ++i)
+    {
+        const SgVariableSymbol* s = *i;
+        syms.insert(s);
+    }
 
     // data structure used to wrap parameters
     if (SageInterface::is_Fortran_language())
@@ -2418,26 +2448,9 @@ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_n
     // ROSE_ASSERT (struct_decl != NULL); // can be NULL if no parameters to be passed
   
     //Generate the outlined function
-    bool function_is_outlined = false;
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-    if( target2 != NULL )
-    {   // Outlining a parallel directive
-        
-        // We have to check here whether there is a reduction clause
-        // Nanos outlines reductions in a different way than other RTLs
-        // Whereas gomp and omni do the transformation in transOmpVariables 
-        if( hasClause( target2, V_SgOmpReductionClause ) )
-        {
-//             result = generate_nanos_reduction( node, body_block, target, struct_decl, func_name, syms, pdSyms3 );
-            function_is_outlined = true;
-        }
-    }
-#endif
-    if( !function_is_outlined )
-    {
-        std::set< SgInitializedName *> restoreVars;
-        result = Outliner::generateFunction( body_block, func_name, syms, pdSyms3, restoreVars, struct_decl, g_scope );
-    }
+    std::set< SgInitializedName *> restoreVars;
+    std::set<SgVariableDeclaration *> unpacking_stmts;
+    result = Outliner::generateFunction( body_block, func_name, syms, pdSyms3, restoreVars, struct_decl, g_scope, unpacking_stmts );
     
 #if 0
   // special handling for empty variables to be passed: test case helloNested.cpp
@@ -2484,34 +2497,36 @@ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_n
   }
 #endif
 
-    if ( !function_is_outlined )
-    {
-        Outliner::insert(result, g_scope, body_block);
-    }
-  
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-    // Nanos++ parallel blocks requiere some extra statements
-    SgBasicBlock* func_body = result->get_definition( )->get_body( );
-    if( target2 != NULL )
-    {   // Outlining a parallel directive
-        
-        // Nanos statements before the function body
-        SgStatement* init_parallel = buildFunctionCallStmt( "XOMP_parallel_start_for_NANOS", buildVoidType( ), 
-                                                            /* params */ NULL , func_body->get_scope( ) );
-        prependStatement( init_parallel, func_body );
-        
-        // Nanos statements after the function body
-        SgExprStatement* end_parallel = buildFunctionCallStmt( "XOMP_parallel_end_for_NANOS", buildVoidType(), 
-                                                               /* params */ NULL, func_body->get_scope( ) );
-        appendStatement( end_parallel, func_body );
-    }
-#endif
-  
+    Outliner::insert(result, g_scope, body_block);
+    
     // A fix from Tristan Ravitch travitch@cs.wisc.edu to make outlined functions static to avoid name conflicts
     if (result->get_definingDeclaration() != NULL)
         SageInterface::setStatic(result->get_definingDeclaration());
     if (result->get_firstNondefiningDeclaration() != NULL)
         SageInterface::setStatic(result->get_firstNondefiningDeclaration());
+
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+    if( target2 != NULL )
+    {   // Outlining a parallel directive
+        
+        // We have to check here whether there is a reduction clause
+        // Nanos outlines reductions in a different way than other RTLs
+        // Whereas gomp and omni do the transformation in transOmpVariables 
+        if( hasClause( target2, V_SgOmpReductionClause ) )
+        {
+            generate_nanos_reduction( result, target, struct_decl, func_name, syms, pdSyms3, unpacking_stmts );
+        }
+        
+        // Nanos++ parallel blocks requiere some extra statements
+        SgBasicBlock* func_body = result->get_definition( )->get_body( );
+        SgStatement* init_parallel = buildFunctionCallStmt( "XOMP_parallel_start_for_NANOS", buildVoidType( ), 
+                                                            /* params */ NULL , func_body->get_scope( ) );
+        SgExprStatement* end_parallel = buildFunctionCallStmt( "XOMP_parallel_end_for_NANOS", buildVoidType(), 
+                                                               /* params */ NULL, func_body->get_scope( ) );
+        prependStatement( init_parallel, func_body );
+        appendStatement( end_parallel, func_body );
+    }
+#endif
     
     // Generate packing statements
     // must pass target , not body_block to get the right scope in which the declarations are inserted
@@ -3586,6 +3601,19 @@ SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wr
     // since they are already handled by transOmpVariables(). 
     Outliner::collectVars( body_block, syms );
     
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+    // We have to add the reduction symbols to the 'syms' list
+    // because they have been considered firstprivate during "transOmpVariables"
+    // and Nanos avoids the copyBack statement ( it is performed transparently ) 
+    // that allows 'collectVars' to take into account these symbols
+    ASTtools::VarSymSet_t red_syms;
+    SgInitializedNamePtrList red_vars = collectClauseVariables( target, V_SgOmpReductionClause );
+    convertAndFilter( red_vars, red_syms );
+    set_union( syms.begin( ), syms.end(),
+               red_syms.begin( ), red_syms.end( ),
+               std::inserter( syms, syms.begin( ) ) );
+#endif
+    
     // Assume all parameters need to be passed by reference/pointers first
     ASTtools::VarSymSet_t pSyms, fpSyms,reductionSyms, pdSyms;
     std::copy( syms.begin( ), syms.end( ), std::inserter( pdSyms, pdSyms.begin( ) ) );
@@ -3608,6 +3636,41 @@ SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wr
                     p_syms.begin( ), p_syms.end( ),
                     std::inserter( pdSyms3, pdSyms3.begin( ) ) );
 
+    // Add sizes of array variables when those are also variables
+    ASTtools::VarSymSet_t new_syms;
+    for (ASTtools::VarSymSet_t::const_iterator i = syms.begin (); i != syms.end (); ++i)
+    {
+        SgType* i_type = (*i)->get_declaration()->get_type();
+    
+        while (isSgArrayType(i_type))
+        {
+            // Get most significant dimension
+            SgExpression* index = ((SgArrayType*) i_type)->get_index();
+        
+            // Get the variables used to compute the dimension
+            // FIXME We insert a new statement and delete it afterwards in order to use "collectVars" function
+            //       Think about implementing an specific function for expressions
+            ASTtools::VarSymSet_t a_syms, a_pSyms;
+            SgExprStatement* index_stmt = buildExprStatement(index);
+            appendStatement(index_stmt, body_block);
+            Outliner::collectVars(index_stmt, a_syms);
+            SageInterface::removeStatement(index_stmt);
+            for(ASTtools::VarSymSet_t::iterator j = a_syms.begin(); j != a_syms.end(); ++j)
+            {
+                const SgVariableSymbol* s = *j;
+                new_syms.insert(s);   // If the symbol is not in the symbol list, it is added
+            }
+            
+            // Advance over the type
+            i_type = ((SgArrayType*) i_type)->get_base_type();
+        }
+    }
+    for (ASTtools::VarSymSet_t::const_iterator i = new_syms.begin (); i != new_syms.end (); ++i)
+    {
+        const SgVariableSymbol* s = *i;
+        syms.insert(s);
+    }
+    
     // Data structure used to wrap parameters
     struct_decl = Outliner::generateParameterStructureDeclaration( body_block, func_name, syms, pdSyms3, g_scope );
     
@@ -3624,17 +3687,16 @@ SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wr
         Depending on the internal flag, unpacking/unwrapping statements are generated inside the outlined function to use wrapper parameters.
      */
     std::set<SgInitializedName *> restoreVars;
-    result = Outliner::generateSectionsFunction( body_block, func_name, syms, pdSyms3, restoreVars, struct_decl, g_scope );
+    std::set<SgVariableDeclaration *> unpacking_stmts;
+    result = Outliner::generateSectionsFunction( body_block, func_name, syms, pdSyms3, restoreVars, struct_decl, g_scope, unpacking_stmts );
     ROSE_ASSERT( result != NULL );
+    
     Outliner::insert( result, g_scope, body_block );
+    
     if( result->get_definingDeclaration( ) != NULL )
         SageInterface::setStatic( result->get_definingDeclaration( ) );
     if( result->get_firstNondefiningDeclaration( ) != NULL )
         SageInterface::setStatic( result->get_firstNondefiningDeclaration( ) );
-    
-    // Generate packing statements
-    // must pass 'target', not 'body_block' to get the right scope in which the declarations are inserted
-    wrapper_name = Outliner::generatePackingStatements( target, syms,pdSyms3, struct_decl );
     
     // We have to check here whether there is a reduction clause
     // Nanos outlines reductions in a different way than other RTLs
@@ -3642,12 +3704,12 @@ SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wr
     if( hasClause( target, V_SgOmpReductionClause ) )
     {
         // Modify the code inside the sections function in order to perform the reduction
-        generate_nanos_reduction( result, target, struct_decl, func_name, syms, pdSyms3 );
+        generate_nanos_reduction( result, target, struct_decl, func_name, syms, pdSyms3, unpacking_stmts, true /*add index parameter*/ );
     }
-    else
-    {
-        std::cerr << "Dos NOT contains reduction clause" << std::endl;
-    }
+    
+    // Generate packing statements
+    // must pass 'target', not 'body_block' to get the right scope in which the declarations are inserted
+    wrapper_name = Outliner::generatePackingStatements( target, syms,pdSyms3, struct_decl );
     
     return result;
 }
@@ -3823,10 +3885,12 @@ SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wr
     ROSE_ASSERT( data_ref != NULL );
     SgExpression * p2_data = buildAddressOfOp( data_ref );
     
-    // FIXME This depends on the existence of the nowait clause
-    SgExpression * p3_wait = buildBoolValExp( false );
+    SgExpression * p3_n_sections = buildIntVal( section_count );
     
-    SgExprListExp* parameters = buildExprListExp( p1_func, p2_data, p3_wait );
+    // FIXME This depends on the existence of the nowait clause
+    SgExpression * p4_wait = buildBoolValExp( false );
+    
+    SgExprListExp* parameters = buildExprListExp( p1_func, p2_data, p3_n_sections, p4_wait );
     SgExprStatement* s = buildFunctionCallStmt( "XOMP_sections_for_NANOS", buildVoidType(), parameters, scope );
     SageInterface::replaceStatement( target, s , true );
     

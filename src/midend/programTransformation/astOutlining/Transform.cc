@@ -285,7 +285,8 @@ Outliner::outlineBlock (SgBasicBlock* s, const string& func_name_str)
     calculateVariableUsingAddressOf (syms, readOnlyVars, pdSyms);
   }
 
-  SgFunctionDeclaration* func = generateFunction (s, func_name_str, syms, pdSyms, restoreVars, struct_decl, glob_scope);
+  std::set<SgVariableDeclaration *> unpacking_stmts;
+  SgFunctionDeclaration* func = generateFunction (s, func_name_str, syms, pdSyms, restoreVars, struct_decl, glob_scope, unpacking_stmts);
   ROSE_ASSERT (func != NULL);
   ROSE_ASSERT(glob_scope->lookup_function_symbol(func->get_name()));
 

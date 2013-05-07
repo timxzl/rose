@@ -305,7 +305,7 @@ static int sections_id = 0;
 
 struct sections_data_t
 {
-    void ( * func ) ( void *, int i );
+    void ( * func ) ( void *, int );
     nanos_ws_desc_t * wsd;
     void * section_data;
     bool wait;
@@ -330,7 +330,7 @@ static void NANOS_outlined_section( struct sections_data_t * data )
         int i;
         for( i = nanos_item_loop.lower; i <= nanos_item_loop.upper; ++i )
         {
-            ( * data->func )( i, data->section_data );
+            ( * data->func )( data->section_data, i );
         }
         err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
     }
@@ -344,7 +344,7 @@ static void NANOS_outlined_section( struct sections_data_t * data )
     }
 }
 
-void NANOS_sections( void ( * func ) ( int i, void * section_data ), void * data, bool wait )
+void NANOS_sections( void ( * func ) ( void * section_data, int i ), void * data, int n_sections, bool wait )
 {
     nanos_err_t err;
     
@@ -356,10 +356,9 @@ void NANOS_sections( void ( * func ) ( int i, void * section_data ), void * data
     // Create the Worksharing
     bool single_guard;
     nanos_ws_desc_t * wsd;
-    // FIXME Com es calculen aquests valors??
     nanos_ws_info_loop_t ws_info_loop;
     ws_info_loop.lower_bound = 0;
-    ws_info_loop.upper_bound = 1;
+    ws_info_loop.upper_bound = n_sections - 1;
     ws_info_loop.loop_step = 1;
     ws_info_loop.chunk_size = 1;
     err = nanos_worksharing_create( &wsd, ws_policy, ( void ** ) &ws_info_loop, &single_guard );
@@ -463,7 +462,7 @@ int NANOS_get_num_threads( void )
 void NANOS_reduction( int n_reductions,
                       void ( ** all_threads_reduction )( void * out, void * in, int num_scalars ),
                       void ( ** init_thread_reduction_array )( void **, void ** ),
-                      void ( * single_thread_reduction )( void * ), void * single_thread_data,
+                      void ( * single_thread_reduction )( void *, int ), void * single_thread_data,
                       void *** global_th_data, void ** global_data, long * global_data_size, int num_scalars,
                       const char * filename, int fileline )
 {
@@ -519,7 +518,7 @@ void NANOS_reduction( int n_reductions,
         }
     }
     
-    ( * single_thread_reduction )( single_thread_data );
+    ( * single_thread_reduction )( single_thread_data, 0 );
 }
 
 // *************************** END Nanos Reduction methods **************************** //

@@ -261,7 +261,8 @@ namespace Outliner
                       //const std::set< SgInitializedName *>& liveOuts, // optional live out variables to optimize away the copy-back statements in variable cloning
                       const std::set< SgInitializedName *>& restoreVars, // variables need to be restored after their clones finish computation
                       SgClassDeclaration* struct_decl, /*optional struct type to wrap parameters*/
-                      SgScopeStatement* scope);
+                      SgScopeStatement* scope,
+                      std::set<SgVariableDeclaration *>& unpack_stmts);   // Used only when Nanos OpenMP RTL
 
      //! Generate packing (wrapping) statements for the variables to be passed 
      //return the unique wrapper parameter for the outlined function
@@ -285,7 +286,8 @@ namespace Outliner
                           const ASTtools::VarSymSet_t& pdSyms,
                           const std::set< SgInitializedName *>& restoreVars, // variables need to be restored after their clones finish computation
                           SgClassDeclaration* struct_decl, /*optional struct type to wrap parameters*/
-                          SgScopeStatement* scope );
+                          SgScopeStatement* scope, 
+                          std::set<SgVariableDeclaration *>& unpacking_stmts );
     
     /*!
      * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed with a Nanos++ slicer
@@ -298,7 +300,8 @@ namespace Outliner
                               const ASTtools::VarSymSet_t& pdSyms,
                               const std::set< SgInitializedName *>& restoreVars,
                               SgClassDeclaration* struct_decl,
-                              SgScopeStatement* scope );
+                              SgScopeStatement* scope, 
+                              std::set<SgVariableDeclaration *>& unpacking_stmts );
     
     /*!
      * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed 
@@ -306,13 +309,15 @@ namespace Outliner
      * It is slightly different since the code performing the reduction is already wraped in a function
      */
     SgFunctionDeclaration *
-        generateReductionFunction( SgFunctionDeclaration * reduction_function,
+    generateReductionFunction( SgBasicBlock* s,
                                const std::string& func_name_str,
                                const ASTtools::VarSymSet_t& syms,
                                const ASTtools::VarSymSet_t& pdSyms,
                                const ASTtools::VarSymSet_t& reduction_syms,
                                SgClassDeclaration* struct_decl,
-                               SgScopeStatement* scope );
+                               SgScopeStatement* scope, 
+                               std::set<SgVariableDeclaration *> unpacking_stmts, 
+                               bool add_index_parameter );
 #endif
 
     /*!

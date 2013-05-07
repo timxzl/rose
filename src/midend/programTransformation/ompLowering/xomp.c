@@ -399,9 +399,9 @@ void XOMP_sections_end_nowait(void)
 
 #else
 
-void XOMP_sections_for_NANOS( void ( * func ) ( int i, void * section_data ), void * data, bool wait )
+void XOMP_sections_for_NANOS( void ( * func ) ( void * section_data, int i ), void * data, int n_sections, bool wait )
 {
-  NANOS_sections( func, data, wait );
+  NANOS_sections( func, data, n_sections, wait );
 }
 
 #endif
@@ -1858,7 +1858,7 @@ void XOMP_atomic_for_NANOS(int op, int type, void * variable, void * operand)
 
 void XOMP_reduction_for_NANOS( int n_reductions, void ( ** all_threads_reduction )( void * out, void * in, int num_scalars ),
                                void ( ** init_thread_reduction_array )( void **, void ** ),
-                               void ( * single_thread_reduction )( void * ), void * single_thread_data,
+                               void ( * single_thread_reduction )( void *, int ), void * single_thread_data,
                                void *** global_th_data, void ** global_data, long * global_data_size, int num_scalars,
                                const char * filename, int fileline )
 {

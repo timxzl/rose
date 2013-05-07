@@ -1,5 +1,4 @@
 #include "astQuery.h"
-#include "rose_config.h"
 //#include "sage3basic.h"
 
 /*!
@@ -116,45 +115,19 @@ namespace OmpSupport
  // It calls the ROSE AST outliner internally. 
   SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, 
           std::set<SgVariableSymbol*>& syms, SgClassDeclaration*& struct_decl);
- 
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-
-  //! Create an empty object with type the struct to be passed to an OpenMP outlined function in Nanos
-  //! Returns an expression containing the new object
-  SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 
-                                          SgType* struct_type, std::string base_name );
-
-  //! Create the function retrieving the empty struct to be passed to an OpenMP outlined function in Nanos
-  //! Returns an expression containing a call to the function
-  SgExpression* build_nanos_get_empty_struct( SgStatement* ancestor, SgScopeStatement* expr_sc, 
-                                              SgType* struct_type, std::string base_name );
-
-  //! Create the function that initializes an empty structure with the arguments to the outlined OpenMP parallel or task in Nanos
-  SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor, std::string& wrapper_name, 
-                                                            SgClassDeclaration* struct_decl, bool init_wsd );
-
-  //! Create the function that retrieves the alignement of an struct
-  SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapper_name, 
-                                         SgClassDeclaration* struct_decl );
-  
-  //! Create all functions involved in the execution of a reduction
-  SgFunctionDeclaration* generate_nanos_reduction( SgFunctionDeclaration * reduction_func,
-          SgOmpClauseBodyStatement * target, SgClassDeclaration*& struct_decl, std::string func_name,
-          std::set<SgInitializedName*>& syms, std::set<SgInitializedName*>& pdSyms );
   
   //! A helper function to generate explicit task for omp loop
-  //! Inspired in method 'generateOutlinedTask'
+  //! Inspired in method 'generateOutlinedTask' and only used when Nanos OpenMP RTL is configured
   SgFunctionDeclaration* generateOutlinedLoop( SgNode* node, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, 
                                                std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
                                                SgClassDeclaration*& struct_decl,
                                                SgExpression * lower, SgExpression * upper, SgExpression * stride, SgExpression * chunk );
   
   //! A helper function to generate explicit task for omp section
-  //! Inspired in method 'generateOutlinedTask'
+  //! Inspired in method 'generateOutlinedTask' and only used when Nanos OpenMP RTL is configured
   SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wrapper_name, std::set<SgVariableSymbol*>& syms, 
                                                    std::set<SgInitializedName *> & readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
                                                    SgClassDeclaration * & struct_decl );
-#endif
   
   //! Translate OpenMP variables associated with an OpenMP pragma, such as private, firstprivate, lastprivate, reduction, etc. bb1 is the translation generated code block in which the variable handling statements will be inserted. Original loop upper bound is needed for implementing lastprivate (check if it is the last iteration). withinAcceleratorModel means if we only translate private() variables, used to support accelerator model
   void transOmpVariables(SgStatement * ompStmt, SgBasicBlock* bb1, SgExpression* orig_loop_upper = NULL, bool withinAcceleratorModel= false);

@@ -906,7 +906,7 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
  *
  */
 static
-void
+std::set<SgVariableDeclaration *>
 variableHandling( const ASTtools::VarSymSet_t& syms, // all variables passed to the outlined function: //regular (shared) parameters?
                   const ASTtools::VarSymSet_t& pdSyms, // those must use pointer dereference: use pass-by-reference
 //                const std::set<SgInitializedName*> & readOnlyVars, // optional analysis: those which can use pass-by-value, used for classic outlining without parameter wrapping, and also for variable clone to decide on if write-back is needed
@@ -945,6 +945,7 @@ variableHandling( const ASTtools::VarSymSet_t& syms, // all variables passed to 
   // They include parameters for 
   // *  regular shared variables and also 
   // *  shared copies for firstprivate and reduction variables
+  std::set<SgVariableDeclaration *> unpacking_stmts;
   for (ASTtools::VarSymSet_t::const_reverse_iterator i = syms.rbegin ();
       i != syms.rend (); ++i)
   {
@@ -1048,6 +1049,7 @@ variableHandling( const ASTtools::VarSymSet_t& syms, // all variables passed to 
       local_var_decl  = 
         createUnpackDecl (p_init_name, counter, isPointerDeref, i_name , struct_decl, body, is_nanos_reduction);
       ROSE_ASSERT (local_var_decl);
+      unpacking_stmts.insert( local_var_decl );
       prependStatement (local_var_decl,body);
       // regular and shared variables used the first local declaration
       recordSymRemap (*i, local_var_decl, args_scope, sym_remap);
@@ -1153,6 +1155,8 @@ variableHandling( const ASTtools::VarSymSet_t& syms, // all variables passed to 
 #endif
   // variable substitution 
   remapVarSyms (sym_remap, pdSyms, private_remap , func_body);
+  
+  return unpacking_stmts;
 }
 
 // =====================================================================
@@ -1168,7 +1172,8 @@ Outliner::generateFunction ( SgBasicBlock* s,  // block to be outlined
 //                          const std::set< SgInitializedName *>& liveOuts, // optional live out variables, used to optimize variable cloning
                             const std::set< SgInitializedName *>& restoreVars, // optional information about variables to be restored after variable clones finish computation
                             SgClassDeclaration* struct_decl,  // an optional wrapper structure for parameters
-                            SgScopeStatement* scope)
+                            SgScopeStatement* scope,
+                            std::set<SgVariableDeclaration *>& unpack_stmts )
 {
   ROSE_ASSERT (s&&scope);
   ROSE_ASSERT(isSgGlobal(scope));
@@ -1288,7 +1293,7 @@ Outliner::generateFunction ( SgBasicBlock* s,  // block to be outlined
   //   add repacking statements if necessary
   //   replace variables to access to parameters, directly or indirectly
   //variableHandling(syms, pdSyms, readOnlyVars, liveOuts, struct_decl, func);
-  variableHandling(syms, pdSyms, restoreVars, struct_decl, func);
+  unpack_stmts = variableHandling(syms, pdSyms, restoreVars, struct_decl, func);
   ROSE_ASSERT (func != NULL);
   
 //     std::cout << func->get_type()->unparseToString() << std::endl;
@@ -1313,7 +1318,8 @@ SgFunctionDeclaration *
                                      const ASTtools::VarSymSet_t& pdSyms,
                                      const std::set< SgInitializedName *>& restoreVars,
                                      SgClassDeclaration* struct_decl, 
-                                     SgScopeStatement* scope )
+                                     SgScopeStatement* scope, 
+                                     std::set<SgVariableDeclaration *>& unpacking_stmts )
 {
     ROSE_ASSERT( s && scope );
     ROSE_ASSERT( isSgGlobal( scope ) );
@@ -1357,7 +1363,7 @@ SgFunctionDeclaration *
     //   add statements to unwrap the parameters
     //   add repacking statements if necessary
     //   replace variables to access to parameters, directly or indirectly
-    variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
+    unpacking_stmts = variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
     ROSE_ASSERT( func != NULL );
     func->set_type( buildFunctionType( func->get_type()->get_return_type( ), 
                     buildFunctionParameterTypeList( func->get_parameterList( ) ) ) );
@@ -1466,14 +1472,15 @@ SgFunctionDeclaration *
                                             const ASTtools::VarSymSet_t& pdSyms,
                                             const std::set<SgInitializedName *>& restoreVars,
                                             SgClassDeclaration* struct_decl,
-                                            SgScopeStatement* scope )
+                                            SgScopeStatement* scope, 
+                                            std::set<SgVariableDeclaration *>& unpacking_stmts )
 {
     ROSE_ASSERT( s && scope );
     ROSE_ASSERT( isSgGlobal( scope ) );
     
     //step 1. Create function skeleton, 'func'.
     SgInitializedName * index = buildInitializedName( "index", buildIntType( ) );
-    SgFunctionParameterList* parameterList = buildFunctionParameterList( index );
+    SgFunctionParameterList* parameterList = buildFunctionParameterList( );
     SgFunctionDeclaration* func = createFuncSkeleton( func_name_str, buildVoidType( ), parameterList, scope );
     ROSE_ASSERT( func );
     if( SageInterface::is_Cxx_language( ) || is_mixed_C_and_Cxx_language( ) )
@@ -1496,7 +1503,7 @@ SgFunctionDeclaration *
     ROSE_ASSERT( isSgOmpSectionStatement( *it ) );
             // outline the actual switch
     SgBasicBlock * switch_body = buildBasicBlock( );
-    SgSwitchStatement * switch_stmt = buildSwitchStatement( buildExprStatement( buildVarRefExp( index ) ), switch_body );
+    SgSwitchStatement * switch_stmt = buildSwitchStatement( buildExprStatement( buildVarRefExp( index, scope ) ), switch_body );
     Rose_STL_Container<SgNode *> section_list = NodeQuery::querySubTree( s, V_SgOmpSectionStatement );
     int section_count = section_list.size( );
     for( int i = 0; i < section_count; i++ )
@@ -1511,10 +1518,13 @@ SgFunctionDeclaration *
         ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
     
     //step 3: variable handling: create parameters, packing and unpacking statements and replace variables
-    variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
+    unpacking_stmts = variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
     
+    SgFunctionParameterList* params = func->get_parameterList( );
+    appendArg( params, index );
+    SageInterface::replaceStatement( func->get_parameterList( ), params );
     func->set_type( buildFunctionType( func->get_type( )->get_return_type( ), 
-                                       buildFunctionParameterTypeList( func->get_parameterList( ) ) ) );
+                                       buildFunctionParameterTypeList( params ) ) );
     
     // Retest this...
     ROSE_ASSERT( func_body->get_parent( ) == func->get_definition( ) );
@@ -1524,20 +1534,21 @@ SgFunctionDeclaration *
 }
 
 SgFunctionDeclaration *
-        Outliner::generateReductionFunction( SgFunctionDeclaration * reduction_function,
+        Outliner::generateReductionFunction( SgBasicBlock* s,
                                              const std::string& func_name_str,
                                              const ASTtools::VarSymSet_t& syms,
                                              const ASTtools::VarSymSet_t& pdSyms,
                                              const ASTtools::VarSymSet_t& reduction_syms,
                                              SgClassDeclaration* struct_decl,
-                                             SgScopeStatement* scope )
+                                             SgScopeStatement* scope, 
+                                             std::set<SgVariableDeclaration *> unpacking_stmts, 
+                                             bool add_index_parameter )
 {
-    ROSE_ASSERT( reduction_function && scope );
+    ROSE_ASSERT( s && scope );
     ROSE_ASSERT( isSgGlobal( scope ) );
     
     //step 1. Create function skeleton, 'func'.
-    SgFunctionParameterList* parameterList = 
-            isSgFunctionParameterList( SageInterface::copyStatement( reduction_function->get_parameterList( ) ) );
+    SgFunctionParameterList* parameterList = buildFunctionParameterList( );
     SgFunctionDeclaration* func = createFuncSkeleton( func_name_str, buildVoidType( ), parameterList, scope );
     ROSE_ASSERT( func );
     if( SageInterface::is_Cxx_language( ) || is_mixed_C_and_Cxx_language( ) )
@@ -1549,9 +1560,19 @@ SgFunctionDeclaration *
     //step 3. Create the function body
     SgBasicBlock* func_body = func->get_definition( )->get_body( );
     ROSE_ASSERT( func_body != NULL );
-            // Copy all the statements from the function containing the reduction to the new function
-    appendStatement( SageInterface::copyStatement( reduction_function->get_definition( )->get_body( ) ), 
-                     func_body );
+            // Copy the block to the new function
+            // Avoid copying the unpacking statements, since they have to be placed in the original outlined function
+    SgStatementPtrList func_body_stmts = s->get_statements( );
+    ROSE_ASSERT( !func_body_stmts.empty( ) );
+    for( SgStatementPtrList::iterator it = func_body_stmts.begin( ); it != func_body_stmts.end( ); ++it )
+    {
+        SgVariableDeclaration * it_decl = isSgVariableDeclaration( *it ); 
+        if( it_decl == NULL
+             || ( ( it_decl != NULL ) && ( unpacking_stmts.find( it_decl ) == unpacking_stmts.end( ) ) ) )
+        {
+            appendStatement( SageInterface::copyStatement( *it ), func_body );
+        }
+    }
             // Add the current thread computation to the array containing all threads computation
     for( ASTtools::VarSymSet_t::const_iterator i = reduction_syms.begin (); i != reduction_syms.end (); ++i )
     {
@@ -1569,8 +1590,17 @@ SgFunctionDeclaration *
 
     const std::set< SgInitializedName *> restoreVars;
     variableHandling( syms, pdSyms, restoreVars, struct_decl, func, reduction_syms );
+    
+    SgFunctionParameterList* params = func->get_parameterList( );
+    if( add_index_parameter )
+    {
+        SgInitializedName * index = buildInitializedName( "index", buildIntType( ) );
+        appendArg( params, index );
+        SageInterface::replaceStatement( func->get_parameterList( ), params );
+        
+    }
     func->set_type( buildFunctionType( func->get_type()->get_return_type( ), 
-                    buildFunctionParameterTypeList( func->get_parameterList( ) ) ) );
+                    buildFunctionParameterTypeList( params ) ) );
     
     // Retest this...
     ROSE_ASSERT( func_body->get_parent( ) == func->get_definition( ) );
