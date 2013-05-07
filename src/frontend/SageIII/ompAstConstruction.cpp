@@ -636,6 +636,39 @@ namespace OmpSupport
     ROSE_ASSERT(result != SgOmpClause::e_omp_reduction_unknown);
     return result;
   }
+  
+  static SgOmpClause::omp_depend_operator_enum toSgOmpDependOperator( omp_construct_enum at_op )
+  {
+      SgOmpClause::omp_depend_operator_enum result = SgOmpClause::e_omp_depend_unknown;
+      switch( at_op )
+      {
+          case e_depend_inout: 
+          {
+              result = SgOmpClause::e_omp_depend_inout;
+              break;
+          }
+          case e_depend_in: 
+          {
+              result = SgOmpClause::e_omp_depend_in;
+              break;
+          }
+          case e_depend_out: 
+          {
+              result = SgOmpClause::e_omp_depend_out;
+              break;
+          }
+          default:
+          {
+              printf( "error: unacceptable omp construct enum for depend operator conversion:%s\n", 
+                      OmpSupport::toString( at_op ).c_str( ) );
+              ROSE_ASSERT( false );
+              break;
+          }
+      }
+      ROSE_ASSERT( result != SgOmpClause::e_omp_depend_unknown );
+      return result;
+  }
+  
   //A helper function to set SgVarRefExpPtrList  from OmpAttribute's construct-varlist map
   static void setClauseVariableList(SgOmpVariablesClause* target, OmpAttribute* att, omp_construct_enum key)
   {
@@ -692,7 +725,7 @@ namespace OmpSupport
     ROSE_ASSERT(result != NULL);
 
     // build variable list
-    setClauseVariableList(result, att, map_op); 
+    setClauseVariableList(result, att, map_op);
 
     //this is somewhat inefficient. 
     // since the attribute has dimension info for all map clauses
@@ -701,7 +734,24 @@ namespace OmpSupport
     return result;
   }
 
-
+  SgOmpDependClause* buildOmpDependClause( OmpAttribute* att, omp_construct_enum depend_op )
+  {
+      ROSE_ASSERT( att !=NULL );
+      ROSE_ASSERT( att->isDependVariant( depend_op ) );
+      if( !att->hasDependVariant( depend_op ) )
+          return NULL;
+      SgOmpClause::omp_depend_operator_enum sg_op = toSgOmpDependOperator( depend_op ); 
+      SgOmpDependClause* result = new SgOmpDependClause( sg_op );
+      setOneSourcePositionForTransformation( result );
+      ROSE_ASSERT( result != NULL );
+      
+      // build variable list
+      setClauseVariableList( result, att, depend_op );
+      
+      result->set_array_dimensions( att->array_dimensions );
+      return result;
+  }
+  
   //Build one of the clauses with a variable list
   SgOmpVariablesClause * buildOmpVariableClause(OmpAttribute* att, omp_construct_enum clause_type)
   {
@@ -809,16 +859,10 @@ namespace OmpSupport
       case e_lastprivate:
       case e_private:
       case e_shared:
-// Sara Royuela (11/13/2012): Add support for OmpSs task dependency clauses
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-      case e_input:
-      case e_output:
-      case e_inout:
         {
           result = buildOmpVariableClause(att, c_clause_type);
           break;
         }
-#endif
       case e_reduction:
         {
           printf("error: buildOmpNonReductionClause() does not handle reduction. Please use buildOmpReductionClause().\n");
@@ -919,6 +963,18 @@ namespace OmpSupport
           SgOmpClause* sgclause = buildOmpMapClause(att, rop);
           target->get_clauses().push_back(sgclause);
         }
+      }
+      else if (c_clause == e_depend)
+      {
+          std::vector<omp_construct_enum> rops  = att->getDependVariants();
+          ROSE_ASSERT(rops.size()!=0);
+          std::vector<omp_construct_enum>::iterator iter;
+          for (iter=rops.begin(); iter!=rops.end();iter++)
+          {
+              omp_construct_enum rop = *iter;
+              SgOmpClause* sgclause = buildOmpDependClause(att, rop);
+              target->get_clauses().push_back(sgclause);
+          }
       }
       else 
       {

@@ -515,15 +515,15 @@ void NANOS_atomic ( int op, int type, void * variable, void * operand )
       } while ( (sizeof_var == 4) ? !__sync_bool_compare_and_swap_4((double *) variable, 
                                                                     *(unsigned int *) &oldval, 
                                                                     *(unsigned int *) &newval) :
-                                    (sizeof_var == 8) ? !__sync_bool_compare_and_swap_8((double *) variable, 
-                                                                                        *(unsigned long *) &oldval, 
+                                    (sizeof_var == 8) ? !__sync_bool_compare_and_swap_8((double *) variable,
+                                                                                        *(unsigned long *) &oldval,
                                                                                         *(unsigned long *) &newval) :
                                                         0 );
     }
     else
     {
       printf("Unhandled variable type while generating Nanos code for OpenMP atomic contruct.");
-      abort();
+      abort( );
     }
   }
 }
@@ -546,5 +546,5 @@ bool NANOS_master( void )
 
 void NANOS_flush( void )
 {
-    __sync_synchronize();
+    __sync_synchronize( );
 }

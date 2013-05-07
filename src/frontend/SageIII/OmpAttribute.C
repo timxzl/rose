@@ -438,6 +438,27 @@ namespace OmpSupport
   }
 
 
+  void OmpAttribute::setDependVariant( omp_construct_enum operatorx )
+  {
+      assert( isDependVariant( operatorx ) );
+      std::vector<omp_construct_enum>::iterator hit = 
+              find( depend_variants.begin( ), depend_variants.end( ), operatorx ); 
+      if( hit == depend_variants.end( ) )   
+          depend_variants.push_back( operatorx );
+  }
+
+  std::vector<omp_construct_enum> OmpAttribute::getDependVariants()
+  {
+      return depend_variants;
+  }
+
+  bool OmpAttribute::hasDependVariant(omp_construct_enum operatorx)
+  {
+      return ( find( depend_variants.begin( ), depend_variants.end( ),operatorx ) 
+               != depend_variants.end( ) );
+  }
+  
+  
   //! Find the relevant clauses for a variable 
   std::vector<enum omp_construct_enum> 
     OmpAttribute::get_clauses(const std::string& variable)
@@ -546,6 +567,8 @@ namespace OmpSupport
 
       case e_map: result = "map"; break;
       case e_device: result = "device"; break;
+      
+      case e_depend: result = "depends"; break;
 
                      // values
       case e_default_none: result = "none"; break;
@@ -589,6 +612,10 @@ namespace OmpSupport
       case e_map_out: result = "out"; break;
       case e_map_inout: result = "inout"; break;
 
+      case e_depend_in: result = "in"; break;
+      case e_depend_out: result = "out"; break;
+      case e_depend_inout: result = "inout"; break;
+      
       case e_not_omp: result = "not_omp"; break;
     }
 
@@ -894,11 +921,6 @@ namespace OmpSupport
       case e_if:
       case e_num_threads:
       case e_nowait:
- 
-// Sara Royuela (11/13/2012): Add support for OmpSs task dependency nodes
-      case e_input:
-      case e_output:
-      case e_inout:
           
       case e_ordered_clause:
       case e_reduction:
@@ -965,7 +987,23 @@ namespace OmpSupport
     return result;
   }
 
-
+  bool  OmpAttribute::isDependVariant(omp_construct_enum omp_type)
+  {
+      bool result = false;
+      switch (omp_type)
+      {
+          case e_depend_in:
+          case e_depend_out:
+          case e_depend_inout:
+              result = true;
+              break;
+          default:
+              result = false;
+              break;
+      }
+      return result;
+  }
+  
   bool OmpAttribute::hasClause(omp_construct_enum omp_type)
   {
     bool result = false;
@@ -1068,13 +1106,7 @@ namespace OmpSupport
           (omp_type == e_firstprivate)||
           (omp_type == e_shared)||
           (omp_type == e_copyin)||
-          (omp_type == e_lastprivate)
-// Sara Royuela (11/13/2012): Add support for OmpSs task dependency nodes
-          ||
-          (omp_type == e_input)||
-          (omp_type == e_output)||
-          (omp_type == e_inout)
-          )
+          (omp_type == e_lastprivate) )
       {
         result += OmpSupport::toString(omp_type);
         string varListString = toOpenMPString(getVariableList(omp_type));

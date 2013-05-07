@@ -493,6 +493,7 @@ SgOmpBarrierStatement
 SgOmpCriticalStatement
 SgOmpClauseBodyStatement
 SgOmpBodyStatement
+SgOmpDependClause
 SgOmpDoStatement
 SgOmpFlushStatement
 SgOmpForStatement

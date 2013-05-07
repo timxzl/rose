@@ -811,10 +811,11 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
   NodeList_t refs = NodeQuery::querySubTree (b, V_SgVarRefExp);
   // For each of the references , 
   for (NodeList_t::iterator i = refs.begin (); i != refs.end (); ++i)
-  {
+    {
     // Reference possibly in need of fix-up.
     SgVarRefExp* ref_orig = isSgVarRefExp (*i);
     ROSE_ASSERT (ref_orig);
+    std::cerr << " - VAR " << ref_orig->unparseToString( ) << " \t\twith symbol " << ref_orig->get_symbol() << "\t\t";
 
     // Search for a symbol which need to be replaced.
     VarSymRemap_t::const_iterator ref_new =  vsym_remap.find (ref_orig->get_symbol ());
@@ -825,7 +826,7 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
     // For variable substitution, private remap has higher priority 
     // remapping private variables
     if (ref_private != private_remap.end()) 
-    {
+    { 
       // get the replacement variable
       SgVariableSymbol* sym_new = ref_private->second;
       // Do the replacement
@@ -839,13 +840,16 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
       {// two cases: variable using temp vs. variables using pointer dereferencing!
 
         if (pdSyms.find(ref_orig->get_symbol())==pdSyms.end()) //using temp
+        {    
           ref_orig->set_symbol(sym_new);
+          std::cerr << "    (1) set symbol " << sym_new->get_name() << std::endl;
+        }
         else
         {
           SgPointerDerefExp * deref_exp = SageBuilder::buildPointerDerefExp(buildVarRefExp(sym_new));
-          deref_exp->set_need_paren(true);
-          SageInterface::replaceExpression(isSgExpression(ref_orig),isSgExpression(deref_exp));
-
+          //           deref_exp->set_need_paren(true);       // This option is checked inside SageInterface::replaceExpression
+          SageInterface::replaceExpression( ref_orig, deref_exp );
+          std::cerr << "    (1) replace expression with -> " << deref_exp->unparseToString( ) << " (" << deref_exp <<  ")" << std::endl;
         }
       }
       else // no variable cloning is used
@@ -857,13 +861,20 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
           SgPointerDerefExp * deref_exp = SageBuilder::buildPointerDerefExp(buildVarRefExp(sym_new));
           deref_exp->set_need_paren(true);
           SageInterface::replaceExpression(isSgExpression(ref_orig),isSgExpression(deref_exp));
+            std::cerr << "    (2) replace expression with -> " << deref_exp->unparseToString( ) << " (" << deref_exp <<  ")" << std::endl;
         }
         else
+        {    
           ref_orig->set_symbol (sym_new);
+            std::cerr << "    (2) set symbol " << sym_new->get_name() << std::endl;
+        }
       }
     } //find an entry
+    else
+    {
+        std::cerr << " no replacement at all" << std::endl;
+    }
   } // for every refs
-
 }
 
 
@@ -918,7 +929,7 @@ variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to t
   int counter=0;
   SgInitializedName* parameter1=NULL; // the wrapper parameter
   SgVariableDeclaration*  local_var_decl  =  NULL;
-
+  
   // handle OpenMP private variables/ or those which are neither live-in or live-out
 //  handlePrivateVariables(pSyms, body, private_remap);
 //  This is done before calling the outliner now, by transOmpVariables()
@@ -994,8 +1005,8 @@ variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to t
       ROSE_ASSERT(i_sym!=NULL);
       if ( pdSyms.find(i_sym)!=pdSyms.end())
         isPointerDeref = true;
-    }  
-
+    }
+    
     if (Outliner::enable_classic) 
     // classic methods use parameters directly, no unpacking is needed
     {
@@ -1090,7 +1101,7 @@ variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to t
   } //end for
   
   SgBasicBlock* func_body = func->get_definition()->get_body();
-
+  
 #if 1
   //TODO: move this outside of outliner since it is OpenMP-specific. omp_lowering.cpp generateOutlinedTask()
   // A caveat is the moving this also means we have to patch up prototype later

@@ -49,6 +49,9 @@ namespace OmpSupport
     e_target_update, 
     e_map, // map clauses
     e_device,
+    
+    // Sara, 4/24/2013, support for task dependencies
+    e_depend,
 
     e_threadprivate,
     e_parallel_for,
@@ -93,13 +96,7 @@ namespace OmpSupport
     e_reduction,
     e_schedule,
     e_collapse,
-    e_untied, 
-
-    // Sara Royuela (11/13/2012): Add support for OmpSs task dependency nodes
-    // 3 task dependency clauses
-    e_input,
-    e_output,
-    e_inout,
+    e_untied,
     
     // Simple values for some clauses
 
@@ -152,6 +149,12 @@ namespace OmpSupport
     e_map_out,
     e_map_inout,
 
+    // 3 task dependendency variants
+    //----------------------
+    e_depend_in,
+    e_depend_out,
+    e_depend_inout,
+    
     // not an OpenMP construct
     e_not_omp
   }; //end omp_construct_enum
@@ -325,6 +328,17 @@ namespace OmpSupport
       //! Check if the input parameter is a map variant enum type
       bool isMapVariant(omp_construct_enum omp_type);
 
+      // Depend clause is similar to map clause
+      //
+      // Add a new map clauses with the specified variant type
+      void setDependVariant(omp_construct_enum operatorx);
+      //! Get depend clauses for each variant,  depend(variant:var_list)
+      std::vector<omp_construct_enum> getDependVariants();
+      //! Check if a depend variant exists
+      bool hasDependVariant(omp_construct_enum operatorx);
+      //! Check if the input parameter is a depend variant enum type
+      bool isDependVariant(omp_construct_enum omp_type);
+      
       // default () value
       void setDefaultValue(omp_construct_enum valuex);
       omp_construct_enum getDefaultValue();
@@ -409,6 +423,10 @@ namespace OmpSupport
       // there could be multiple map clause with the same variant type: alloc, in, out , and inout.
       std::vector<omp_construct_enum> map_variants; 
       //enum omp_construct_enum map_variant; 
+      
+      // there could be multiple depend clause with the same variant type: in, out and inout.
+      std::vector<omp_construct_enum> depend_variants; 
+      
       //variable lists------------------- 
       //appeared within some directives and clauses
       //The clauses/directive are: flush, threadprivate, private, firstprivate, 

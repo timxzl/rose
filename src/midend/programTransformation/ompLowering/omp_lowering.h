@@ -117,37 +117,52 @@ namespace OmpSupport
           std::set<SgVariableSymbol*>& syms, SgClassDeclaration*& struct_decl);
  
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+  
+    //! Create an empty object with type the struct to be passed to an OpenMP outlined function in Nanos
+    //! Returns an expression containing the new object
+    SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 
+                                            SgType* struct_type, std::string base_name );
 
-  //! Create an empty object with type the struct to be passed to an OpenMP outlined function in Nanos
-  //! Returns an expression containing the new object
-  SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 
-                                          SgType* struct_type, std::string base_name );
-
-  //! Create the function retrieving the empty struct to be passed to an OpenMP outlined function in Nanos
-  //! Returns an expression containing a call to the function
-  SgExpression* build_nanos_get_empty_struct( SgStatement* ancestor, SgScopeStatement* expr_sc, 
-                                              SgType* struct_type, std::string base_name );
-
-  //! Create the function that initializes an empty structure with the arguments to the outlined OpenMP parallel or task in Nanos
-  SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor, std::string& wrapper_name, 
-                                                            SgClassDeclaration* struct_decl, bool init_wsd );
-
-  //! Create the function that retrieves the alignement of an struct
-  SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapper_name, 
-                                         SgClassDeclaration* struct_decl );
-
-  //! A helper function to generate explicit task for omp loop
-  //! Inspired in method 'generateOutlinedTask'
-  SgFunctionDeclaration* generateOutlinedLoop( SgNode* node, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, 
-                                               std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
-                                               SgClassDeclaration*& struct_decl,
-                                               SgExpression * lower, SgExpression * upper, SgExpression * stride, SgExpression * chunk );
-
-  //! A helper function to generate explicit task for omp section
-  //! Inspired in method 'generateOutlinedTask'
-  SgFunctionDeclaration* generateOutlinedSection( SgNode* section, SgNode* sections, std::string& wrapper_name, 
-                                                  std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars,
-                                                  std::set<SgVariableSymbol*>& pdSyms3, SgClassDeclaration*& struct_decl );
+    //! Create the function retrieving the empty struct to be passed to an OpenMP outlined function in Nanos
+    //! Returns an expression containing a call to the function
+    SgExpression* build_nanos_get_empty_struct( SgStatement* ancestor, SgScopeStatement* expr_sc, 
+                                                SgType* struct_type, std::string base_name );
+    
+    //! Create the function that initializes an empty structure with the arguments to the outlined OpenMP parallel or task in Nanos
+    SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor, std::string& wrapper_name, 
+                                                              SgClassDeclaration* struct_decl, bool init_wsd );
+    
+    //! Create the function that retrieves the alignement of an struct
+    SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapper_name, 
+                                           SgClassDeclaration* struct_decl );
+    
+    //! A helper function to generate explicit task for omp loop
+    //! Inspired in method 'generateOutlinedTask'
+    SgFunctionDeclaration* generateOutlinedLoop( SgNode* node, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, 
+                                                 std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
+                                                 SgClassDeclaration*& struct_decl,
+                                                 SgExpression * lower, SgExpression * upper, SgExpression * stride, SgExpression * chunk );
+    
+    //! A helper function to generate explicit task for omp section
+    //! Inspired in method 'generateOutlinedTask'
+    SgFunctionDeclaration* generateOutlinedSection( SgNode* section, SgNode* sections, std::string& wrapper_name, 
+                                                    std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars,
+                                                    std::set<SgVariableSymbol*>& pdSyms3, SgClassDeclaration*& struct_decl );
+    
+    enum omp_nanos_deps_enum 
+    {
+        e_dep_dir_input,
+        e_dep_dir_output,
+        e_dep_dir_inout
+    };
+    
+    //! Retrieves dependencies information by parsing the depend clauses of a task construct
+    void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std::string & n_dims_name,
+                                                   SgExprListExp * dependences_data, 
+                                                   SgOmpTaskStatement * task, SgScopeStatement * scope,
+                                                   SgExpression * & all_dims_ref, SgExpression * & n_dims_ref, 
+                                                   std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > > array_dimensions );
+  
 #endif
   
   //! Translate OpenMP variables associated with an OpenMP pragma, such as private, firstprivate, lastprivate, reduction, etc. bb1 is the translation generated code block in which the variable handling statements will be inserted. Original loop upper bound is needed for implementing lastprivate (check if it is the last iteration). withinAcceleratorModel means if we only translate private() variables, used to support accelerator model

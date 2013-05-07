@@ -6238,12 +6238,16 @@ void SageInterface::replaceExpression(SgExpression* oldExp, SgExpression* newExp
   else if (isSgReturnStmt(parent))
     isSgReturnStmt(parent)->set_expression(newExp);
   else  if (isSgBinaryOp(parent)!=NULL){
+      std::cerr << "           parent is binary op... ";
     if (oldExp==isSgBinaryOp(parent)->get_lhs_operand())
         {
+            std::cerr << "LHS" << std::endl;
           isSgBinaryOp(parent)->set_lhs_operand(newExp);
          }
      else if (oldExp==isSgBinaryOp(parent)->get_rhs_operand())
-         {isSgBinaryOp(parent)->set_rhs_operand(newExp); }
+         {
+             std::cerr << "RHS" << std::endl;
+             isSgBinaryOp(parent)->set_rhs_operand(newExp); }
      else
        ROSE_ASSERT(false);
    } else //unary parent
