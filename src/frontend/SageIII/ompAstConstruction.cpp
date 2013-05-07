@@ -447,7 +447,7 @@ namespace OmpSupport
         }
       case e_device:
         {
-          SgExpression* param = checkOmpExpressionClause( att->getExpression(e_device).second, file );
+          SgExpression* param = checkOmpExpressionClause( att->getExpression(e_device).second, global, e_device );
           result = new SgOmpDeviceClause(param);
           break;
         }
