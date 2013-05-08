@@ -2,7 +2,7 @@
 # The order matters!!
 
 #----- put platform independent settings in this section-----------------
-cmake_minimum_required(VERSION 2.6)
+cmake_minimum_required(VERSION 2.8)
 project (ROSE CXX C)
 
 # Why do we have to have a copy of some standard built-in modules inside rose?
@@ -198,6 +198,11 @@ message(STATUS "The ROSE SCM version Unix timestamp is ${ROSE_SCM_VERSION_UNIX_D
 set(Boost_USE_STATIC_LIBS TRUE)        
 set(Boost_DEBUG TRUE)
 
+# Honor BOOST_HOME environment variable
+if (DEFINED ENV{BOOST_HOME})
+  set (BOOST_ROOT "$ENV{BOOST_HOME}")
+endif ()
+
 if (WIN32)
 FIND_PACKAGE(Boost REQUIRED) 
 #set (Boost_INCLUDE_DIRS ${Boost_INCLUDE_DIRS}/../../ )
@@ -237,7 +242,7 @@ add_definitions(-DBOOST_FILESYSTEM_VERSION=2)
 
 
 # default paths to install header, executable, and libraries
-set(INCLUDE_INSTALL_DIR "/usr/include")
+set(INCLUDE_INSTALL_DIR "include")
 set(BIN_INSTALL_DIR      "bin"   )   # The install dir for executables
 set(LIB_INSTALL_DIR      "lib" )
 
@@ -360,6 +365,8 @@ endif()
 
 option(enable-java "Enable Java support in ROSE." ON)
 if (enable-java)
+  message(Status "Looking for JAVA ...")
+  include(FindJava)
   find_package(JNI)
   add_definitions(-DROSE_BUILD_JAVA_LANGUAGE_SUPPORT)
 endif()
@@ -551,9 +558,6 @@ include(FindOpenSSL)
 include(FindSQLITE3)
 endif (NOT WIN32)
 
-message(Status "Looking for JAVA ...")
-include(FindJava)
-
 message(Status "Looking for flex ...")
 find_package(FLEX)
 if(NOT FLEX_FOUND)
@@ -723,6 +727,53 @@ add_subdirectory(src)
 add_subdirectory(tests)
 
 enable_testing()
+
+#TODO: better support for other compilers & operating systems
+set(C_INCLUDE_STRING
+  "{\"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs\",  \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs1\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs2\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs3\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs4\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs5\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs6\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs7\"")
+set(CXX_INCLUDE_STRING
+  "{\"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs\",  \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs1\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs2\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs3\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs4\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs5\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs6\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs7\"")
+find_program(shell sh)
+if(shell AND CMAKE_COMPILER_IS_GNUCXX)
+  execute_process(
+    COMMAND ${shell} ${CMAKE_SOURCE_DIR}/config/get_compiler_header_dirs gcc
+    OUTPUT_VARIABLE C_backend_includes
+  )
+  execute_process(
+    COMMAND ${shell} ${CMAKE_SOURCE_DIR}/config/get_compiler_header_dirs g++
+    OUTPUT_VARIABLE CXX_backend_includes
+  )
+  string(REPLACE "\n" ";" C_backend_includes "${C_backend_includes}")
+  string(REPLACE "\n" ";" CXX_backend_includes "${CXX_backend_includes}")
+
+  foreach(C_include_dir ${C_backend_includes})
+    string(STRIP "${C_include_dir}" C_include_dir)
+    set(C_INCLUDE_STRING "${C_INCLUDE_STRING}, \"${C_include_dir}\"")
+  endforeach()
+
+  foreach(CXX_include_dir ${CXX_backend_includes})
+    string(STRIP "${CXX_include_dir}" CXX_include_dir)
+    set(CXX_INCLUDE_STRING "${CXX_INCLUDE_STRING}, \"${CXX_include_dir}\"")
+  endforeach()
+endif()
+set(C_INCLUDE_STRING "${C_INCLUDE_STRING}}")
+set(CXX_INCLUDE_STRING "${CXX_INCLUDE_STRING}}")
 
 # ------------------------- Private Configuration File ----------------------------
 # The rose_config.h file contains CPP macros describing what features were detected
