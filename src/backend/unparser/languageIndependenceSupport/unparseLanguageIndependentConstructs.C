@@ -3311,6 +3311,35 @@ static std::string mapOperatorToString(SgOmpClause::omp_map_operator_enum ro)
 
 #endif
 
+static std::string dependOperatorToString(SgOmpClause::omp_depend_operator_enum ro)
+{
+    string result;
+    switch (ro)
+    {
+        case SgOmpClause::e_omp_depend_inout: 
+        {
+            result = "inout";
+            break;
+        }
+        case SgOmpClause::e_omp_depend_in: 
+        {
+            result = "in";
+            break;
+        }
+        case SgOmpClause::e_omp_depend_out:   
+        {
+            result = "out";
+            break;
+        }
+        default:
+        {
+            cerr<<"Error: unhandled operator type MapOperatorToString():"<< ro <<endl;
+            ROSE_ASSERT(false);
+        }
+    }
+    return result;
+}
+
 //! Unparse an OpenMP clause with a variable list
 void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause* clause, SgUnparse_Info& info)
 {
@@ -3352,7 +3381,12 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
         curprint(string(" : "));
       break;
       }
- 
+    case V_SgOmpDependClause:
+      {
+        curprint(string(" depend("));
+        curprint(dependOperatorToString(isSgOmpDependClause(c)->get_operation()));
+        curprint(string(" : "));
+      }  
     case V_SgOmpSharedClause:
       curprint(string(" shared("));
       break;
@@ -3501,6 +3535,7 @@ void UnparseLanguageIndependentConstructs::unparseOmpClause(SgOmpClause* clause,
     case V_SgOmpPrivateClause: 
     case V_SgOmpReductionClause:
     case V_SgOmpMapClause:
+    case V_SgOmpDependClause:    
     case V_SgOmpSharedClause:   
       {     
         unparseOmpVariablesClause(isSgOmpVariablesClause(clause), info);

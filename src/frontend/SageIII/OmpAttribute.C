@@ -932,6 +932,9 @@ namespace OmpSupport
       case e_map:
       case e_device:
 
+     // task dependencies implementation
+        case e_depend:
+                 
         result = true; 
         break;
         

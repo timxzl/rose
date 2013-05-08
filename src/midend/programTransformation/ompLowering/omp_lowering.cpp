@@ -2464,7 +2464,6 @@ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_n
     Depending on the internal flag, unpacking/unwrapping statements are generated inside the outlined function to use wrapper parameters.
   */
   std::set< SgInitializedName *> restoreVars;
-  std::cerr << "======= Calling generateFunction with body block: \n " << target->unparseToString() << std::endl;
   result = Outliner::generateFunction(body_block, func_name, syms, pdSyms3, restoreVars, struct_decl, g_scope);
   
 #if 0
@@ -5827,10 +5826,7 @@ void lower_omp(SgSourceFile* file)
             transOmpTargetParallel(node);
           else  
           {
-            std::cerr << "===========================" << std::endl;
-            std::cerr << "           transOmpParallel" << std::endl;    
             transOmpParallel(node);
-            std::cerr << "===========================" << std::endl;
           }
           break;
         }
@@ -5842,10 +5838,7 @@ void lower_omp(SgSourceFile* file)
  
       case V_SgOmpTaskStatement:
         {
-            std::cerr << "***************************" << std::endl;
-            std::cerr << "               transOmpTask" << std::endl;    
             transOmpTask(node);
-            std::cerr << "***************************" << std::endl;
           break;
         }
       case V_SgOmpForStatement:

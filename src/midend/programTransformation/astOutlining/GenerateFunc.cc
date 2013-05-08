@@ -815,7 +815,6 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
     // Reference possibly in need of fix-up.
     SgVarRefExp* ref_orig = isSgVarRefExp (*i);
     ROSE_ASSERT (ref_orig);
-    std::cerr << " - VAR " << ref_orig->unparseToString( ) << " \t\twith symbol " << ref_orig->get_symbol() << "\t\t";
 
     // Search for a symbol which need to be replaced.
     VarSymRemap_t::const_iterator ref_new =  vsym_remap.find (ref_orig->get_symbol ());
@@ -842,14 +841,12 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
         if (pdSyms.find(ref_orig->get_symbol())==pdSyms.end()) //using temp
         {    
           ref_orig->set_symbol(sym_new);
-          std::cerr << "    (1) set symbol " << sym_new->get_name() << std::endl;
         }
         else
         {
           SgPointerDerefExp * deref_exp = SageBuilder::buildPointerDerefExp(buildVarRefExp(sym_new));
           //           deref_exp->set_need_paren(true);       // This option is checked inside SageInterface::replaceExpression
           SageInterface::replaceExpression( ref_orig, deref_exp );
-          std::cerr << "    (1) replace expression with -> " << deref_exp->unparseToString( ) << " (" << deref_exp <<  ")" << std::endl;
         }
       }
       else // no variable cloning is used
@@ -861,19 +858,13 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
           SgPointerDerefExp * deref_exp = SageBuilder::buildPointerDerefExp(buildVarRefExp(sym_new));
           deref_exp->set_need_paren(true);
           SageInterface::replaceExpression(isSgExpression(ref_orig),isSgExpression(deref_exp));
-            std::cerr << "    (2) replace expression with -> " << deref_exp->unparseToString( ) << " (" << deref_exp <<  ")" << std::endl;
         }
         else
         {    
           ref_orig->set_symbol (sym_new);
-            std::cerr << "    (2) set symbol " << sym_new->get_name() << std::endl;
         }
       }
     } //find an entry
-    else
-    {
-        std::cerr << " no replacement at all" << std::endl;
-    }
   } // for every refs
 }
 
