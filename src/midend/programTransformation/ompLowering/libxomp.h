@@ -78,12 +78,10 @@ extern void XOMP_sections_for_NANOS(int num_sections, bool must_wait, ... );
 extern void XOMP_task (void (*) (void *), void *, void (*) (void *, void *),
                        long, long, bool, unsigned);
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-extern void XOMP_task_for_NANOS(void (*fn) (void *), void * data, long data_size, long (*get_data_align) (void), 
-                                bool if_clause, unsigned untied, void* empty_data, void (*init_func) (void*, void*),
-                                int num_deps, int * deps_direction, void ** deps_data, 
-                                int * deps_n_dims, nanos_region_dimension_t ** deps_dims/*,
-                                nanos_region_dimension_t(*)[] deps_dims, 
-                                nanos_region_dimension_t (*get_dep_dims)( nanos_region_dimension_t(*)[], int )*/);
+extern void XOMP_task_for_NANOS( void (*fn) (void *), void * data, long data_size, long (*get_data_align) (void), 
+                                 bool if_clause, unsigned untied, void* empty_data, void (*init_func) (void*, void*),
+                                 int num_deps, int * deps_direction, void ** deps_data, 
+                                 int * deps_n_dims, nanos_region_dimension_t ** deps_dims, long int * deps_offset );
 #endif
 extern void XOMP_taskwait (void);
 

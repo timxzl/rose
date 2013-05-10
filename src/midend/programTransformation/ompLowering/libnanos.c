@@ -51,13 +51,12 @@ void NANOS_parallel( void ( * func ) ( void * ), void * data, unsigned numThread
     
     // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
     int num_copies = 0;
-    // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
-    int num_data_accesses = 0;
     // TODO Compute dimensions
     int num_dimensions = 0;
     // Compute device descriptor (at the moment, only SMP is supported)
     int num_devices = 1;
-    // TODO Compute dependencies
+    // TODO No dependencies for parallel construct in SMP devices
+    int num_data_accesses = 0;
     nanos_data_access_t dependences[1];
   
     // Create the Device descriptor (at the moment, only SMP is supported)
@@ -149,21 +148,34 @@ void NANOS_task( void ( * func ) ( void * ), void *data,
                  void * empty_data, void ( * init_func ) ( void *, void * ),
                  bool if_clause, unsigned untied,
                  int num_deps, int * deps_dir, void ** deps_data, 
-                 int * deps_n_dims, nanos_region_dimension_t ** deps_dims )
+                 int * deps_n_dims, nanos_region_dimension_t ** deps_dims, 
+                 long int * deps_offset )
 {
     nanos_err_t err;
     
     // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
     int num_copies = 0;
-    // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
-    int num_data_accesses = 0;
-    // TODO Compute dimensions
+    // TODO Compute dimensions (for devices other than SMP)
     int num_dimensions = 0;
     // Compute device descriptor (at the moment, only SMP is supported)
     int num_devices = 1;
-    // TODO Compute dependencies
-    nanos_data_access_t dependences[1];
-  
+    // Compute dependencies
+    const unsigned int num_data_accesses = num_deps;
+    nanos_data_access_t dependences[num_data_accesses];
+    int i;
+    for( i = 0; i < num_data_accesses; ++i )
+    {
+        nanos_access_type_internal_t flags = {
+            ( deps_dir[i] & ( e_dep_dir_in | e_dep_dir_inout ) ), // input
+            ( deps_dir[i] & ( e_dep_dir_out | e_dep_dir_inout ) ), // output
+            0 , // can rename
+            0 , // concurrent
+            0 , // commutative
+        };
+        nanos_data_access_t dep = { deps_data[i], flags, deps_n_dims[i], deps_dims[i], deps_offset[i] };
+        dependences[i] = dep;
+    }
+        
     // Create the Device descriptor (at the moment, only SMP is supported)
     nanos_smp_args_t _smp_args = { func };
     char * task_name; 

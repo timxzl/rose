@@ -1040,45 +1040,44 @@ get_dependency_clauses( SgOmpTaskStatement * task, SgExprListExp * & dependences
                         SgExprListExp * & dependences_data, int & n_deps )
 {
     ROSE_ASSERT( task != NULL );
-    
     std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > > array_dimensions;
     n_deps = 0;  
-    Rose_STL_Container<SgOmpClause*> map_clauses = getClause( task, V_SgOmpMapClause );
-    if( !map_clauses.empty( ) )
+    Rose_STL_Container<SgOmpClause*> depend_clauses = getClause( task, V_SgOmpDependClause );
+    if( !depend_clauses.empty( ) )
     {
         // FIXME I think this only works when there is only one map clause per operation type
-        for( Rose_STL_Container<SgOmpClause*>::const_iterator iter = map_clauses.begin( ); 
-            iter != map_clauses.end( ); iter++ )
+        for( Rose_STL_Container<SgOmpClause*>::const_iterator iter = depend_clauses.begin( ); 
+             iter != depend_clauses.end( ); iter++ )
         {   // dimension map is the same for all the map clauses under the same omp task directive
-            SgOmpMapClause* m_cls = isSgOmpMapClause (*iter);
-            ROSE_ASSERT (m_cls != NULL);
+            SgOmpDependClause* d_cls = isSgOmpDependClause (*iter);
+            ROSE_ASSERT (d_cls != NULL);
             
-            if (iter == map_clauses.begin())
+            if (iter == depend_clauses.begin())
             {    
-                array_dimensions = m_cls->get_array_dimensions();
+                array_dimensions = d_cls->get_array_dimensions();
             }
             
-            SgOmpClause::omp_map_operator_enum map_operator = m_cls->get_operation( );
-            SgVarRefExpPtrList deps = isSgOmpVariablesClause( isSgOmpMapClause( *iter ) )->get_variables( );
-            if( map_operator == SgOmpClause::e_omp_map_in )
+            SgOmpClause::omp_depend_operator_enum depend_operator = d_cls->get_operation( );
+            SgVarRefExpPtrList deps = isSgOmpVariablesClause( isSgOmpDependClause( *iter ) )->get_variables( );
+            if( depend_operator == SgOmpClause::e_omp_depend_in )
             {    
                 for( SgVarRefExpPtrList::iterator it = deps.begin(); it != deps.end(); it++ )
                 {
-                    dependences_direction->append_expression( buildIntVal( e_dep_dir_input ) );
+                    dependences_direction->append_expression( buildIntVal( e_dep_dir_in ) );
                     dependences_data->append_expression( *it );
                     n_deps++;
                 }
             }
-            else if( map_operator == SgOmpClause::e_omp_map_out )
+            else if( depend_operator == SgOmpClause::e_omp_depend_out )
             {    
                 for( SgVarRefExpPtrList::iterator it = deps.begin(); it != deps.end(); it++ )
                 {
-                    dependences_direction->append_expression( buildIntVal( e_dep_dir_output ) );
+                    dependences_direction->append_expression( buildIntVal( e_dep_dir_out ) );
                     dependences_data->append_expression( *it );
                     n_deps++;
                 }
             }
-            else if( map_operator == SgOmpClause::e_omp_map_inout )
+            else if( depend_operator == SgOmpClause::e_omp_depend_inout )
             {      
                 for( SgVarRefExpPtrList::iterator it = deps.begin(); it != deps.end(); it++ )
                 {
@@ -1090,7 +1089,7 @@ get_dependency_clauses( SgOmpTaskStatement * task, SgExprListExp * & dependences
             else 
             {
                 std::cerr << "Error. get_dependency_clauses() from omp_lowering.cpp: " 
-                        << "found unacceptable map operator type:" << map_operator << std::endl;
+                        << "found unacceptable map operator type:" << depend_operator << std::endl;
                 ROSE_ASSERT( false );
             }
         }
@@ -1138,29 +1137,11 @@ SgExpression * build_nanos_dependencies_array( SgExprListExp * dependences, std:
       
     return buildVarRefExp( array_name, scope );
 }
-  
-void fill_dimension_info( SgExpression * dim_size, SgExprListExp * & dep_dims_initializers )
-{
-    SgExprListExp* dim_initializers = buildExprListExp( );
-      
-    dim_initializers->append_expression( buildAssignInitializer( dim_size ) );
-              // Second expression is the lower bound
-    SgExpression* lower_bound = buildIntVal( 0 );
-    dim_initializers->append_expression(buildAssignInitializer( lower_bound ) );
-              // Third expression is the accessed length
-              // Since we don't support array sections, the length will always be equal to the size of the dimension
-    SgTreeCopy tc;
-    SgExpression* accessed_length = isSgExpression( dim_size->copy( tc ) );
-    dim_initializers->append_expression( buildAssignInitializer( accessed_length ) );
-              
-              // Create the initializer for the current dimension
-    dep_dims_initializers->append_expression( buildAggregateInitializer( dim_initializers, NULL /*type*/ ) );
-}
-  
-void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std::string & n_dims_name,
+
+void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std::string & n_dims_name, std::string & offsets_name,
                                                SgExprListExp * dependences_data, 
                                                SgOmpTaskStatement * task, SgScopeStatement * scope,
-                                               SgExpression * & all_dims_ref, SgExpression * & n_dims_ref, 
+                                               SgExpression * & all_dims_ref, SgExpression * & n_dims_ref, SgExpression * & offsets_ref,
                                                std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > > array_dimensions )
 {
     // For each dependency, we build an array of 'nanos_region_dimension_t' with n_dim elements
@@ -1173,22 +1154,30 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
       
     // Build an array containing the number of dimensions of each dependency
     SgExprListExp * n_dims_initializers = buildExprListExp( );
-      
+    
+    // Build an array containing the offset of each dependency
+    SgExprListExp * offsets_initializers = buildExprListExp( );
+    
     // Create the 'nanos_region_dimension_t' in the Global scope, so it is only created once
     SgType * region_dim_type = buildOpaqueType( "nanos_region_dimension_t", getGlobalScope( task ) );
-      
+     
+//     std::cerr << "Array dimensions: " << std::endl;
+//     for( std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > >::iterator it = array_dimensions.begin( );
+//          it != array_dimensions.end( ); it++ )
+//     {
+//         std::cerr << " '" << it->first->get_name( ) << "'  -->  [" 
+//                 << it->second.size() /*it->second.first->unparseToString( ) << " : " << it->second.second->unparseToString( )*/ << "]" << std::endl; 
+//     }
+    
     int n_deps = 0;
     std::map<SgSymbol*, int> used_dependency_dimensions;
     SgExpressionPtrList dependences_exprs = dependences_data->get_expressions( );
     for(SgExpressionPtrList::iterator dep = dependences_exprs.begin( ); dep != dependences_exprs.end( ); dep++ )
     {
-        std::cerr << "Dependency expression: " << (*dep)->unparseToString( ) << std::endl;
-        
         // Get the current dependence dimensions characteristics: size, lower bound, upper bound, length
         SgType * dep_type = ( *dep )->get_type( );
         SgType * dim_base_type;
-        SgExpression * dim_size;
-        SgExpression * lower_bound, * upper_bound;
+        SgExpression * dim_size, * lower_bound, * length;
         int n_dims = 1;
         SgExprListExp * dim_initializers = buildExprListExp( );
         if( isSgArrayType( dep_type ) )
@@ -1198,15 +1187,6 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
             SgSymbol* dep_sym = dep_exp->get_symbol( );
             if( array_dimensions.find( dep_sym ) != array_dimensions.end( ) )
             {
-                std::cerr << "    Dimensions for symbol " << dep_sym->get_name( ) << " are: ";
-                for( std::vector<std::pair<SgExpression*, SgExpression*> >::iterator it = array_dimensions[dep_sym].begin(); 
-                     it != array_dimensions[dep_sym].end(); it++)
-                {
-                    std::cerr << it->first->unparseToString() << "_" << it->first->unparseToString() << ",    ";
-                }
-                std::cerr << std::endl;
-                
-                SgTreeCopy tc;
                 SgType * last_dim_type = dep_type;
                 dim_base_type = isSgArrayType( dep_type )->get_base_type( );
                 while( isSgArrayType( dim_base_type ) )
@@ -1221,26 +1201,20 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
                         used_dependency_dimensions.insert( std::pair<SgSymbol*, int>( dep_sym, 0 ) );
                     }
                     lower_bound = array_dimensions[dep_sym][ used_dependency_dimensions[dep_sym] ].first;
-                    upper_bound = array_dimensions[dep_sym][ used_dependency_dimensions[dep_sym] ].second;
+                    length = array_dimensions[dep_sym][ used_dependency_dimensions[dep_sym] ].second;
                     dim_size = isSgArrayType( last_dim_type )->get_index( );
-                    
+                
                     // Dimensions other thant the least significant one are expressed in units
-                            // First expression is the dimension size
-                    dim_size = buildAssignInitializer( dim_size );
-                            // Second expression is the lower bound
-                    SgExpression* lb = buildAssignInitializer( lower_bound );
-                            // Third expression is the accessed length
-                    SgExpression * LB = isSgExpression( lower_bound->copy( tc ) );
-                    SgExpression * length = buildAssignInitializer( buildSubtractOp( upper_bound, LB ) );
-                            // Prepend the current dimension initializers
-                    dim_initializers->prepend_expression( buildExprListExp( dim_size, lb, length ) );
-                    
+                    dim_initializers->prepend_expression( buildExprListExp( buildAssignInitializer( dim_size ), 
+                                                                            buildAssignInitializer( lower_bound ), 
+                                                                            buildAssignInitializer( length ) ) );
+                
                     // Keep iterating
                     n_dims++;
                     last_dim_type = dim_base_type;
                     dim_base_type = isSgArrayType( dim_base_type )->get_base_type( );
                 }
-                
+            
                 // Get the current dependency data
                 if( used_dependency_dimensions.find( dep_sym ) != used_dependency_dimensions.end( ) )
                 {
@@ -1251,21 +1225,14 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
                     used_dependency_dimensions.insert( std::pair<SgSymbol*, int>( dep_sym, 0 ) );
                 }
                 lower_bound = array_dimensions[dep_sym][ used_dependency_dimensions[dep_sym] ].first;
-                upper_bound = array_dimensions[dep_sym][ used_dependency_dimensions[dep_sym] ].second;
+                length = array_dimensions[dep_sym][ used_dependency_dimensions[dep_sym] ].second;
                 dim_size = isSgArrayType( last_dim_type )->get_index( );
-                
+            
                 // Least sifgnificant dimension (the contiguous one) must be expressed in bytes
-                        // First expression is the dimension size
-                dim_size = buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), 
-                                                   isSgArrayType( last_dim_type )->get_index( ) ) );
-                        // Second expression is the lower bound
-                SgExpression* lb = buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), lower_bound ) );
-                        // Third expression is the accessed length
-                SgExpression * LB = isSgExpression( lower_bound->copy(tc) );
-                SgExpression * length = buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), 
-                                                                buildSubtractOp( upper_bound, LB ) ) );
-                        // Prepend the current dimension initializers
-                dim_initializers->prepend_expression( buildExprListExp( dim_size, lb, length ) );
+                dim_initializers->prepend_expression( 
+                        buildExprListExp( buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), dim_size ) ), 
+                                          buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), lower_bound ) ),
+                                          buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), length ) ) ) );
             }
         }
         else
@@ -1294,25 +1261,38 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
         // Create the current dependence initializer for the array of number of dimensions
         n_dims_initializers->append_expression( buildAssignInitializer( buildIntVal( n_dims ) ) );
         
+        // TODO Calculate the offset of the current dependency
+        offsets_initializers->append_expression( 
+                buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), lower_bound ) ) );
+        
         n_deps++;
     }
-      // Create the array of dimensions
+    // Create the array of dimensions
     all_dims_name = SageInterface::generateUniqueVariableName( scope, all_dims_name );
     SgType * all_dims_type = buildArrayType( buildPointerType( region_dim_type ), buildIntVal( n_deps ) );
     SgInitializer * all_dims_initializers_array = buildAggregateInitializer( all_deps_initializers, all_dims_type );
-    SgVariableDeclaration * all_dims_array_decl = buildVariableDeclaration( SgName(all_dims_name), all_dims_type,
+    SgVariableDeclaration * all_dims_array_decl = buildVariableDeclaration( all_dims_name, all_dims_type,
                                                                             all_dims_initializers_array, scope );
     SageInterface::insertStatementBefore( task, all_dims_array_decl );
     all_dims_ref = buildVarRefExp( all_dims_name, scope );
       
-      // Create the array with the number of dimensions
+    // Create the array with the number of dimensions
     n_dims_name = SageInterface::generateUniqueVariableName( scope, n_dims_name );
     SgType * n_dims_type = buildArrayType( buildIntType( ), buildIntVal( n_deps ) );
-//     SgInitializer* n_dims_initializers_array = buildAggregateInitializer( n_dims_initializers, n_dims_type );
-    SgVariableDeclaration* n_dims_array_decl = buildVariableDeclaration( SgName( n_dims_name ), n_dims_type,
-                                                                         NULL/*n_dims_initializers_array*/, scope );
+    SgInitializer * n_dims_initializers_array = buildAggregateInitializer( n_dims_initializers, n_dims_type );
+    SgVariableDeclaration * n_dims_array_decl = buildVariableDeclaration( n_dims_name, n_dims_type,
+                                                                          n_dims_initializers_array, scope );
     SageInterface::insertStatementBefore( task, n_dims_array_decl );
     n_dims_ref = buildVarRefExp( n_dims_name, scope );
+    
+    // Create the array with the offset of each dependency
+    offsets_name = SageInterface::generateUniqueVariableName( scope, offsets_name );
+    SgType * offsets_type = buildArrayType( buildLongType( ), buildIntVal( n_deps ) );
+    SgInitializer * offsets_initializers_array = buildAggregateInitializer( offsets_initializers, offsets_type );
+    SgVariableDeclaration * offsets_array_decl = buildVariableDeclaration( offsets_name, offsets_type, 
+                                                                           offsets_initializers_array, scope );
+    SageInterface::insertStatementBefore( task, offsets_array_decl );
+    offsets_ref = buildVarRefExp( offsets_name, scope );
 }
 
 #endif      // USE_ROSE_NANOS_OPENMP_LIBRARY
@@ -4203,15 +4183,16 @@ std::map <SgVariableSymbol *, bool> collectVariableAppearance (SgNode* root)
             // Build the dependencies dimension array
       std::string dims_array_name = "deps_dimensions";
       std::string n_dims_array_name = "deps_n_dimensions";
-      SgExpression * parameter_deps_dims, * parameter_n_dims;
-      build_nanos_dependencies_dimension_array( dims_array_name, n_dims_array_name, dependences_data, 
-                                                target, p_scope, parameter_deps_dims, parameter_n_dims, array_dimensions );
+      std::string offsets_name = "deps_offsets";
+      SgExpression * parameter_deps_dims, * parameter_n_dims, * parameter_offsets;
+      build_nanos_dependencies_dimension_array( dims_array_name, n_dims_array_name, offsets_name, dependences_data, 
+                                                target, p_scope, parameter_deps_dims, parameter_n_dims, parameter_offsets, array_dimensions );
       
       // Parameters to the NANOS function call
       SgExpression* array_params[] = { buildFunctionRefExp(outlined_func), parameter_data, parameter_arg_size, parameter_arg_align,
           parameter_if_clause, parameter_untied, parameter_empty_st, parameter_init_func,
           parameter_num_dependencies, parameter_deps_direction, 
-          parameter_deps_data, parameter_n_dims, parameter_deps_dims };
+          parameter_deps_data, parameter_n_dims, parameter_deps_dims, parameter_offsets };
       std::vector<SgExpression*> vector_params(array_params, array_params + sizeof(array_params) / sizeof(SgExpression*) );
       parameters = buildExprListExp(vector_params);
 #else

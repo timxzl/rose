@@ -116,8 +116,6 @@ namespace OmpSupport
   SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, 
           std::set<SgVariableSymbol*>& syms, SgClassDeclaration*& struct_decl);
  
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-  
     //! Create an empty object with type the struct to be passed to an OpenMP outlined function in Nanos
     //! Returns an expression containing the new object
     SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 
@@ -149,21 +147,12 @@ namespace OmpSupport
                                                     std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars,
                                                     std::set<SgVariableSymbol*>& pdSyms3, SgClassDeclaration*& struct_decl );
     
-    enum omp_nanos_deps_enum 
-    {
-        e_dep_dir_input,
-        e_dep_dir_output,
-        e_dep_dir_inout
-    };
-    
     //! Retrieves dependencies information by parsing the depend clauses of a task construct
     void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std::string & n_dims_name,
                                                    SgExprListExp * dependences_data, 
                                                    SgOmpTaskStatement * task, SgScopeStatement * scope,
                                                    SgExpression * & all_dims_ref, SgExpression * & n_dims_ref, 
                                                    std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > > array_dimensions );
-  
-#endif
   
   //! Translate OpenMP variables associated with an OpenMP pragma, such as private, firstprivate, lastprivate, reduction, etc. bb1 is the translation generated code block in which the variable handling statements will be inserted. Original loop upper bound is needed for implementing lastprivate (check if it is the last iteration). withinAcceleratorModel means if we only translate private() variables, used to support accelerator model
   void transOmpVariables(SgStatement * ompStmt, SgBasicBlock* bb1, SgExpression* orig_loop_upper = NULL, bool withinAcceleratorModel= false);

@@ -24,7 +24,7 @@ void NANOS_parallel( void ( * ) ( void * ), void *, unsigned, long, long ( * )( 
 void NANOS_task( void ( * ) ( void * ),                                                     // func 
                  void *, long, long ( * ) ( void ), void *, void ( * ) ( void *, void * ),  // data 
                  bool, unsigned,                                                            // clauses
-                 int, int *, void **, int *, nanos_region_dimension_t ** );                 // dependencies
+                 int, int *, void **, int *, nanos_region_dimension_t **, long int * );     // dependencies
 
 void NANOS_loop( void ( * ) ( void * ), void *, long, long ( * )( void ),
                  void *, void ( * ) ( void *, void * ), int );

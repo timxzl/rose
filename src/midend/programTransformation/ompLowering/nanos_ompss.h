@@ -8,9 +8,9 @@
 
 //! The directionality of a Task Dependency Clause
 enum ompss_dependency_direction_enum {
-    e_dep_dir_input = 0,
-    e_dep_dir_output = 1,
-    e_dep_dir_inout = 2/*,
+    e_dep_dir_in = 0x0001,
+    e_dep_dir_out = 0x0002,
+    e_dep_dir_inout = 0x0004/*,
     e_dep_dir_concurrent*/
 };
 
