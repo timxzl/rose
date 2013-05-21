@@ -23,6 +23,9 @@
 #include <string>
 #include <ASTtools.hh>
 #include <VarSym.hh>
+
+#include "rose_config.h"
+
 //! \name Forward declarations to relevant Sage classes.
 //@{
 class SgProject;
@@ -212,7 +215,9 @@ namespace Outliner
         const std::string& func_name_str, // the name for the outlined function, we generate the name of struct based on this.
         const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
         ASTtools::VarSymSet_t& pdSyms, // variables must use pointer types (pointer dereferencing: pdf). The rest variables use pass-by-value
-        SgScopeStatement* func_scope ); // the scope of the outlined function, could be in another file
+        SgScopeStatement* func_scope, // the scope of the outlined function, could be in another file
+        bool is_nanos_loop = false, // indicates if we are generating the struct for a loop ( only usefull if Nanos RTL )
+        const ASTtools::VarSymSet_t& nanos_red_syms = ASTtools::VarSymSet_t( ) ); // variables that are a reduction symbol while using Nanos RTL
 
 
     /*!
@@ -256,16 +261,20 @@ namespace Outliner
                       //const std::set< SgInitializedName *>& liveOuts, // optional live out variables to optimize away the copy-back statements in variable cloning
                       const std::set< SgInitializedName *>& restoreVars, // variables need to be restored after their clones finish computation
                       SgClassDeclaration* struct_decl, /*optional struct type to wrap parameters*/
-                      SgScopeStatement* scope);
+                      SgScopeStatement* scope,
+                      std::set<SgVariableDeclaration *>& unpack_stmts);   // Used only when Nanos OpenMP RTL
 
      //! Generate packing (wrapping) statements for the variables to be passed 
      //return the unique wrapper parameter for the outlined function
      //target is the outlining target
     std::string generatePackingStatements( SgStatement * target, 
-                                           ASTtools::VarSymSet_t & syms, ASTtools::VarSymSet_t & pdsyms, 
-                                           SgClassDeclaration * struct_decl = NULL, 
-                                           SgExpression * lower = NULL, SgExpression * upper = NULL, SgExpression * stride = NULL, SgExpression * chunk = NULL );
+                                           const ASTtools::VarSymSet_t & syms, const ASTtools::VarSymSet_t & pdsyms, 
+                                           SgClassDeclaration * struct_decl = NULL,  
+                                           const ASTtools::VarSymSet_t & redution_syms = ASTtools::VarSymSet_t( ), 
+                                           SgExpression * lower = NULL, SgExpression * upper = NULL, 
+                                           SgExpression * stride = NULL, SgExpression * chunk = NULL );
 
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
     /*!
      * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed with a Nanos++ slicer
      * containing the code of 's' and the corresponding Nanos statements to iterate over the slicer
@@ -277,7 +286,39 @@ namespace Outliner
                           const ASTtools::VarSymSet_t& pdSyms,
                           const std::set< SgInitializedName *>& restoreVars, // variables need to be restored after their clones finish computation
                           SgClassDeclaration* struct_decl, /*optional struct type to wrap parameters*/
-                          SgScopeStatement* scope );
+                          SgScopeStatement* scope, 
+                          std::set<SgVariableDeclaration *>& unpacking_stmts );
+    
+    /*!
+     * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed with a Nanos++ slicer
+     * containing the code of 's' and the corresponding Nanos statements to iterate over the slicer
+     */
+    SgFunctionDeclaration * 
+    generateSectionsFunction( SgBasicBlock* s,
+                              const std::string& func_name_str,
+                              const ASTtools::VarSymSet_t& syms,
+                              const ASTtools::VarSymSet_t& pdSyms,
+                              const std::set< SgInitializedName *>& restoreVars,
+                              SgClassDeclaration* struct_decl,
+                              SgScopeStatement* scope, 
+                              std::set<SgVariableDeclaration *>& unpacking_stmts );
+    
+    /*!
+     * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed 
+     * with a Nanos++ reduction containing the code of 's'
+     * It is slightly different since the code performing the reduction is already wraped in a function
+     */
+    SgFunctionDeclaration *
+    generateReductionFunction( SgBasicBlock* s,
+                               const std::string& func_name_str,
+                               const ASTtools::VarSymSet_t& syms,
+                               const ASTtools::VarSymSet_t& pdSyms,
+                               const ASTtools::VarSymSet_t& reduction_syms,
+                               SgClassDeclaration* struct_decl,
+                               SgScopeStatement* scope, 
+                               std::set<SgVariableDeclaration *> unpacking_stmts, 
+                               bool add_index_parameter );
+#endif
 
     /*!
      *  \brief Inserts an outlined-function declaration into global scope.

@@ -29,7 +29,12 @@ void NANOS_task( void ( * ) ( void * ),                                         
 void NANOS_loop( void ( * ) ( void * ), void *, long, long ( * )( void ),
                  void *, void ( * ) ( void *, void * ), int );
 
-void NANOS_sections( int, bool, va_list );
+void NANOS_sections( void (*) (void *, int), void *, int, bool );
+
+int NANOS_get_thread_num( void );
+int NANOS_get_num_threads( void );
+void NANOS_reduction( int, void ( ** )( void *, void *, int ), void ( ** )( void **, void ** ), void ( * )( void *, int ), 
+                      void *, void ***, void **, long *, int, const char *, int );
 
 void NANOS_taskwait( void );
 void NANOS_barrier( void );

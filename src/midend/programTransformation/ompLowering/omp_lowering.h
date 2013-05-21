@@ -116,6 +116,20 @@ namespace OmpSupport
   SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, 
           std::set<SgVariableSymbol*>& syms, SgClassDeclaration*& struct_decl);
  
+  
+    //! A helper function to generate explicit task for omp loop
+    //! Inspired in method 'generateOutlinedTask' and only used when Nanos OpenMP RTL is configured
+    SgFunctionDeclaration* generateOutlinedLoop( SgNode* node, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, 
+                                                 std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
+                                                 SgClassDeclaration*& struct_decl,
+                                                 SgExpression * lower, SgExpression * upper, SgExpression * stride, SgExpression * chunk );
+  
+    //! A helper function to generate explicit task for omp section
+    //! Inspired in method 'generateOutlinedTask' and only used when Nanos OpenMP RTL is configured
+    SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wrapper_name, std::set<SgVariableSymbol*>& syms, 
+                                                     std::set<SgInitializedName *> & readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
+                                                     SgClassDeclaration * & struct_decl );
+  
     //! Create an empty object with type the struct to be passed to an OpenMP outlined function in Nanos
     //! Returns an expression containing the new object
     SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 

@@ -296,7 +296,8 @@ void XOMP_parallel_end (char* file_name, int line_no)
 #endif
 }
 
-#else       
+#else
+  
 // USE_ROSE_NANOS_OPENMP_LIBRARY
 void XOMP_parallel_start_for_NANOS( void )
 {
@@ -399,16 +400,9 @@ void XOMP_sections_end_nowait(void)
 
 #else
 
-void XOMP_sections_for_NANOS(int num_sections, bool must_wait, ... )
+void XOMP_sections_for_NANOS( void ( * func ) ( void * section_data, int i ), void * data, int n_sections, bool wait )
 {
-  // Grab variable parameters (they depend on the number of section blocks)
-  // All parameters are passed by value
-  va_list sections_args;
-  va_start (sections_args, must_wait);
-
-  NANOS_sections(num_sections, must_wait, sections_args);
-
-  va_end (sections_args);
+  NANOS_sections( func, data, n_sections, wait );
 }
 
 #endif
@@ -1747,13 +1741,13 @@ void xomp_barrier(void)
 }
 void XOMP_barrier (void)
 {
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-  NANOS_barrier();
-#elif defined USE_ROSE_GOMP_OPENMP_LIBRARY
+#ifdef USE_ROSE_GOMP_OPENMP_LIBRARY
   GOMP_barrier();
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+  NANOS_barrier();
 #else   
   _ompc_barrier();
-#endif
+#endif    
 
   //  else
   //  {
@@ -1834,9 +1828,7 @@ void xomp_atomic_start(void)
 }
 void XOMP_atomic_start (void)
 {
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-  NANOS_todo("XOMP atomic start");
-#elif defined USE_ROSE_GOMP_OPENMP_LIBRARY
+#ifdef USE_ROSE_GOMP_OPENMP_LIBRARY
   GOMP_atomic_start();
 #else   
   _ompc_atomic_lock();
@@ -1852,9 +1844,7 @@ void xomp_atomic_end(void)
 }
 void XOMP_atomic_end (void)
 {
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-  NANOS_todo("XOMP atomic end");
-#elif defined USE_ROSE_GOMP_OPENMP_LIBRARY
+#ifdef USE_ROSE_GOMP_OPENMP_LIBRARY
    GOMP_atomic_end();
 #else   
   _ompc_atomic_unlock();
@@ -1866,6 +1856,27 @@ void XOMP_atomic_end (void)
 void XOMP_atomic_for_NANOS(int op, int type, void * variable, void * operand)
 {
   NANOS_atomic(op, type, variable, operand);
+}
+
+void XOMP_reduction_for_NANOS( int n_reductions, void ( ** all_threads_reduction )( void * out, void * in, int num_scalars ),
+                               void ( ** init_thread_reduction_array )( void **, void ** ),
+                               void ( * single_thread_reduction )( void *, int ), void * single_thread_data,
+                               void *** global_th_data, void ** global_data, long * global_data_size, int num_scalars,
+                               const char * filename, int fileline )
+{
+    NANOS_reduction( n_reductions, all_threads_reduction, init_thread_reduction_array, 
+                     single_thread_reduction, single_thread_data, 
+                     global_th_data, global_data, global_data_size, num_scalars, filename, fileline );
+}
+
+int XOMP_get_nanos_thread_num( )
+{
+    return NANOS_get_thread_num( );
+}
+
+int XOMP_get_nanos_num_threads( )
+{
+    return NANOS_get_num_threads( );
 }
 
 #endif

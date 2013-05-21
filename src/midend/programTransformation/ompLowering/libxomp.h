@@ -49,7 +49,7 @@ extern void XOMP_terminate (int exitcode);
 // file_name:line_no the start source file info about this parallel region, used to pass source level info. to runtime
 extern void XOMP_parallel_start (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified, char* file_name, int line_no);
 extern void XOMP_parallel_end (char* file_name, int line_no);
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+
 // Method for parallel when NANOS library. In addition to the parameters of the regular XOMP call for parallel:
 extern void XOMP_parallel_start_for_NANOS( void );
 // Method for parallel when NANOS library. In addition to the parameters of the regular XOMP call for parallel:
@@ -61,7 +61,6 @@ extern void XOMP_parallel_start_for_NANOS( void );
 extern void XOMP_parallel_for_NANOS( void (*func) (void*), void* data, unsigned ifClauseValue, unsigned numThreadsSpecified,
                                      long data_size, long (*get_data_align) (void), void* (*get_empty_data)(void), void (*init_func) (void*, void*) );
 extern void XOMP_parallel_end_for_NANOS( void );
-#endif
 
 /* Initialize sections and return the next section id (starting from 0) to be executed by the current thread */
 extern int XOMP_sections_init_next(int section_count); 
@@ -71,18 +70,17 @@ extern int XOMP_sections_next(void);
 extern void XOMP_sections_end(void);
 /* Called after the current thread is told that all sections are executed. It does not synchronizes all threads. */
 extern void XOMP_sections_end_nowait(void);
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-extern void XOMP_sections_for_NANOS(int num_sections, bool must_wait, ... );
-#endif
+// Method for sections when Nanos RTL configured
+extern void XOMP_sections_for_NANOS( void ( * ) ( void *, int i ), void *, int, bool );
 
 extern void XOMP_task (void (*) (void *), void *, void (*) (void *, void *),
                        long, long, bool, unsigned);
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+// Method for tasks when Nanos RTL configured
 extern void XOMP_task_for_NANOS( void (*fn) (void *), void * data, long data_size, long (*get_data_align) (void), 
                                  bool if_clause, unsigned untied, void* empty_data, void (*init_func) (void*, void*),
                                  int num_deps, int * deps_direction, void ** deps_data, 
                                  int * deps_n_dims, nanos_region_dimension_t ** deps_dims, long int * deps_offset );
-#endif
+
 extern void XOMP_taskwait (void);
 
 // scheduler functions, union of runtime library functions
@@ -105,11 +103,10 @@ extern void XOMP_loop_ordered_static_init(int lower, int upper, int stride, int 
 extern void XOMP_loop_ordered_dynamic_init(int lower, int upper, int stride, int chunk_size);
 extern void XOMP_loop_ordered_guided_init(int lower, int upper, int stride, int chunk_size);
 extern void XOMP_loop_ordered_runtime_init(int lower, int upper, int stride);
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+
 // Specific method for Nanos++
 extern void XOMP_loop_for_NANOS ( void (*func) (void *), void *data, long arg_size, long (*get_arg_align)(void), 
                                   void * empty_data, void (* init_func) (void *, void *), int policy);
-#endif
 
 // if (start), 
 // mostly used because of gomp, omni will just call  XOMP_loop_xxx_next();
@@ -147,13 +144,18 @@ extern bool XOMP_master(void);
 
 extern void XOMP_atomic_start (void);
 extern void XOMP_atomic_end (void);
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+
 extern void XOMP_atomic_for_NANOS (int, int, void *, void *);
-#endif
+
+extern void XOMP_reduction_for_NANOS( int, void ( ** )( void *, void *, int ), void ( ** )( void **, void ** ), void ( * )( void *, int ), 
+                                      void *, void ***, void **, long *, int, const char *, int );
+extern int XOMP_get_nanos_thread_num( void );
+extern int XOMP_get_nanos_num_threads( );
 
 extern void XOMP_loop_end (void);
 extern void XOMP_loop_end_nowait (void);
-   // --- end loop functions ---
+   // --- end sync functions ---
+   
 // flush without variable list
 extern void XOMP_flush_all (void);
 // omp flush with variable list, flush one by one, given each's start address and size

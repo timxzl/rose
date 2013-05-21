@@ -9,6 +9,7 @@
  *  can be isolated into their own, dynamically shareable modules.
  */
 // tps (01/14/2010) : Switching from rose.h to sage3.
+#include "rose_config.h"
 #include "sage3basic.h"
 #include "sageBuilder.h"
 #include <iostream>
@@ -286,6 +287,71 @@ createParam (const SgInitializedName* i_name,  // the variable to be passed into
 }
 
 /*!
+ *  \brief Initializes unpacking statements for array types
+ *  The function takes into account that array types must be initialized element by element
+ *  The function also skips typedef types to get the real type
+ *  
+ *  \param lhs Left-hand side of the assignment 
+ *  \param rhs Right-hand side of the assignment
+ *  \param type Current type being initialized
+ *  \param scope Scope where the assignments will be placed
+ *  \param loop_indexes Indexes of all loops, to be declared after calling this function
+ *                      So they are initialized before the most outer loop
+ *
+ *  Example:
+ *    Outlined parameters struct:
+ *        struct OUT__1__7768___data {
+ *            void *a_p;
+ *            int (*b_p)[10UL];
+ *            int c[10UL];
+ *            void *d_p;
+ *        };
+ *    Unpacking statements:
+ *        int *a = (int *)(((struct OUT__1__7768___data *)__out_argv) -> a_p);                      -> shared scalar
+ *        int (*b)[10UL] = (int (*)[10UL])(((struct OUT__1__7768___data *)__out_argv) -> b_p);      -> shared static array
+ *        int __i0__;
+ *        for (__i0__ = 0; __i0__ < 10UL; __i0__++)                                                 -> firstprivate array 
+ *            c[__i0__] = ((struct OUT__1__7768___data *)__out_argv) -> c[__i0__];
+ *        int **d = (int **)(((struct OUT__1__7768___data *)__out_argv) -> d_p);                    -> shared dynamic array
+ */
+static SgStatement* build_array_unpacking_statement( SgExpression * lhs, SgExpression * rhs, SgType * type, 
+                                                     SgScopeStatement * scope, SgStatementPtrList & loop_indexes )
+{
+    ROSE_ASSERT( isSgArrayType( type ) );
+    ROSE_ASSERT( scope );
+    
+    // Loop initializer
+    std::string loop_index_name = SageInterface::generateUniqueVariableName( scope, "i" );
+    SgVariableDeclaration * loop_index = buildVariableDeclaration( loop_index_name, buildIntType( ), NULL /* initializer */, scope );
+    loop_indexes.push_back( loop_index );
+    SgStatement * loop_init = buildAssignStatement( buildVarRefExp( loop_index_name, scope ), buildIntVal( 0 ) );
+    
+    // Loop test
+    SgStatement * loop_test = buildExprStatement(
+            buildLessThanOp( buildVarRefExp( loop_index_name, scope ), isSgArrayType( type )->get_index( ) ) );
+    
+    // Loop increment
+    SgExpression * loop_increment = buildPlusPlusOp( buildVarRefExp( loop_index_name, scope ), SgUnaryOp::postfix );
+    
+    // Loop body    
+    SgExpression * assign_lhs = buildPntrArrRefExp( lhs, buildVarRefExp( loop_index_name, scope ) );
+    SgExpression * assign_rhs = buildPntrArrRefExp( rhs, buildVarRefExp( loop_index_name, scope ) );
+    SgStatement * loop_body = NULL;
+    SgType * base_type = isSgArrayType( type )->get_base_type( )->stripType( SgType::STRIP_TYPEDEF_TYPE );
+    if( isSgArrayType( base_type ) )
+    {
+        loop_body = build_array_unpacking_statement( assign_lhs, assign_rhs, base_type, scope, loop_indexes );
+    }
+    else
+    {
+        loop_body = buildAssignStatement( assign_lhs, assign_rhs );
+    }
+    
+    // Loop satement
+    return buildForStatement( loop_init, loop_test, loop_increment, loop_body );
+}
+
+/*!
  *  \brief Creates a local variable declaration to "unpack" an outlined-function's parameter
  *  int index is optionally used as an offset inside a wrapper parameter for multiple variables
  *
@@ -330,7 +396,8 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
                   bool isPointerDeref, // must use pointer deference or not
                   const SgInitializedName* i_name, // original variable to be passed as the function parameter
                   SgClassDeclaration* struct_decl, // the struct declaration type used to wrap parameters 
-                  SgScopeStatement* scope) // the scope into which the statement will be inserted 
+                  SgScopeStatement* scope, // the scope into which the statement will be inserted 
+                  bool is_nanos_reduction = false )
 {
   ROSE_ASSERT(param && scope && i_name);
 
@@ -341,69 +408,68 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
  // decide on the type : local_type
   // the original data type of the variable passed via parameter
   SgType* orig_var_type = i_name ->get_type();
-
+  
+  
   if (! SageInterface::is_Fortran_language())
   {  
     // Convert an array type parameter's first dimension to a pointer type
     // This conversion is implicit for C/C++ language. 
     // We have to make it explicit to get the right type
     // Liao, 4/24/2009  TODO we should only adjust this for the case 1
-    if (isSgArrayType(orig_var_type)) 
-        // Sara Royuela, Dec 12, 2012: The scope of these variables can be a BasicBlock besides a FunctionDefinition
-        if (isSgFunctionDefinition(i_name->get_scope()) || isSgBasicBlock(i_name->get_scope()))
-        orig_var_type = SageBuilder::buildPointerType(isSgArrayType(orig_var_type)->get_base_type());
+    if( isSgArrayType(orig_var_type) ) 
+       if( isSgFunctionDefinition( i_name->get_scope( ) ) )
+          orig_var_type = SageBuilder::buildPointerType(isSgArrayType(orig_var_type)->get_base_type());
   }
 
   SgType* local_type = NULL;
-  if (SageInterface::is_Fortran_language())
+  if( SageInterface::is_Fortran_language( ) )
     local_type= orig_var_type;
-  else if (Outliner::temp_variable || Outliner::useStructureWrapper) 
+  else if( Outliner::temp_variable || Outliner::useStructureWrapper ) 
   // unique processing for C/C++ if temp variables are used
   {
-    if (isPointerDeref) // use pointer dereferencing for some
-    {
+    if( isPointerDeref )    // use pointer dereferencing for some
       local_type = buildPointerType(orig_var_type);
-    }
-    else // use variable clone instead for others
+    else                    // use variable clone instead for others
       local_type = orig_var_type;
   }  
   else // all other cases: non-fortran, not using variable clones 
   {
-    if (is_C_language())
+    if( is_C_language( ) )
     {   
       // we use pointer types for all variables to be passed
       // the classic outlining will not use unpacking statement, but use the parameters directly.
       // So we can safely always use pointer dereferences here
-      local_type = buildPointerType(orig_var_type);
+      local_type = buildPointerType( orig_var_type );
     }
     else // C++ language
-  // Rich's idea was to leverage C++'s reference type: two cases:
-  //  a) for variables of reference type: no additional work
-  //  b) for others: make a reference type to them
-  //   all variable accesses in the outlined function will have
-  //   access the address of the by default, not variable substitution is needed 
+      // Rich's idea was to leverage C++'s reference type: two cases:
+      //  a) for variables of reference type: no additional work
+      //  b) for others: make a reference type to them
+      //   all variable accesses in the outlined function will have
+      //   access the address of the by default, not variable substitution is needed 
     { 
-      local_type= isSgReferenceType(orig_var_type) ?orig_var_type: SgReferenceType::createType(orig_var_type);
+      local_type = isSgReferenceType( orig_var_type ) ? orig_var_type 
+                                                      : SgReferenceType::createType( orig_var_type );
     }
   }
-  ROSE_ASSERT (local_type);
+  ROSE_ASSERT( local_type );
 
   SgAssignInitializer* local_val = NULL;
-
+    
   // Declare a local variable to store the dereferenced argument.
-  SgName local_name (orig_var_name.c_str ());
-  if (SageInterface::is_Fortran_language())
-    local_name = SgName(param->get_name());
-
+  SgName local_name( orig_var_name.c_str( ) );
+  if( SageInterface::is_Fortran_language( ) )
+    local_name = SgName( param->get_name( ) );
+    
   // This is the right hand of the assignment we want to build
   //
   // ----------step  2. Create the right hand expression------------------------------------
-   // No need to have right hand for fortran
-  if (SageInterface::is_Fortran_language())
-     {
-       local_val = NULL;
-       return buildVariableDeclaration(local_name,local_type,local_val,scope);
-     }
+  // No need to have right hand for fortran
+  if( SageInterface::is_Fortran_language( ) )
+  {
+    local_val = NULL;
+    return buildVariableDeclaration( local_name, local_type, local_val, scope );
+  }
   // for non-fortran language
   // Create an expression that "unpacks" the parameter.
   //   case 1: default is to use the parameter directly
@@ -415,110 +481,162 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
   SgExpression* param_ref = NULL;
   if (Outliner::useParameterWrapper) // using index for a wrapper parameter
   {
-    if (Outliner::useStructureWrapper)
-    { // case 3: structure type parameter
+    if( Outliner::useStructureWrapper )
+    {   // case 3: structure type parameter
       if (struct_decl != NULL)
       {
-        SgClassDefinition* struct_def = isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition();
-        ROSE_ASSERT (struct_def != NULL);
-        string field_name = orig_var_name;
-        if (isPointerDeref)
-          field_name = field_name+"_p";
-        // __out_argv->i  or __out_argv->sum_p , depending on if pointer deference is needed
-        //param_ref = buildArrowExp(buildVarRefExp(param, scope), buildVarRefExp(field_name, struct_def));
-        //We use void* for all pointer types elements within the data structure. So type casting is needed here
-  //e.g.   class Hello **this__ptr__ = (class Hello **)(((struct OUT__1__1527___data *)__out_argv) -> this__ptr___p);
-        param_ref = buildCastExp(buildArrowExp(buildCastExp(buildVarRefExp(param, scope), buildPointerType(struct_decl->get_type())), 
-                                               buildVarRefExp(field_name, struct_def)),
-                                 local_type);
-        //local_type
-      }
-      else
-      {
-        cerr<<"Outliner::createUnpackDecl(): no need to unpack anything since struct_decl is NULL."<<endl;
-        ROSE_ASSERT (false);
-      }
-    }
-    else // case 2: array of pointers 
-    {
-       param_ref= buildPntrArrRefExp(buildVarRefExp(param, scope),buildIntVal(index));
-    }
+        SgClassDefinition* struct_def = isSgClassDeclaration( struct_decl->get_definingDeclaration( ) )->get_definition( );
+        ROSE_ASSERT( struct_def != NULL );
+         string field_name = orig_var_name;
+         if( isPointerDeref )
+           field_name = field_name + "_p";
+         // __out_argv->i  or __out_argv->sum_p , depending on if pointer deference is needed
+         // param_ref = buildArrowExp(buildVarRefExp(param, scope), buildVarRefExp(field_name, struct_def));
+         // We use void* for all pointer types elements within the data structure. So type casting is needed here
+         // e.g.   class Hello **this__ptr__ = (class Hello **)(((struct OUT__1__1527___data *)__out_argv) -> this__ptr___p);
+                
+         if( isSgArrayType( local_type ) )
+         {    
+           param_ref = buildArrowExp( buildCastExp( buildVarRefExp( param, scope ), 
+                                                    buildPointerType( struct_decl->get_type( ) ) ), 
+                                      buildVarRefExp( field_name, struct_def ) );
+         }
+         else
+         {    
+           param_ref = buildCastExp( buildArrowExp( buildCastExp( buildVarRefExp( param, scope ), 
+                                                                  buildPointerType( struct_decl->get_type( ) ) ), 
+                                                    buildVarRefExp( field_name, struct_def ) ), 
+                                     local_type );
+         }
+       }
+       else
+       {
+         cerr << "Outliner::createUnpackDecl(): no need to unpack anything since struct_decl is NULL." << endl;
+         ROSE_ASSERT( false );
+       }
+     }
+     else // case 2: array of pointers 
+     {
+       param_ref = buildPntrArrRefExp( buildVarRefExp( param, scope ), buildIntVal( index ) );
+     }
   } 
   else // default case 1:  each variable has a pointer typed parameter , 
-    // this is not necessary but we have a classic model for optimizing this
+       // this is not necessary but we have a classic model for optimizing this
   {
-     param_ref = buildVarRefExp(param, scope);
+    param_ref = buildVarRefExp( param, scope );
   }
 
-   ROSE_ASSERT (param_ref != NULL);
+  ROSE_ASSERT (param_ref != NULL); 
 
   if (Outliner::useStructureWrapper)
-  {
-    // Or for structure type paramter
-    // int (*sum)[100UL] = __out_argv->sum_p; // is PointerDeref type
-    // int i = __out_argv->i;
-    local_val = buildAssignInitializer(param_ref); 
+  { // case 3: structure type parameter
+    if (struct_decl != NULL)
+    {
+      SgClassDefinition* struct_def = isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition();
+      ROSE_ASSERT (struct_def != NULL);
+      string field_name = orig_var_name;
+      if (isPointerDeref)
+        field_name = field_name+"_p";
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+      if( is_nanos_reduction )
+      {
+        field_name = "g_th_" + field_name;
+        local_type = buildPointerType(local_type);
+      }
+#endif
+      // __out_argv->i  or __out_argv->sum_p , depending on if pointer deference is needed
+      //param_ref = buildArrowExp(buildVarRefExp(param, scope), buildVarRefExp(field_name, struct_def));
+      //We use void* for all pointer types elements within the data structure. So type casting is needed here
+      //e.g.   class Hello **this__ptr__ = (class Hello **)(((struct OUT__1__1527___data *)__out_argv) -> this__ptr___p);
+      param_ref = buildCastExp( buildArrowExp( buildCastExp( buildVarRefExp( param, scope ), 
+                                                             buildPointerType( struct_decl->get_type( ) ) ), 
+                                               buildVarRefExp( field_name, struct_def ) ),
+                                local_type);
+        //local_type
+    }
+    else
+    {
+      cerr<<"Outliner::createUnpackDecl(): no need to unpack anything since struct_decl is NULL."<<endl;
+      ROSE_ASSERT (false);
+    }
   }
   else
   {
-     //TODO: This is only needed for case 2 or C++ case 1, 
-     // not for case 1 and case 3 since the source right hand already has the right type
-     // since the array has generic void* elements. We need to cast from 'void *' to 'LOCAL_VAR_TYPE *'
-     // Special handling for C++ reference type: addressOf (refType) == addressOf(baseType) 
-     // So unpacking it to baseType* 
-     SgReferenceType* ref = isSgReferenceType (orig_var_type);
-     SgType* local_var_type_ptr =  SgPointerType::createType (ref ? ref->get_base_type (): orig_var_type);
-     ROSE_ASSERT (local_var_type_ptr);
-     SgCastExp* cast_expr = buildCastExp(param_ref,local_var_type_ptr,SgCastExp::e_C_style_cast);
+    //TODO: This is only needed for case 2 or C++ case 1, 
+    // not for case 1 and case 3 since the source right hand already has the right type
+    // since the array has generic void* elements. We need to cast from 'void *' to 'LOCAL_VAR_TYPE *'
+    // Special handling for C++ reference type: addressOf (refType) == addressOf(baseType) 
+    // So unpacking it to baseType* 
+    SgReferenceType* ref = isSgReferenceType (orig_var_type);
+    SgType* local_var_type_ptr =  SgPointerType::createType (ref ? ref->get_base_type (): orig_var_type);
+    ROSE_ASSERT (local_var_type_ptr);
+    SgCastExp* cast_expr = buildCastExp(param_ref,local_var_type_ptr,SgCastExp::e_C_style_cast);
 
     if (Outliner::temp_variable) // variable cloning is enabled
-       {
+    {
       // int* ip = (int *)(__out_argv[1]); // isPointerDeref == true
       // int i = *(int *)(__out_argv[1]);
-         if (isPointerDeref)
-         {
-              local_val = buildAssignInitializer(cast_expr); // casting is enough for pointer types
-         }
-           else // temp variable need additional dereferencing from the parameter on the right side
-           {
-              local_val = buildAssignInitializer(buildPointerDerefExp(cast_expr));
-           }
-       } 
+      if (isPointerDeref)
+      {
+        local_val = buildAssignInitializer(cast_expr); // casting is enough for pointer types
+      }
+      else // temp variable need additional dereferencing from the parameter on the right side
+      {
+        local_val = buildAssignInitializer(buildPointerDerefExp(cast_expr));
+      }
+    } 
     else // conventional pointer dereferencing algorithm
-     {
-       // int* ip = (int *)(__out_argv[1]);
-       if  (is_C_language()) // using pointer dereferences
-          {
-            local_val = buildAssignInitializer(cast_expr);
-          }
-       else if  (is_Cxx_language()) 
-         // We use reference type in the outlined function's body for C++ 
-         // need the original value from a dereferenced type
-         // using pointer dereferences to get the original type
-         //  we use reference type instead of pointer type for C++
-/*
- extern "C" void OUT__1__8452__(int *ip__,int *jp__,int (*sump__)[100UL])
-{
-  int &i =  *((int *)ip__);
-  int &j =  *((int *)jp__);
-  int (&sum)[100UL] =  *((int (*)[100UL])sump__);
-  ...
-} 
- */ 
-          {
-            local_val = buildAssignInitializer(buildPointerDerefExp(cast_expr));
-           }
-       else
-          {
-            printf ("No other languages are supported by outlining currently. \n");
-            ROSE_ASSERT(false);
-          }
-     }
-   }
-// printf ("In createUnpackDecl(): local_val = %p \n",local_val);
-//
+    {
+      // int* ip = (int *)(__out_argv[1]);
+      if  (is_C_language()) // using pointer dereferences
+      {
+        local_val = buildAssignInitializer(cast_expr);
+      }
+      else if  (is_Cxx_language()) 
+      // We use reference type in the outlined function's body for C++ 
+      // need the original value from a dereferenced type
+      // using pointer dereferences to get the original type
+      //  we use reference type instead of pointer type for C++
+      /*
+       * extern "C" void OUT__1__8452__(int *ip__,int *jp__,int (*sump__)[100UL]) {
+       *   int &i =  *((int *)ip__);
+       *   int &j =  *((int *)jp__);
+       *   int (&sum)[100UL] =  *((int (*)[100UL])sump__);
+       *   ...
+       * };
+       */ 
+      {
+        local_val = buildAssignInitializer(buildPointerDerefExp(cast_expr));
+      }
+      else
+      {
+        printf ("No other languages are supported by outlining currently. \n");
+        ROSE_ASSERT(false);
+      }
+    }
+  }
+   // printf ("In createUnpackDecl(): local_val = %p \n",local_val);
 
-  SgVariableDeclaration* decl = buildVariableDeclaration(local_name,local_type,local_val,scope);
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+  if( is_nanos_reduction )
+    local_name = "g_th_" + local_name;
+#endif
+
+  SgVariableDeclaration* decl;
+  if( isSgArrayType( local_type->stripType( SgType::STRIP_TYPEDEF_TYPE ) ) )
+  { // The original variable was no statically allocated and passed as private or firstprivate
+    // We need to copy every element of the array
+    decl = buildVariableDeclaration( local_name, local_type, NULL, scope );
+    SgStatementPtrList loop_indexes;
+    SgStatement * array_init = build_array_unpacking_statement( buildVarRefExp( decl ), param_ref, 
+                                                                local_type->stripType( SgType::STRIP_TYPEDEF_TYPE ), scope, loop_indexes );
+    SageInterface::prependStatement( array_init, scope );
+    SageInterface::prependStatementList( loop_indexes, scope );
+  }
+  else
+  {
+    decl = buildVariableDeclaration( local_name, local_type, local_val, scope );
+  }
   return decl;
 }
 
@@ -892,14 +1010,15 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
  *
  */
 static
-void
-variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to the outlined function: //regular (shared) parameters?
-              const ASTtools::VarSymSet_t& pdSyms, // those must use pointer dereference: use pass-by-reference
-//              const std::set<SgInitializedName*> & readOnlyVars, // optional analysis: those which can use pass-by-value, used for classic outlining without parameter wrapping, and also for variable clone to decide on if write-back is needed
+std::set<SgVariableDeclaration *>
+variableHandling( const ASTtools::VarSymSet_t& syms, // all variables passed to the outlined function: //regular (shared) parameters?
+                  const ASTtools::VarSymSet_t& pdSyms, // those must use pointer dereference: use pass-by-reference
+//                const std::set<SgInitializedName*> & readOnlyVars, // optional analysis: those which can use pass-by-value, used for classic outlining without parameter wrapping, and also for variable clone to decide on if write-back is needed
 //              const std::set<SgInitializedName*> & liveOutVars, // optional analysis: used to control if a write-back is needed when variable cloning is used.
-              const std::set<SgInitializedName*> & restoreVars, // variables to be restored after variable cloning
-              SgClassDeclaration* struct_decl, // an optional struct wrapper for all variables
-              SgFunctionDeclaration* func) // the outlined function
+                  const std::set<SgInitializedName*> & restoreVars, // variables to be restored after variable cloning
+                  SgClassDeclaration* struct_decl, // an optional struct wrapper for all variables
+                  SgFunctionDeclaration* func,
+                  const ASTtools::VarSymSet_t& nanos_red_syms = ASTtools::VarSymSet_t( ) ) // the outlined function
 {
   VarSymRemap_t sym_remap; // variable remapping for regular(shared) variables: all passed by reference using pointer types?
   VarSymRemap_t private_remap; // variable remapping for private/firstprivate/reduction variables
@@ -930,6 +1049,7 @@ variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to t
   // They include parameters for 
   // *  regular shared variables and also 
   // *  shared copies for firstprivate and reduction variables
+  std::set<SgVariableDeclaration *> unpacking_stmts;
   for (ASTtools::VarSymSet_t::const_reverse_iterator i = syms.rbegin ();
       i != syms.rend (); ++i)
   {
@@ -1020,9 +1140,20 @@ variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to t
        // Not true: even without parameter wrapping, we still need to transfer the function parameter to a local declaration, which is also called unpacking
       // must be a case of using parameter wrapping
       // ROSE_ASSERT (Outliner::useStructureWrapper || Outliner::useParameterWrapper);
+
+      bool is_nanos_reduction = false;
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+      const SgVariableSymbol* i_symbol = isSgVariableSymbol( i_name->get_symbol_from_symbol_table( ) );
+      if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
+      {    
+          name_str = "g_th_" + name_str;
+          is_nanos_reduction = true;
+      }
+#endif  
       local_var_decl  = 
-        createUnpackDecl (p_init_name, counter, isPointerDeref, i_name , struct_decl, body);
+        createUnpackDecl (p_init_name, counter, isPointerDeref, i_name , struct_decl, body, is_nanos_reduction);
       ROSE_ASSERT (local_var_decl);
+      unpacking_stmts.insert( local_var_decl );
       prependStatement (local_var_decl,body);
       // regular and shared variables used the first local declaration
       recordSymRemap (*i, local_var_decl, args_scope, sym_remap);
@@ -1128,6 +1259,8 @@ variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to t
 #endif
   // variable substitution 
   remapVarSyms (sym_remap, pdSyms, private_remap , func_body);
+  
+  return unpacking_stmts;
 }
 
 // =====================================================================
@@ -1143,7 +1276,8 @@ Outliner::generateFunction ( SgBasicBlock* s,  // block to be outlined
 //                          const std::set< SgInitializedName *>& liveOuts, // optional live out variables, used to optimize variable cloning
                             const std::set< SgInitializedName *>& restoreVars, // optional information about variables to be restored after variable clones finish computation
                             SgClassDeclaration* struct_decl,  // an optional wrapper structure for parameters
-                            SgScopeStatement* scope)
+                            SgScopeStatement* scope,
+                            std::set<SgVariableDeclaration *>& unpack_stmts )
 {
   ROSE_ASSERT (s&&scope);
   ROSE_ASSERT(isSgGlobal(scope));
@@ -1263,7 +1397,7 @@ Outliner::generateFunction ( SgBasicBlock* s,  // block to be outlined
   //   add repacking statements if necessary
   //   replace variables to access to parameters, directly or indirectly
   //variableHandling(syms, pdSyms, readOnlyVars, liveOuts, struct_decl, func);
-  variableHandling(syms, pdSyms, restoreVars, struct_decl, func);
+  unpack_stmts = variableHandling(syms, pdSyms, restoreVars, struct_decl, func);
   ROSE_ASSERT (func != NULL);
   
 //     std::cout << func->get_type()->unparseToString() << std::endl;
@@ -1286,14 +1420,15 @@ SgFunctionDeclaration *
                                      const string& func_name_str,
                                      const ASTtools::VarSymSet_t& syms,
                                      const ASTtools::VarSymSet_t& pdSyms,
-                                     const std::set< SgInitializedName *>& restoreVars, // variables need to be restored after their clones finish computation
+                                     const std::set< SgInitializedName *>& restoreVars,
                                      SgClassDeclaration* struct_decl, 
-                                     SgScopeStatement* scope )
+                                     SgScopeStatement* scope, 
+                                     std::set<SgVariableDeclaration *>& unpacking_stmts )
 {
     ROSE_ASSERT( s && scope );
     ROSE_ASSERT( isSgGlobal( scope ) );
     
-    //step 2. Create function skeleton, 'func'.
+    //step 1. Create function skeleton, 'func'.
     SgName func_name( func_name_str );
     SgFunctionParameterList* parameterList = buildFunctionParameterList( );
     SgFunctionDeclaration* func = createFuncSkeleton( func_name, buildVoidType( ), parameterList, scope );
@@ -1317,6 +1452,8 @@ SgFunctionDeclaration *
     //step 2. Create the function body
     SgBasicBlock* func_body = func->get_definition( )->get_body( );
     ROSE_ASSERT( func_body != NULL );
+    ROSE_ASSERT( func_body->get_statements( ).empty( ) == true );
+    SageInterface::moveStatementsBetweenBlocks( s, func_body );
     SgStatement* orig_body_stmt = SageInterface::copyStatement( s );
     SgBasicBlock* sliced_stmt = isSgBasicBlock( orig_body_stmt );
     appendStatement( sliced_stmt, func_body );
@@ -1324,21 +1461,21 @@ SgFunctionDeclaration *
     if( Outliner::useNewFile )
         ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
   
-    //step 4: variable handling, including: 
+    //step 3: variable handling, including: 
     // -----------------------------------------
     //   create parameters of the outlined functions
     //   add statements to unwrap the parameters
     //   add repacking statements if necessary
     //   replace variables to access to parameters, directly or indirectly
-    variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
+    unpacking_stmts = variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
     ROSE_ASSERT( func != NULL );
     func->set_type( buildFunctionType( func->get_type()->get_return_type( ), 
                     buildFunctionParameterTypeList( func->get_parameterList( ) ) ) );
-    //   // Retest this...
+    // Retest this...
     ROSE_ASSERT( func_body->get_parent( ) == func->get_definition( ) );
     ROSE_ASSERT( scope->lookup_function_symbol( func->get_name( ) ) );
     
-    //step 5. Introduce in the function code the statements for Nanos calls
+    //step 4. Introduce in the function code the statements for Nanos calls
     // We separete in two the construction of the function body because 
     // we need variable handling to be done before building the nanos calls
     // and we need the original code to be placed in the function code 
@@ -1359,7 +1496,7 @@ SgFunctionDeclaration *
     // --------------------------------------------------------------------
   
     // Get the WSD member from the __out_argv parameter
-    SgInitializedNamePtrList& argsList = parameterList->get_args( );
+    SgInitializedNamePtrList& argsList = func->get_parameterList( )->get_args( );
     ROSE_ASSERT( argsList.size() == 1 );      // The only argument must be __out_argv
     
     SgClassSymbol * loop_info_sym = SageInterface::lookupClassSymbolInParentScopes( "nanos_loop_info_t", scope );
@@ -1400,9 +1537,12 @@ SgFunctionDeclaration *
     SgDeclarationStatementPtrList st_members = struct_decl->get_definition( )->get_members( );
     SgVariableDeclaration * wsd_member = isSgVariableDeclaration( *( st_members.begin( ) ) );
     SgInitializedName * wsd_name = wsd_member->get_decl_item( "wsd" );
-    SgExpression* wsd = buildCastExp( buildArrowExp( buildCastExp( buildVarRefExp( *argsList.begin( ), func_body ), 
+    SgInitializedName * n = *argsList.begin( );
+    SgExpression * param_expr = buildVarRefExp( n, func_body );
+    SgExpression * wsd_expr = buildVarRefExp( wsd_name, func_body );
+    SgExpression* wsd = buildCastExp( buildArrowExp( buildCastExp( param_expr, 
                                                                    buildPointerType( struct_decl->get_type( ) ) ),
-                                                     buildVarRefExp( wsd_name, func_body ) ),
+                                                     wsd_expr ),
                                       buildOpaqueType( "nanos_loop_info_t", func_body ) );
     // We don't cast to 'loop_info_sym->get_type( )' 
     // because 'nanos_loop_info_t' is a typedef in 'nanos-int.h', so we don't need to name 'struct'
@@ -1425,6 +1565,150 @@ SgFunctionDeclaration *
     SgForStatement* loop = isSgForStatement( *( loop_list.begin( ) ) );
     SageInterface::setLoopLowerBound( loop, buildVarRefExp( lower ) );
     SageInterface::setLoopUpperBound( loop, buildVarRefExp( upper ) );
+    
+    return func;
+}
+
+SgFunctionDeclaration * 
+        Outliner::generateSectionsFunction( SgBasicBlock* s,
+                                            const std::string& func_name_str,
+                                            const ASTtools::VarSymSet_t& syms,
+                                            const ASTtools::VarSymSet_t& pdSyms,
+                                            const std::set<SgInitializedName *>& restoreVars,
+                                            SgClassDeclaration* struct_decl,
+                                            SgScopeStatement* scope, 
+                                            std::set<SgVariableDeclaration *>& unpacking_stmts )
+{
+    ROSE_ASSERT( s && scope );
+    ROSE_ASSERT( isSgGlobal( scope ) );
+    
+    //step 1. Create function skeleton, 'func'.
+    SgInitializedName * index = buildInitializedName( "index", buildIntType( ) );
+    SgFunctionParameterList* parameterList = buildFunctionParameterList( );
+    SgFunctionDeclaration* func = createFuncSkeleton( func_name_str, buildVoidType( ), parameterList, scope );
+    ROSE_ASSERT( func );
+    if( SageInterface::is_Cxx_language( ) || is_mixed_C_and_Cxx_language( ) )
+    {   // Enable C code to call this outlined function making the function 'extern "C"'
+        func->get_declarationModifier( ).get_storageModifier( ).setExtern( );
+        func->set_linkage( "C" );
+    }
+    
+    //step 2. Create the function body
+    SgBasicBlock * func_body = func->get_definition( )->get_body( );
+    ROSE_ASSERT( func_body != NULL );
+            // copy all statements until we find the sections block: local declarations
+    SgStatementPtrList & stmt_list = s->get_statements( );
+    SgStatementPtrList::iterator it = stmt_list.begin( );
+    while( !isSgOmpSectionStatement( *it ) )
+    {
+        appendStatement( SageInterface::copyStatement( *it ), func_body );
+        ++it;
+    }
+    ROSE_ASSERT( isSgOmpSectionStatement( *it ) );
+            // outline the actual switch
+    SgBasicBlock * switch_body = buildBasicBlock( );
+    SgSwitchStatement * switch_stmt = buildSwitchStatement( buildExprStatement( buildVarRefExp( index, scope ) ), switch_body );
+    Rose_STL_Container<SgNode *> section_list = NodeQuery::querySubTree( s, V_SgOmpSectionStatement );
+    int section_count = section_list.size( );
+    for( int i = 0; i < section_count; i++ )
+    {
+        SgBasicBlock * case_block = buildBasicBlock( isSgOmpSectionStatement( section_list[i] )->get_body( ), 
+                                                                              buildBreakStmt( ) );
+        SgCaseOptionStmt * option_stmt = buildCaseOptionStmt( buildIntVal( i ), case_block );
+        switch_stmt->append_case( option_stmt );
+    }
+    appendStatement( switch_stmt, func_body );    
+    if( Outliner::useNewFile )
+        ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
+    
+    //step 3: variable handling: create parameters, packing and unpacking statements and replace variables
+    unpacking_stmts = variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
+    
+    SgFunctionParameterList* params = func->get_parameterList( );
+    appendArg( params, index );
+    SageInterface::replaceStatement( func->get_parameterList( ), params );
+    func->set_type( buildFunctionType( func->get_type( )->get_return_type( ), 
+                                       buildFunctionParameterTypeList( params ) ) );
+    
+    // Retest this...
+    ROSE_ASSERT( func_body->get_parent( ) == func->get_definition( ) );
+    ROSE_ASSERT( scope->lookup_function_symbol( func->get_name( ) ) );
+    
+    return func;
+}
+
+SgFunctionDeclaration *
+        Outliner::generateReductionFunction( SgBasicBlock* s,
+                                             const std::string& func_name_str,
+                                             const ASTtools::VarSymSet_t& syms,
+                                             const ASTtools::VarSymSet_t& pdSyms,
+                                             const ASTtools::VarSymSet_t& reduction_syms,
+                                             SgClassDeclaration* struct_decl,
+                                             SgScopeStatement* scope, 
+                                             std::set<SgVariableDeclaration *> unpacking_stmts, 
+                                             bool add_index_parameter )
+{
+    ROSE_ASSERT( s && scope );
+    ROSE_ASSERT( isSgGlobal( scope ) );
+    
+    //step 1. Create function skeleton, 'func'.
+    SgFunctionParameterList* parameterList = buildFunctionParameterList( );
+    SgFunctionDeclaration* func = createFuncSkeleton( func_name_str, buildVoidType( ), parameterList, scope );
+    ROSE_ASSERT( func );
+    if( SageInterface::is_Cxx_language( ) || is_mixed_C_and_Cxx_language( ) )
+    {   // Enable C code to call this outlined function making the function 'extern "C"'
+        func->get_declarationModifier( ).get_storageModifier( ).setExtern( );
+        func->set_linkage( "C" );
+    }
+            
+    //step 3. Create the function body
+    SgBasicBlock* func_body = func->get_definition( )->get_body( );
+    ROSE_ASSERT( func_body != NULL );
+            // Copy the block to the new function
+            // Avoid copying the unpacking statements, since they have to be placed in the original outlined function
+    SgStatementPtrList func_body_stmts = s->get_statements( );
+    ROSE_ASSERT( !func_body_stmts.empty( ) );
+    for( SgStatementPtrList::iterator it = func_body_stmts.begin( ); it != func_body_stmts.end( ); ++it )
+    {
+        SgVariableDeclaration * it_decl = isSgVariableDeclaration( *it ); 
+        if( it_decl == NULL
+             || ( ( it_decl != NULL ) && ( unpacking_stmts.find( it_decl ) == unpacking_stmts.end( ) ) ) )
+        {
+            appendStatement( SageInterface::copyStatement( *it ), func_body );
+        }
+    }
+            // Add the current thread computation to the array containing all threads computation
+    for( ASTtools::VarSymSet_t::const_iterator i = reduction_syms.begin (); i != reduction_syms.end (); ++i )
+    {
+        SgFunctionCallExp* func_call_exp = buildFunctionCallExp( "XOMP_get_nanos_thread_num", buildIntType( ), 
+                                                                 buildExprListExp( ), func_body );
+        const SgVariableSymbol* r_sym = isSgVariableSymbol( *i );
+        SgExprStatement* thread_reduction = 
+                buildAssignStatement( buildPointerDerefExp( buildPntrArrRefExp( buildVarRefExp( "g_th_" + r_sym->get_name( ), func_body ),
+                                                            func_call_exp ) ),
+                                      buildVarRefExp( "_p_" + r_sym->get_name( ), func_body ) );
+        appendStatement( thread_reduction, func_body );
+    }
+    if( Outliner::useNewFile )
+        ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
+
+    const std::set< SgInitializedName *> restoreVars;
+    variableHandling( syms, pdSyms, restoreVars, struct_decl, func, reduction_syms );
+    
+    SgFunctionParameterList* params = func->get_parameterList( );
+    if( add_index_parameter )
+    {
+        SgInitializedName * index = buildInitializedName( "index", buildIntType( ) );
+        appendArg( params, index );
+        SageInterface::replaceStatement( func->get_parameterList( ), params );
+        
+    }
+    func->set_type( buildFunctionType( func->get_type()->get_return_type( ), 
+                    buildFunctionParameterTypeList( params ) ) );
+    
+    // Retest this...
+    ROSE_ASSERT( func_body->get_parent( ) == func->get_definition( ) );
+    ROSE_ASSERT( scope->lookup_function_symbol( func->get_name( ) ) );
     
     return func;
 }
