@@ -25,7 +25,6 @@ C_TESTCODES_REQUIRED_TO_COMPILE = \
 	dynamicChunk.c \
 	endif.c \
 	endif3.c \
-	firstPrivateArray.c \
 	full_verify.c \
 	init.c \
 	lastprivateOrphaned.c \
@@ -43,6 +42,7 @@ C_TESTCODES_REQUIRED_TO_COMPILE = \
 	task_underIf.c \
 	task_wait.c \
 	task_wait2.c \
+	task_array2.c \
 	task_untied4.c \
 	twoRegions.c
 
@@ -123,14 +123,17 @@ else
 C_TESTCODES_REQUIRED_TO_RUN = \
 	3loops.c \
 	array_init.c \
+	array_init_2.c \
 	atomic.c \
 	barrier.c \
 	critical.c \
 	critical_orphaned.c \
 	empty.c \
 	falsesharing.c \
-	firstprivate.c \
 	firstlastprivate.c \
+	firstprivate.c \
+	firstPrivateArray.c \
+	firstPrivateArray_2.c \
 	flush.c \
 	get_max_threads.c \
 	hello-1.c \
@@ -142,10 +145,10 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	lastprivate0.c \
 	lockarray.c \
 	loop1.c \
-	masterSingle.c \
-	multiple_return.c \
 	nestedpar.c \
 	nestedpar1.c \
+	masterSingle.c \
+	multiple_return.c \
 	ordered.c \
 	ordered2.c \
 	omp1.c \
@@ -164,9 +167,9 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	parallel-numthreads.c \
 	parallel-reduction.c \
 	parallel-reduction2.c \
+	parallelsections.c \
 	parallelfor.c \
 	parallelfor2.c \
-	parallelsections.c \
 	private.c \
 	privatej.c \
 	reduction.c \

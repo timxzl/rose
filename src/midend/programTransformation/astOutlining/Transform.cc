@@ -24,6 +24,19 @@ using namespace std;
 using namespace SageBuilder;
 using namespace SageInterface;
 // =====================================================================
+
+static SgType * buildArrayMemberType( SgType * member_type )
+{
+    SgType * ret;
+    SgType * defined_type = member_type->stripType( SgType::STRIP_TYPEDEF_TYPE );
+    if( isSgArrayType( defined_type ) )
+        ret = buildArrayType( buildArrayMemberType( isSgArrayType( defined_type )->get_base_type( ) ),
+                              isSgArrayType( member_type )->get_index( ) );
+    else
+        ret = member_type;
+    return ret;
+}
+
 // ! create a struct to contain data members for variables to be passed as parameters
 // A wrapper struct for variables passed to the outlined function
 // Each variable (e.g a) has two choices
@@ -100,7 +113,16 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
        // Using void* can avoid adding a forward class declaration  which is needed for classA *
        // It also simplifies unparsing: unparsing the use of classA* has some complications. 
        // The downside is that type casting is needed for setting and using the pointer typed values
-       member_type = buildPointerType(buildVoidType());
+       if( isSgArrayType( member_type->stripType( SgType::STRIP_TYPEDEF_TYPE ) ) )
+       { // Sara, 05/10/2013
+         // An array type here means that the memory was statically allocated.
+         // In this case we need the array to be allocated in the struct
+         member_type = buildPointerType( buildArrayMemberType( member_type ) );
+       }
+       else
+       {
+         member_type = buildPointerType( buildVoidType( ) );
+       }
        
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
       if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
@@ -109,32 +131,31 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
         member_type = buildPointerType( member_type );
       }
 #endif
+
     }
-
-    SgVariableDeclaration *member_decl = buildVariableDeclaration(member_name, member_type, NULL, def_scope);
-    appendStatement (member_decl, def_scope);
+    SgVariableDeclaration *member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
+    appendStatement( member_decl, def_scope );
   }
 
-  // insert it before the s, but must be in a global scope
-  // s might be within a class, namespace, etc. we need to find its ancestor scope
-  SgNode* global_scoped_ancestor = getEnclosingFunctionDefinition(s,false); 
-  while (!isSgGlobal(global_scoped_ancestor->get_parent())) 
- // use get_parent() instead of get_scope() since a function definition node's scope is global while its parent is its function declaration
-  {
-    global_scoped_ancestor = global_scoped_ancestor->get_parent();
-   }
-//  cout<<"global_scoped_ancestor class_name: "<<global_scoped_ancestor->class_name()<<endl; 
-  ROSE_ASSERT (isSgStatement(global_scoped_ancestor));
-  insertStatementBefore(isSgStatement(global_scoped_ancestor), result); 
-  moveUpPreprocessingInfo(result,isSgStatement(global_scoped_ancestor));
-
-  if (global_scoped_ancestor->get_parent() != func_scope )
-  {
-  //TODO 
-   cout<<"Outliner::generateParameterStructureDeclaration() separated file case is not yet handled."<<endl;
-   ROSE_ASSERT (false);
-  }
-  return result;
+    // insert it before the s, but must be in a global scope
+    // s might be within a class, namespace, etc. we need to find its ancestor scope
+    SgNode* global_scoped_ancestor = getEnclosingFunctionDefinition( s, false ); 
+    while( !isSgGlobal( global_scoped_ancestor->get_parent( ) ) ) 
+    // use get_parent() instead of get_scope() since a function definition node's scope is global while its parent is its function declaration
+    {
+        global_scoped_ancestor = global_scoped_ancestor->get_parent( );
+    }
+    //  cout<<"global_scoped_ancestor class_name: "<<global_scoped_ancestor->class_name()<<endl; 
+    ROSE_ASSERT( isSgStatement( global_scoped_ancestor ) );
+    insertStatementBefore( isSgStatement( global_scoped_ancestor ), result ); 
+    moveUpPreprocessingInfo( result, isSgStatement( global_scoped_ancestor ) );
+    
+    if( global_scoped_ancestor->get_parent( ) != func_scope )
+    {   //TODO 
+        cout << "Outliner::generateParameterStructureDeclaration() separated file case is not yet handled." << endl;
+        ROSE_ASSERT( false );
+    }
+    return result;
 }
 
 //!  A helper function to decide if some variables need to be restored from their clones in the end of the outlined function
@@ -482,6 +503,47 @@ Outliner::outlineBlock (SgBasicBlock* s, const string& func_name_str)
   return Result (func, func_call, new_file);
 }
 
+/**
+ *  \brief Initializes packing statements for array types
+ *  The function also skips typedef types to get the real type
+ *  
+ *  \param lhs Left-hand side of the assignment 
+ *  \param rhs Right-hand side of the assignment
+ *  \param target OpenMP pragme before which we have to place the packing statments
+ *
+ *  Example:
+ *    Input code:
+ *        int a;
+ *        int b[10];
+ *        int c[10];
+ *        int * d = ( int * ) malloc( sizeof( int ) * 10 );
+ *        int i;
+ *        #pragma omp parallel for firstprivate(c)
+ *        {
+ *            for(i=0;i<10;i++) {
+ *                b[i] = a;
+ *                c[i] = a;
+ *                d[i] = a;
+ *            }
+ *        }
+ *
+ *    Outlined parameters struct:
+ *        struct OUT__1__7768___data {
+ *            void *a_p;
+ *            int (*b_p)[10UL];
+ *            int c[10UL];
+ *            void *d_p;
+ *        };
+ *
+ *    Packing statements:
+ *        struct OUT__1__7768___data __out_argv;
+ *        __out_argv.a_p = ((void *)(&a));                  -> shared scalar
+ *        __out_argv.b_p = ((void *)(&b));                  -> shared static array
+ *        int __i0__;
+ *        for (__i0__ = 0; __i0__ < 10UL; __i0__++)         -> firstprivate array 
+ *            __out_argv.c[__i0__] = c[__i0__];
+ *        __out_argv.d_p = ((void *)(&d));                  -> shared dynamic array
+ */
 static SgStatement* build_array_packing_statement( SgExpression * lhs, SgExpression * & rhs, SgStatement * target )
 {
     SgScopeStatement * scope = target->get_scope( );
@@ -493,11 +555,7 @@ static SgStatement* build_array_packing_statement( SgExpression * lhs, SgExpress
     SgStatement * loop_init = buildAssignStatement( buildVarRefExp( loop_index_name, scope ), buildIntVal( 0 ) );
     
     // Get the real type of the LHS
-    SgType * lhs_type = lhs->get_type();
-    while( isSgTypedefType( lhs_type ) )
-    {
-        lhs_type = isSgTypedefType( lhs_type )->get_base_type( );
-    }
+    SgType * lhs_type = lhs->get_type()->stripType( SgType::STRIP_TYPEDEF_TYPE );
     ROSE_ASSERT( isSgArrayType( lhs_type ) );
     
     // Loop test
@@ -511,11 +569,7 @@ static SgStatement* build_array_packing_statement( SgExpression * lhs, SgExpress
     SgExpression * assign_lhs = buildPntrArrRefExp( lhs, buildVarRefExp( loop_index_name, scope ) );
     SgExpression * assign_rhs = buildPntrArrRefExp( rhs, buildVarRefExp( loop_index_name, scope ) );
     SgStatement * loop_body = NULL;
-    SgType * assign_lhs_type = assign_lhs->get_type();
-    while( isSgTypedefType( assign_lhs_type ) )
-    {
-        assign_lhs_type = isSgTypedefType( assign_lhs_type )->get_base_type( );
-    }
+    SgType * assign_lhs_type = assign_lhs->get_type()->stripType( SgType::STRIP_TYPEDEF_TYPE );
     if( isSgArrayType( assign_lhs_type ) )
     {
         loop_body = build_array_packing_statement( assign_lhs, assign_rhs, target );
@@ -637,13 +691,10 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
 
       lhs = buildDotExp ( buildVarRefExp(out_argv), buildVarRefExp (member_name, class_def));
       
-      SgType * lhs_type = lhs->get_type();
-      while( isSgTypedefType( lhs_type ) )
-      {
-          lhs_type = isSgTypedefType( lhs_type )->get_base_type( );
-      }
-      if( isSgArrayType( lhs_type ) )
-      {// Copy each position of the array
+
+      SgType * lhs_type = lhs->get_type()->stripType( SgType::STRIP_TYPEDEF_TYPE );
+      if( pdsyms.find(i_symbol) == pdsyms.end() && isSgArrayType( lhs_type ) )
+      {   // Copy each position of the array
           assignment = build_array_packing_statement( lhs, rhs, target );
       }
       else
@@ -663,6 +714,7 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
     }
     
     SageInterface::insertStatementBefore(target, assignment);
+
   }
   
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
