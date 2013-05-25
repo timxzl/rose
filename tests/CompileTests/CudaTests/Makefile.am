@@ -27,6 +27,12 @@ TESTCODES+= \
   $(CUDA_CODES)
 endif
 
+if ROSE_USE_EDG_VERSION_4
+TESTCODES+= \
+  $(CUDA_NO_BUILT_IN_CODES) \
+  $(CUDA_CODES)
+endif
+
 TESTCODES_Objects = ${TESTCODES:.cu=.o}
 
 $(TESTCODES_Objects): ./CudaTests
