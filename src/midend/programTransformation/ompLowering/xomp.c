@@ -1736,14 +1736,13 @@ void xomp_barrier(void)
 }
 void XOMP_barrier (void)
 {
-    NANOS_barrier();
-// #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY
-//   GOMP_barrier();
-// #elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
-//   NANOS_barrier();
-// #else   
-//   _ompc_barrier();
-// #endif    
+#ifdef USE_ROSE_GOMP_OPENMP_LIBRARY
+  GOMP_barrier();
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+  NANOS_barrier();
+#else   
+  _ompc_barrier();
+#endif    
 
   //  else
   //  {
