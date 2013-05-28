@@ -4,6 +4,9 @@ SUBDIRS= .
 if ROSE_BUILD_FORTRAN_LANGUAGE_SUPPORT
 SUBDIRS += fortran
 endif
+if WITH_NANOS_OPENMP_LIB
+SUBDIRS += nanos
+endif
 
 # Default header file search path
 INCLUDES = $(ROSE_INCLUDES)
@@ -222,32 +225,32 @@ endif
 
 # C++ test codes which can only be compiled
 CXX_TESTCODES_REQUIRED_TO_COMPILE = \
-		memberFunction.cpp 
+	memberFunction.cpp 
 
 # C++ test codes which can be compiled and linked to final executables
 # Following tests fail with Nanos: helloNested.cpp, objectLastprivate.cpp
 if WITH_NANOS_OPENMP_LIB
 CXX_TESTCODES_REQUIRED_TO_RUN = \
-		hello1.cpp \
-		objectPrivate.cpp \
-		objectFirstPrivate.cpp \
-		orphanedAtomic.cpp \
-		preprocessingInfo2.cpp \
-		task_link.cpp \
-		task_link2.cpp \
-		task_tree.cpp
+	hello1.cpp \
+	objectPrivate.cpp \
+	objectFirstPrivate.cpp \
+	orphanedAtomic.cpp \
+	preprocessingInfo2.cpp \
+	task_link.cpp \
+	task_link2.cpp \
+	task_tree.cpp
 else
 CXX_TESTCODES_REQUIRED_TO_RUN = \
-		hello1.cpp \
-		helloNested.cpp \
-		objectPrivate.cpp \
-		objectFirstPrivate.cpp \
-		objectLastprivate.cpp
-		orphanedAtomic.cpp \
-		preprocessingInfo2.cpp \
-		task_link.cpp \
-		task_link2.cpp \
-		task_tree.cpp
+	hello1.cpp \
+	helloNested.cpp \
+	objectPrivate.cpp \
+	objectFirstPrivate.cpp \
+	objectLastprivate.cpp
+	orphanedAtomic.cpp \
+	preprocessingInfo2.cpp \
+	task_link.cpp \
+	task_link2.cpp \
+	task_tree.cpp
 endif
 
 # Nanos RTL support still have some bugs, so some codes will fail

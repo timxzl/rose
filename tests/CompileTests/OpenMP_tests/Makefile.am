@@ -10,6 +10,9 @@ endif
 if ROSE_BUILD_FORTRAN_LANGUAGE_SUPPORT
   SUBDIRS += fortran 
 endif
+if WITH_NANOS_OPENMP_LIB
+  SUBDIRS += nanos
+endif
 
 INCLUDES = $(ROSE_INCLUDES)
 LDADD    = $(LIBS_WITH_RPATH) $(ROSE_LIBS)
@@ -130,7 +133,7 @@ C_TESTCODES_REQUIRED_TO_PASS = \
 	threadprivate.c \
 	threadProcessor.c \
 	upperCase.c \
-	variables.c 
+	variables.c
 
 C_OMP_ACC_TESTCODES_REQUIRED_TO_PASS = \
         axpy_ompacc.c \

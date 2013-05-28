@@ -289,9 +289,12 @@ namespace OmpSupport
       std::vector<std::pair<std::string,SgNode* > > 
         getVariableList(omp_construct_enum);
 
-      //! Dimension information for array variables, used by map clause, such as map (inout:array[0:n][0:m])
+      //! Dimension information for array variables, used by map and depend clauses, such as map/depend (inout:array[0:n][0:m])
       // We store a list (vector) of dimension bounds for each array variable
       std::map<SgSymbol*,  std::vector < std::pair <SgExpression*, SgExpression*> > >  array_dimensions;  
+      
+      //! Size information for arrays shaped into pointers, used by depend clause, such as depend (in:[size]ptr)
+      std::map<SgSymbol*,  std::vector < SgExpression* > > ptr_shape;
       
       //! Find the relevant clauses for a variable 
       std::vector<enum omp_construct_enum> get_clauses(const std::string& variable);
@@ -425,7 +428,7 @@ namespace OmpSupport
       //enum omp_construct_enum map_variant; 
       
       // there could be multiple depend clause with the same variant type: in, out and inout.
-      std::vector<omp_construct_enum> depend_variants; 
+      std::vector<omp_construct_enum> depend_variants;                                                        
       
       //variable lists------------------- 
       //appeared within some directives and clauses

@@ -130,6 +130,12 @@ namespace OmpSupport
                                                      std::set<SgInitializedName *> & readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
                                                      SgClassDeclaration * & struct_decl );
   
+        //! A helper function to generate explicit task for omp section
+    //! Inspired in method 'generateOutlinedTask'
+    SgFunctionDeclaration* generateOutlinedSection( SgNode* section, SgNode* sections, std::string& wrapper_name, 
+                                                    std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars,
+                                                    std::set<SgVariableSymbol*>& pdSyms3, SgClassDeclaration*& struct_decl );
+    
     //! Create an empty object with type the struct to be passed to an OpenMP outlined function in Nanos
     //! Returns an expression containing the new object
     SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 
@@ -148,26 +154,28 @@ namespace OmpSupport
     SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapper_name, 
                                            SgClassDeclaration* struct_decl );
     
-    //! A helper function to generate explicit task for omp loop
-    //! Inspired in method 'generateOutlinedTask'
-    SgFunctionDeclaration* generateOutlinedLoop( SgNode* node, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, 
-                                                 std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
-                                                 SgClassDeclaration*& struct_decl,
-                                                 SgExpression * lower, SgExpression * upper, SgExpression * stride, SgExpression * chunk );
+    void get_dependency_clauses( SgOmpTaskStatement * task, SgExprListExp * & dependences_direction, 
+                                 SgExprListExp * & dependences_data, int & n_deps, std::map<SgSymbol*, 
+                                 std::vector<std::pair<SgExpression*, SgExpression*> > > & array_dimensions, 
+                                 std::map<SgSymbol*, std::vector<SgExpression*> > & ptr_shape );
     
-    //! A helper function to generate explicit task for omp section
-    //! Inspired in method 'generateOutlinedTask'
-    SgFunctionDeclaration* generateOutlinedSection( SgNode* section, SgNode* sections, std::string& wrapper_name, 
-                                                    std::set<SgVariableSymbol*>& syms, std::set<SgInitializedName*>& readOnlyVars,
-                                                    std::set<SgVariableSymbol*>& pdSyms3, SgClassDeclaration*& struct_decl );
+    SgExpression * build_nanos_dependencies_array( SgExprListExp * dependences, std::string & array_name, SgArrayType * array_type,
+                                                   SgOmpTaskStatement * task, SgScopeStatement * scope, bool build_data );
     
     //! Retrieves dependencies information by parsing the depend clauses of a task construct
     void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std::string & n_dims_name,
                                                    SgExprListExp * dependences_data, 
                                                    SgOmpTaskStatement * task, SgScopeStatement * scope,
                                                    SgExpression * & all_dims_ref, SgExpression * & n_dims_ref, 
-                                                   std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > > array_dimensions );
+                                                   std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > > array_dimensions, 
+                                                   std::map<SgSymbol*, std::vector<SgExpression*> > & ptr_shape );
   
+    void generate_nanos_reduction( SgFunctionDeclaration * func,
+                                   SgOmpClauseBodyStatement * target, SgClassDeclaration*& struct_decl, std::string func_name,
+                                   std::set<SgVariableSymbol*>& syms, std::set<SgVariableSymbol*>& pdSyms, 
+                                   std::set<SgVariableDeclaration *> unpacking_stmts, 
+                                   bool add_index_parameter );
+    
   //! Translate OpenMP variables associated with an OpenMP pragma, such as private, firstprivate, lastprivate, reduction, etc. bb1 is the translation generated code block in which the variable handling statements will be inserted. Original loop upper bound is needed for implementing lastprivate (check if it is the last iteration). withinAcceleratorModel means if we only translate private() variables, used to support accelerator model
   void transOmpVariables(SgStatement * ompStmt, SgBasicBlock* bb1, SgExpression* orig_loop_upper = NULL, bool withinAcceleratorModel= false);
 

@@ -66,11 +66,12 @@ static SgNode* gNode;
 static SgExpression* current_exp = NULL;
 bool b_within_variable_list  = false;  // a flag to indicate if the program is now processing a list of variables
 
-// the latest variable symbol being parsed, used to help parsing the array dimensions associated with array symbol
-// such as a[0:n][0:m]
+// the latest variable symbol being parsed, used to help parsing the array dimensions and shaping expressions associated with array symbol
+// such as a[0:n][0:m] or [N]a
 static SgVariableSymbol* array_symbol; 
 static SgExpression* lower_exp = NULL;
 static SgExpression* upper_exp = NULL;
+static SgExpression* shape_exp = NULL;
 
 %}
 
@@ -855,7 +856,7 @@ multiplicative_expr : primary_expr
 primary_expr : unary_expr
              | '(' expression ')' {
                  $$ = current_exp;
-               } 
+               }
              | incr_expr;
              ;
 
@@ -910,23 +911,28 @@ variable-list : identifier
 
 
 /* in C++ (we use the C++ version) */ 
-variable_list : id_expression_opt_dimension
-              | variable_list ',' id_expression_opt_dimension
+variable_list : extended_expr
+              | variable_list ',' extended_expr
+              ;
+
+extended_expr : id_expression_opt_dimension
+              | id_shaped_expression
               ;
 
 id_expression_opt_dimension : ID_EXPRESSION { if (!addVar((const char*)$1)) YYABORT; } dimension_field_optseq
                             ;
 
-/* Parse optional dimension information associated with map(a[0:n][0:m]) Liao 1/22/2013 */
+/* Parse dimension information associated with map(a[0:n][0:m]) Liao 1/22/2013 */
 dimension_field_optseq : /* empty */
                        | dimension_field_seq
                        ;
-
+                       
 dimension_field_seq : dimension_field
                     | dimension_field_seq dimension_field
                     ;
+                       
 dimension_field : '[' expression { lower_exp = current_exp; }
-                    ':' expression { upper_exp = current_exp;
+                  ':' expression { upper_exp = current_exp;
                        assert( array_symbol != NULL );
                        SgType* t = array_symbol->get_type();
                        bool isPointer= ( isSgPointerType(t) != NULL );
@@ -936,10 +942,32 @@ dimension_field : '[' expression { lower_exp = current_exp; }
                          std::cerr<<"while seeing "<<t->class_name()<<std::endl;
                        }
                        ompattribute->array_dimensions[array_symbol].push_back( std::make_pair (lower_exp, upper_exp) );
-                     } 
+                     }
                   ']'
                 ;
+
+/* Parse size information for shaping expressions: depend( type: [size]ptr ) Sara 5/22/13 */
+id_shaped_expression : shape_field_seq ID_EXPRESSION { 
+                         if (!addVar((const char*)$2)) YYABORT;
+                         assert( array_symbol != NULL );
+                         SgType* t = array_symbol->get_type();
+                         if( isSgPointerType(t) == NULL  ) {
+                           std::cerr<<"Error. ompparser.yy expects a pointer type."<<std::endl;
+                           std::cerr<<"while seeing "<<t->class_name()<<std::endl;
+                         }
+                         ompattribute->ptr_shape[array_symbol].push_back( shape_exp ); 
+                       }
+                     ;
+                     
+shape_field_seq : shape_field
+                | shape_field_seq shape_field
+                ;
+                
+shape_field : '[' expression { shape_exp = current_exp; } ']'
+            ;
 %%
+
+
 int yyerror(const char *s) {
     printf("%s!\n", s);
     return 0;

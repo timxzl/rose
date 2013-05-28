@@ -167,9 +167,11 @@ void NANOS_task( void ( * func ) ( void * ), void *data,
     int i;
     for( i = 0; i < num_data_accesses; ++i )
     {
+        int in = ( deps_dir[i] & ( e_dep_dir_in | e_dep_dir_inout ) );
+        int out = ( deps_dir[i] & ( e_dep_dir_out | e_dep_dir_inout ) );
         nanos_access_type_internal_t flags = {
-            ( deps_dir[i] & ( e_dep_dir_in | e_dep_dir_inout ) ), // input
-            ( deps_dir[i] & ( e_dep_dir_out | e_dep_dir_inout ) ), // output
+            ( in != 0 ), // input
+            ( out != 0 ), // output
             0 , // can rename
             0 , // concurrent
             0 , // commutative
@@ -188,7 +190,7 @@ void NANOS_task( void ( * func ) ( void * ), void *data,
             0, 0, 0, 0, 0, 0 },                     // properties 
         ( *get_data_align )( ),                     // data alignment
           num_copies, num_devices, num_dimensions,                            
-          "traverse"//task_name                                 // description
+          task_name                                 // description
         }, 
         { { &nanos_smp_factory,                     // device description
             &_smp_args }                            // outlined function

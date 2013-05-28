@@ -346,7 +346,7 @@ static SgStatement* build_array_unpacking_statement( SgExpression * lhs, SgExpre
     {
         loop_body = buildAssignStatement( assign_lhs, assign_rhs );
     }
-    
+
     // Loop satement
     return buildForStatement( loop_init, loop_test, loop_increment, loop_body );
 }

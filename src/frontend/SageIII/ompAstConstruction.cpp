@@ -795,6 +795,7 @@ namespace OmpSupport
       setClauseVariableList( result, att, depend_op );
       
       result->set_array_dimensions( att->array_dimensions );
+      result->set_ptr_shape( att->ptr_shape );
       return result;
   }
   

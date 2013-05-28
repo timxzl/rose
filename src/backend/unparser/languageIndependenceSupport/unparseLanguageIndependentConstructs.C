@@ -3347,6 +3347,7 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
   SgOmpVariablesClause* c= isSgOmpVariablesClause (clause);  
   ROSE_ASSERT(c!= NULL);
   bool is_map = false;
+  bool is_depend = false;
   // unparse the  clause name first
   switch (c->variantT())
   {
@@ -3383,6 +3384,7 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
       }
     case V_SgOmpDependClause:
       {
+        is_depend = true;
         curprint(string(" depend("));
         curprint(dependOperatorToString(isSgOmpDependClause(c)->get_operation()));
         curprint(string(" : "));
@@ -3403,19 +3405,45 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
     SgOmpMapClause * m_clause = isSgOmpMapClause (clause);
     ROSE_ASSERT (m_clause != NULL);
     dims = m_clause->get_array_dimensions();
-  }  
-
+  }
+  // prepare pointer shaping info and array dimension info for depend variables
+  std::map<SgSymbol*, std::vector<SgExpression*> > shapes;
+  if (is_depend)
+  {
+    SgOmpDependClause * d_clause = isSgOmpDependClause (clause);
+    ROSE_ASSERT (d_clause != NULL);
+    shapes = d_clause->get_ptr_shape();
+    dims = d_clause->get_array_dimensions();
+  } 
 
   //unparse variable list then
   SgVarRefExpPtrList::iterator p = c->get_variables().begin();
   while ( p != c->get_variables().end() )
   {
+    SgVariableSymbol * sym  = (*p)->get_symbol();
+    ROSE_ASSERT (sym != NULL);
+    if (is_depend)
+    {
+      std::vector<SgExpression*> sizes = shapes[sym];
+      if (!sizes.empty())
+      {
+        std::vector<SgExpression*>::const_iterator iter;
+        for (iter = sizes.begin(); iter != sizes.end(); iter ++)
+        {
+          SgUnparse_Info ninfo(info);
+          SgExpression* size = (*iter);
+          ROSE_ASSERT (size != NULL);
+          
+          curprint(string("["));
+          unparseExpression(size, ninfo);
+          curprint(string("]"));
+        } // end for
+      } // end if has shape
+    } // end if depend
     SgInitializedName* init_name = (*p)->get_symbol()->get_declaration();           
     SgName tmp_name  = init_name->get_name();
     curprint( tmp_name.str());
-    SgVariableSymbol * sym  = (*p)->get_symbol();
-    ROSE_ASSERT (sym != NULL);
-    if (is_map)
+    if (is_map || is_depend)
     {
       std::vector<std::pair<SgExpression*, SgExpression*> > bounds = dims[sym];
       if (bounds.size() >0)

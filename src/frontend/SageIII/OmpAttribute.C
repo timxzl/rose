@@ -568,7 +568,7 @@ namespace OmpSupport
       case e_map: result = "map"; break;
       case e_device: result = "device"; break;
       
-      case e_depend: result = "depends"; break;
+      case e_depend: result = "depend"; break;
 
                      // values
       case e_default_none: result = "none"; break;
@@ -1194,7 +1194,7 @@ namespace OmpSupport
       if (iter != var_list.begin())
         result +=",";
       result+=(*iter).first;
-      // For map (a[0:n], b[0:m],c), a variable may have optional list of dimension information
+      // For map (a[0:n], b[0:m],c), a variable may have optional list of dimension and shape information
       SgInitializedName* initname = isSgInitializedName((*iter).second);
       if (initname != NULL)
       {
@@ -1209,7 +1209,14 @@ namespace OmpSupport
          result += ":"; 
          result += c_pair.second->unparseToString();
          result+="]";
-       } 
+       }
+       std::vector < SgExpression* > shapes = ptr_shape[sym];
+       for ( std::vector < SgExpression* >::const_iterator citer = shapes.begin(); citer!= shapes.end(); citer ++)
+       {
+         result+="[";
+         result += (*citer)->unparseToString();
+         result+="]";
+       }
       }
     }
     return result;

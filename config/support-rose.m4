@@ -2252,6 +2252,7 @@ tests/CompileTests/UPC_tests/Makefile
 tests/CompileTests/OpenMP_tests/Makefile
 tests/CompileTests/OpenMP_tests/fortran/Makefile
 tests/CompileTests/OpenMP_tests/cvalidation/Makefile
+tests/CompileTests/OpenMP_tests/nanos/Makefile
 tests/CompileTests/copyAST_tests/Makefile
 tests/CompileTests/colorAST_tests/Makefile
 tests/CompileTests/mergeAST_tests/Makefile
@@ -2297,6 +2298,7 @@ tests/roseTests/binaryTests/Dwarf_tests/Makefile
 tests/roseTests/loopProcessingTests/Makefile
 tests/roseTests/ompLoweringTests/Makefile
 tests/roseTests/ompLoweringTests/fortran/Makefile
+tests/roseTests/ompLoweringTests/nanos/Makefile
 tests/roseTests/programAnalysisTests/Makefile
 tests/roseTests/programAnalysisTests/defUseAnalysisTests/Makefile
 tests/roseTests/programAnalysisTests/sideEffectAnalysisTests/Makefile
