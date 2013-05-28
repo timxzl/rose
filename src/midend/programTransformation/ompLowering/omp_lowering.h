@@ -142,7 +142,7 @@ namespace OmpSupport
     
     //! Create the function that initializes an empty structure with the arguments to the outlined OpenMP parallel or task in Nanos
     SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor, std::string& wrapper_name, 
-                                                              SgClassDeclaration* struct_decl, bool init_wsd );
+                                                              SgClassDeclaration* struct_decl );
     
     //! Create the function that retrieves the alignement of an struct
     SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapper_name, 

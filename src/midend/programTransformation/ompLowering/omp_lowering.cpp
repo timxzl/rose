@@ -918,7 +918,7 @@ SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement*
 }
 
 SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor, std::string& wrapper_name, 
-        SgClassDeclaration* struct_decl, bool init_wsd /* true if Loop, false otherwise*/ )
+                                                          SgClassDeclaration* struct_decl )
 {
     SgScopeStatement* decl_sc = ancestor->get_scope( );
     ROSE_ASSERT( decl_sc != NULL );
@@ -937,7 +937,7 @@ SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor,
     // Create the declaration of the function
     SgName func_name = "init_struct_" + wrapper_name;
     SgFunctionDeclaration* func_def = SageBuilder::buildDefiningFunctionDeclaration( func_name, buildVoidType( ), 
-                                                                                    params, decl_sc );
+                                                                                     params, decl_sc );
     SageInterface::setStatic( func_def );
     insertStatementAfter( ancestor, func_def );
   
@@ -1002,6 +1002,7 @@ SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapp
     // Build the definition and insert it after the englobing funtion of the original OpenMP pragma
     SgFunctionParameterList* params = buildFunctionParameterList( );
     SgName func_name = "get_alignof_" + wrapper_name;
+//     SgName func_name = "FUNC";
     SgFunctionDeclaration* func_def = buildDefiningFunctionDeclaration( func_name, buildLongType( ), 
                                                                         params, decl_sc );
     SageInterface::setStatic( func_def );
@@ -1314,7 +1315,7 @@ static void generate_nanos_reduction( SgFunctionDeclaration * func,
             // Create the new outlined function
     SgClassDeclaration * reduction_struct_decl = 
             Outliner::generateParameterStructureDeclaration( reduction_code, reduction_func_name, syms_, pdSyms_, 
-                                                             g_scope, false, reduction_syms );
+                                                             g_scope, /*is_nanos_loop*/ false, reduction_syms );
     SgFunctionDeclaration * result = 
             Outliner::generateReductionFunction( func->get_definition( )->get_body( ), reduction_func_name, 
                                                  syms_, pdSyms_, reduction_syms, reduction_struct_decl, g_scope, unpacking_stmts,
@@ -1922,6 +1923,19 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
     // since they are already handled by transOmpVariables(). 
     Outliner::collectVars( body_block, syms );
     
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+    // We have to add the reduction symbols to the 'syms' list
+    // because they have been considered firstprivate during "transOmpVariables"
+    // and Nanos avoids the copyBack statement ( it is performed transparently ) 
+    // that allows 'collectVars' to take into account these symbols
+    ASTtools::VarSymSet_t red_syms;
+    SgInitializedNamePtrList red_vars = collectClauseVariables( target, V_SgOmpReductionClause );
+    convertAndFilter( red_vars, red_syms );
+    set_union( syms.begin( ), syms.end(),
+               red_syms.begin( ), red_syms.end( ),
+               std::inserter( syms, syms.begin( ) ) );
+#endif
+    
     // Assume all parameters need to be passed by reference/pointers first
     ASTtools::VarSymSet_t pSyms, fpSyms,reductionSyms, pdSyms;
     std::copy( syms.begin( ), syms.end( ), std::inserter( pdSyms, pdSyms.begin( ) ) );
@@ -1982,7 +1996,8 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
     }
     
     // Data structure used to wrap parameters
-    struct_decl = Outliner::generateParameterStructureDeclaration( body_block, func_name, syms, pdSyms3, g_scope, /*is loop*/ true );
+    struct_decl = Outliner::generateParameterStructureDeclaration( body_block, func_name, syms, pdSyms3, 
+                                                                   g_scope, /*is_nanos_loop*/ true );
     
     // Generate the outlined function
     std::set<SgInitializedName *> restoreVars;
@@ -1998,13 +2013,21 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
         SageInterface::setStatic( result->get_definingDeclaration( ) );
     if( result->get_firstNondefiningDeclaration( ) != NULL )
         SageInterface::setStatic( result->get_firstNondefiningDeclaration( ) );
-    
-    // Generate packing statements
-    // must pass 'target', not 'body_block' to get the right scope in which the declarations are inserted
-    ASTtools::VarSymSet_t reduction_syms;
-    wrapper_name = Outliner::generatePackingStatements( target, syms,pdSyms3, struct_decl,
-                                                        reduction_syms, lower, upper, stride, chunk );
 
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+    // We have to check here whether there is a reduction clause
+    // Nanos outlines reductions in a different way than other RTLs
+    // Whereas gomp and omni do the transformation in transOmpVariables 
+    if( hasClause( target, V_SgOmpReductionClause ) )
+    {
+        generate_nanos_reduction( result, target, struct_decl, func_name, syms, pdSyms3, unpacking_stmts, true /*add index parameter*/ );
+    }
+#endif
+    
+    ASTtools::VarSymSet_t redution_syms;
+    wrapper_name = Outliner::generatePackingStatements( target, syms, pdSyms3, struct_decl, redution_syms, 
+                                                        lower, upper, stride, chunk );
+    
     return result;
 }
 
@@ -2288,12 +2311,6 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
         sched_policy = buildIntVal(0);
     }
     
-    // step 3. Generate an outlined function with the code to be executed by each thread
-    // save preprocessing info as early as possible, avoiding mess up from the outliner
-    AttachedPreprocessingInfoType save_buf1, save_buf2, save_buf_inside;
-    cutPreprocessingInfo( target, PreprocessingInfo::before, save_buf1 );
-    cutPreprocessingInfo( target, PreprocessingInfo::after, save_buf2 );
-    cutPreprocessingInfo( target, PreprocessingInfo::inside, save_buf_inside );
             // generate the outlined function
     std::string wrapper_name = "";
     ASTtools::VarSymSet_t syms; // store all variables in the outlined task ???
@@ -2316,8 +2333,9 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
     // this function will generate the outlined function and the struct to be passed as argument
     SgFunctionDeclaration* outlined_func = generateOutlinedLoop( node, wrapper_name, 
                                                                  syms, readOnlyVars, pdSyms3, struct_decl, 
-                                                                 orig_lower, orig_upper, orig_stride, chunk_size );
-    
+                                                                 copyExpression(orig_lower), copyExpression(orig_upper), 
+                                                                 copyExpression(orig_stride), copyExpression(chunk_size) );
+
     // step 4.Generate the call to the XOMP routine that wraps Nanos call
     SgExprListExp* parameters  = NULL;
             // Generate the arguments to the function call
@@ -2333,8 +2351,7 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
     SgExpression* param_arg_align = build_nanos_get_alignof( ancestor_st, wrapper_name, struct_decl );
     SgExpression* empty_data = build_nanos_empty_struct( target, p_scope, struct_decl->get_type( ), wrapper_name );
     SgExpression* param_empty_data = buildCastExp( empty_data, buildPointerType( buildVoidType( ) ) );
-    SgExpression* param_init_func = build_nanos_init_arguments_struct_function( ancestor_st, wrapper_name, 
-                                                                                struct_decl, /* init wsd */ true );
+    SgExpression* param_init_func = build_nanos_init_arguments_struct_function( ancestor_st, wrapper_name, struct_decl );
       
     std::vector<SgExpression*> param_list;
     param_list.push_back( param_outlined_func );
@@ -2359,6 +2376,7 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
      */
     SgExprStatement* s1 = buildFunctionCallStmt( "XOMP_loop_for_NANOS", buildVoidType( ), parameters, p_scope );
     SageInterface::replaceStatement( target, s1 , true );
+    
 #endif      // USE_ROSE_NANOS_OPENMP_LIBRARY
   } // end trans omp for
 
@@ -2708,7 +2726,7 @@ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_n
     else 
         struct_decl = Outliner::generateParameterStructureDeclaration (body_block, func_name, syms, pdSyms3, g_scope);
     // ROSE_ASSERT (struct_decl != NULL); // can be NULL if no parameters to be passed
-  
+
     //Generate the outlined function
     std::set< SgInitializedName *> restoreVars;
     std::set<SgVariableDeclaration *> unpacking_stmts;
@@ -3053,7 +3071,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
         SgExpression* parameter_get_empty_st = build_nanos_get_empty_struct(ancestor_st, p_scope, struct_decl->get_type(), wrapper_name);
         
         // Function that initializes the empty struct
-        SgExpression* parameter_init_func = build_nanos_init_arguments_struct_function(ancestor_st, wrapper_name,  struct_decl, /* init wsd */ false);
+        SgExpression* parameter_init_func = build_nanos_init_arguments_struct_function(ancestor_st, wrapper_name,  struct_decl );
         
         // Parameters to the NANOS function call
         parameters = buildExprListExp(buildFunctionRefExp(outlined_func), parameter2, ifClauseValue, numThreadsSpecified, 
@@ -3969,7 +3987,7 @@ SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wr
     
     // Generate packing statements
     // must pass 'target', not 'body_block' to get the right scope in which the declarations are inserted
-    wrapper_name = Outliner::generatePackingStatements( target, syms,pdSyms3, struct_decl );
+    wrapper_name = Outliner::generatePackingStatements( target, syms, pdSyms3, struct_decl );
     
     return result;
 }
@@ -4553,9 +4571,7 @@ SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wr
       SgExpression* parameter_empty_st = build_nanos_empty_struct( target, p_scope, struct_decl->get_type( ), wrapper_name );
 
       // Function that initializes the empty struct
-      SgExpression* parameter_init_func = 
-              build_nanos_init_arguments_struct_function( ancestor_st, wrapper_name, 
-                                                          struct_decl, /* init wsd */ false);
+      SgExpression* parameter_init_func = build_nanos_init_arguments_struct_function( ancestor_st, wrapper_name, struct_decl );
       
       // Compute dependencies
       SgExprListExp * dependences_direction = buildExprListExp( );

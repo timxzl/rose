@@ -495,6 +495,14 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
          // We use void* for all pointer types elements within the data structure. So type casting is needed here
          // e.g.   class Hello **this__ptr__ = (class Hello **)(((struct OUT__1__1527___data *)__out_argv) -> this__ptr___p);
                 
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+         if( is_nanos_reduction )
+         {
+           field_name = "g_th_" + field_name;
+           local_type = buildPointerType(local_type);
+         }
+#endif
+         
          if( isSgArrayType( local_type ) )
          {    
            param_ref = buildArrowExp( buildCastExp( buildVarRefExp( param, scope ), 
@@ -532,27 +540,7 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
   { // case 3: structure type parameter
     if (struct_decl != NULL)
     {
-      SgClassDefinition* struct_def = isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition();
-      ROSE_ASSERT (struct_def != NULL);
-      string field_name = orig_var_name;
-      if (isPointerDeref)
-        field_name = field_name+"_p";
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-      if( is_nanos_reduction )
-      {
-        field_name = "g_th_" + field_name;
-        local_type = buildPointerType(local_type);
-      }
-#endif
-      // __out_argv->i  or __out_argv->sum_p , depending on if pointer deference is needed
-      //param_ref = buildArrowExp(buildVarRefExp(param, scope), buildVarRefExp(field_name, struct_def));
-      //We use void* for all pointer types elements within the data structure. So type casting is needed here
-      //e.g.   class Hello **this__ptr__ = (class Hello **)(((struct OUT__1__1527___data *)__out_argv) -> this__ptr___p);
-      param_ref = buildCastExp( buildArrowExp( buildCastExp( buildVarRefExp( param, scope ), 
-                                                             buildPointerType( struct_decl->get_type( ) ) ), 
-                                               buildVarRefExp( field_name, struct_def ) ),
-                                local_type);
-        //local_type
+      local_val = buildAssignInitializer( param_ref );
     }
     else
     {
@@ -1442,8 +1430,7 @@ SgFunctionDeclaration *
     // extern "C"
     // #endif
     // We don't choose it since the language linkage information is not explicit in AST
-    if( SageInterface::is_Cxx_language( ) || is_mixed_C_and_Cxx_language( ) 
-        || is_mixed_Fortran_and_Cxx_language( ) || is_mixed_Fortran_and_C_and_Cxx_language( ) )
+    if( SageInterface::is_Cxx_language( ) || is_mixed_C_and_Cxx_language( ) )
     { // Make function 'extern "C"'
         func->get_declarationModifier( ).get_storageModifier( ).setExtern( );
         func->set_linkage( "C" );
@@ -1454,13 +1441,10 @@ SgFunctionDeclaration *
     ROSE_ASSERT( func_body != NULL );
     ROSE_ASSERT( func_body->get_statements( ).empty( ) == true );
     SageInterface::moveStatementsBetweenBlocks( s, func_body );
-    SgStatement* orig_body_stmt = SageInterface::copyStatement( s );
-    SgBasicBlock* sliced_stmt = isSgBasicBlock( orig_body_stmt );
-    appendStatement( sliced_stmt, func_body );
-    
+
     if( Outliner::useNewFile )
         ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
-  
+    
     //step 3: variable handling, including: 
     // -----------------------------------------
     //   create parameters of the outlined functions
@@ -1476,7 +1460,7 @@ SgFunctionDeclaration *
     ROSE_ASSERT( scope->lookup_function_symbol( func->get_name( ) ) );
     
     //step 4. Introduce in the function code the statements for Nanos calls
-    // We separete in two the construction of the function body because 
+    // We split the construction of the function body because 
     // we need variable handling to be done before building the nanos calls
     // and we need the original code to be placed in the function code 
     // before the handling is made because it can cause replacement
@@ -1533,7 +1517,7 @@ SgFunctionDeclaration *
         member_upper = isSgVariableDeclaration( loop_info_members[1] );
     }
     
-    
+            // ( (nanos_loop_info_t ) ((struct OUT__1__6388___data *)__out_argv) )
     SgDeclarationStatementPtrList st_members = struct_decl->get_definition( )->get_members( );
     SgVariableDeclaration * wsd_member = isSgVariableDeclaration( *( st_members.begin( ) ) );
     SgInitializedName * wsd_name = wsd_member->get_decl_item( "wsd" );
@@ -1546,23 +1530,19 @@ SgFunctionDeclaration *
                                       buildOpaqueType( "nanos_loop_info_t", func_body ) );
     // We don't cast to 'loop_info_sym->get_type( )' 
     // because 'nanos_loop_info_t' is a typedef in 'nanos-int.h', so we don't need to name 'struct'
-    
-    // Create variables containing lower and upper bounds of the nanos loop using WSD
+
+    // Create variables containing lower and upper bounds of the nanos loop using WSD and replace the loop boundaries
     SgExpression* wsd_lower = buildDotExp( wsd, buildVarRefExp( member_lower->get_decl_item( "lower" ), func_body ) );
     SgExpression* wsd_upper = buildDotExp( wsd, buildVarRefExp( member_upper->get_decl_item( "upper" ), func_body ) );
     SgInitializer* lower_init = buildAssignInitializer( wsd_lower, buildIntType( ) );
-    SgVariableDeclaration* lower = buildVariableDeclaration( "nanos_lower", buildIntType( ), 
-                                                             lower_init, func_body );
+    SgVariableDeclaration* lower = buildVariableDeclaration( "nanos_lower", buildIntType( ), lower_init, func_body );
     SgInitializer* upper_init = buildAssignInitializer( wsd_upper, buildIntType( ) );
-    SgVariableDeclaration* upper = buildVariableDeclaration( "nanos_upper", buildIntType( ), 
-                                                             upper_init, func_body );
-    insertStatementBefore( sliced_stmt, lower );
-    insertStatementBefore( sliced_stmt, upper );
-    
-    // Replace the sliced loop boundaries
-    Rose_STL_Container<SgNode *> loop_list = NodeQuery::querySubTree( sliced_stmt, V_SgForStatement );
+    SgVariableDeclaration* upper = buildVariableDeclaration( "nanos_upper", buildIntType( ), upper_init, func_body );
+    Rose_STL_Container<SgNode *> loop_list = NodeQuery::querySubTree( func_body, V_SgForStatement );
     ROSE_ASSERT( !loop_list.empty( ) );
     SgForStatement* loop = isSgForStatement( *( loop_list.begin( ) ) );
+    insertStatementBefore( loop, lower );
+    insertStatementBefore( loop, upper );
     SageInterface::setLoopLowerBound( loop, buildVarRefExp( lower ) );
     SageInterface::setLoopUpperBound( loop, buildVarRefExp( upper ) );
     

@@ -19,32 +19,59 @@ NANOS_PATH 	= @nanos_omp_runtime_library_path@
 
 # Put test codes without main() entry here
 # They will be compiled only, not executed.
+if WITH_NANOS_OPENMP_LIB
 C_TESTCODES_REQUIRED_TO_COMPILE = \
-		alignment.c \
-		dijkstra_open_mp.c \
-		dynamicChunk.c \
-		endif.c \
-		endif3.c \
-		full_verify.c \
-		init.c \
-		lastprivateOrphaned.c \
-		linebreak.c \
-		master.c \
-		md_open_mp.c \
-		nowait.c \
-		ompfor5.c \
-		ompfor6.c \
-		private-duplicate.c \
-		single2.c \
-		sizeof.c \
-		staticChunk.c \
-		task_orphaned.c \
-		task_underIf.c \
-		task_wait.c \
-		task_wait2.c \
-		task_array2.c \
-		task_untied4.c \
-		twoRegions.c
+	alignment.c \
+	dijkstra_open_mp.c \
+	dynamicChunk.c \
+	endif.c \
+	endif3.c \
+	full_verify.c \
+	init.c \
+	lastprivateOrphaned.c \
+	linebreak.c \
+	master.c \
+	md_open_mp.c \
+	nowait.c \
+	ompfor5.c \
+	private-duplicate.c \
+	single2.c \
+	sizeof.c \
+	staticChunk.c \
+	task_orphaned.c \
+	task_underIf.c \
+	task_wait.c \
+	task_wait2.c \
+	task_array2.c \
+	task_untied4.c \
+	twoRegions.c
+else
+	alignment.c \
+	dijkstra_open_mp.c \
+	dynamicChunk.c \
+	endif.c \
+	endif3.c \
+	full_verify.c \
+	init.c \
+	lastprivateOrphaned.c \
+	linebreak.c \
+	master.c \
+	md_open_mp.c \
+	nowait.c \
+	ompfor5.c \
+	ompfor6.c \
+	private-duplicate.c \
+	single2.c \
+	sizeof.c \
+	staticChunk.c \
+	task_orphaned.c \
+	task_underIf.c \
+	task_wait.c \
+	task_wait2.c \
+	task_array2.c \
+	task_untied4.c \
+	twoRegions.c
+endif
 
 if WITH_NANOS_OPENMP_LIB
 #No GPU support in Nanos
@@ -65,60 +92,54 @@ if WITH_NANOS_OPENMP_LIB
 # Tests failing with Nanos are temporaily removed: firstprivate.c, nestedpar.c, ompfor4.c, parallel-reduction.c,
 #   parallel-reduction2.c, parallelsections.c, reduction-classic.c, section.c
 C_TESTCODES_REQUIRED_TO_RUN = \
-		3loops.c \
-		array_init.c \
-		atomic.c \
-		barrier.c \
-		critical.c \
-		critical_orphaned.c \
-		empty.c \
-		falsesharing.c \
-		firstlastprivate.c \
-		flush.c \
-		get_max_threads.c \
-		hello-1.c \
-		hello-2.c \
-		hello-ordered.c \
-		hello.c \
-		jacobi.c \
-		lastprivate.c \
-		lastprivate0.c \
-		lockarray.c \
-		loop1.c \
-		masterSingle.c \
-		multiple_return.c \
-		ordered.c \
-		ordered2.c \
-		omp1.c \
-		ompfor.c \
-		ompfor2.c \
-		ompfor3.c \
-		ompfor-default.c \
-		ompfor-decremental.c \
-		ompfor-static.c \
-		ompGetNumThreads.c \
-		orphaned-directives.c \
-		parallel.c \
-		parallel-if.c \
-		parallel-if-numthreads.c \
-		parallel-numthreads.c \
-		parallelfor.c \
-		parallelfor2.c \
-		private.c \
-		privatej.c \
-		reduction.c \
-		reduction2.c \
-		rice1.c \
-		section1.c \
-		set_num_threads.c \
-		single.c \
-		subteam.c \
-		subteam2.c \
-		spmd1.c \
-		task_largenumber.c \
-		task_untied.c \
-		task_untied2.c \
-		task_untied3.c
+	3loops.c \
+	array_init.c \
+	atomic.c \
+	barrier.c \
+	critical.c \
+	critical_orphaned.c \
+	empty.c \
+	falsesharing.c \
+	firstlastprivate.c \
+	flush.c \
+	get_max_threads.c \
+	hello-1.c \
+	hello-2.c \
+	hello-ordered.c \
+	hello.c \
+	lastprivate.c \
+	lastprivate0.c \
+	loop1.c \
+	masterSingle.c \
+	multiple_return.c \
+	ordered.c \
+	ordered2.c \
+	omp1.c \
+	ompfor.c \
+	ompfor2.c \
+	ompfor3.c \
+	ompfor-default.c \
+	ompfor-decremental.c \
+	ompfor-static.c \
+	ompGetNumThreads.c \
+	orphaned-directives.c \
+	parallel.c \
+	parallel-if.c \
+	parallel-if-numthreads.c \
+	parallel-numthreads.c \
+	parallelfor2.c \
+	private.c \
+	privatej.c \
+	rice1.c \
+	section1.c \
+	set_num_threads.c \
+	single.c \
+	subteam.c \
+	spmd1.c \
+	task_largenumber.c \
+	task_untied.c \
+	task_untied2.c \
+	task_untied3.c
 else
 C_TESTCODES_REQUIRED_TO_RUN = \
 	3loops.c \
