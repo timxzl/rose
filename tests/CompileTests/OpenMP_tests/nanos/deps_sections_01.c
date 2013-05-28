@@ -6,6 +6,8 @@
 #include <sys/time.h>
 #include <omp.h>
 
+#define SIZE 512
+#define BLOCK_SIZE 16
 
 typedef struct
 {
@@ -54,37 +56,36 @@ void matmul_block(int N, int BS, float *a, float *b, float *c)
     }
 }
 
-void matmul(int N, int BS, float a[N][N], float b[N][N])
+void matmul(int BS, float a[SIZE][SIZE], float b[SIZE][SIZE])
 {
    int i, j, k;
-   float (*c1)[N] = calloc(sizeof(float), N * N);
+   float (*c1)[SIZE] = calloc(sizeof(float), SIZE * SIZE);
 
-   fprintf(stderr, "Parallel with %d threads\n", omp_get_max_threads());
    timing_t parallel_time;
    timing_start(&parallel_time);
-   for (i = 0; i < N; i+=BS) {
-      for (j = 0; j < N; j+=BS) {
-         for (k = 0; k < N; k+=BS) {
+   for (i = 0; i < SIZE; i+=BS) {
+      for (j = 0; j < SIZE; j+=BS) {
+         for (k = 0; k < SIZE; k+=BS) {
 #pragma omp task depend ( in: a[i:BS][k:BS], b[k:BS][j:BS] ) \
                  depend ( inout: c1[i:BS][j:BS] )
              {
-                 matmul_block(N, BS, &a[i][k], &b[k][j], &c1[i][j]);
+                 matmul_block(SIZE, BS, &a[i][k], &b[k][j], &c1[i][j]);
              }
          }
       }
    }
 #pragma omp taskwait
    timing_end(&parallel_time);
-   fprintf(stderr, "Parallel ended. %.2f sec\n", timing_elapsed(&parallel_time));
+   fprintf(stderr, "Parallel ( %d threads ) ended. %.2f sec\n", omp_get_max_threads(), timing_elapsed(&parallel_time));
 
-   float (*c2)[N] = calloc(sizeof(float), N * N);
+   float (*c2)[SIZE] = calloc(sizeof(float), SIZE * SIZE);
    // Serial
    timing_t serial_time;
    timing_start(&serial_time);
-   fprintf(stderr, "Serial\n");
-   for (i = 0; i < N; i++) {
-      for (j = 0; j < N; j++) {
-         for (k = 0; k < N; k++) {
+//    fprintf(stderr, "Serial\n");
+   for (i = 0; i < SIZE; i++) {
+      for (j = 0; j < SIZE; j++) {
+         for (k = 0; k < SIZE; k++) {
                 c2[i][j] += a[i][k] * b[k][j];
          }
       }
@@ -94,9 +95,9 @@ void matmul(int N, int BS, float a[N][N], float b[N][N])
    fprintf(stderr, "Serial ended. %.2f sec\n", timing_elapsed(&serial_time));
 
    // Check
-   fprintf(stderr, "Check\n");
-   for (i = 0; i < N; i++) {
-      for (j = 0; j < N; j++) {
+//    fprintf(stderr, "Check\n");
+   for (i = 0; i < SIZE; i++) {
+      for (j = 0; j < SIZE; j++) {
           if (fabsf(c1[i][j] - c2[i][j]) > 1e-5)
           {
               fprintf(stderr, "Check failure. Error at [%d][%d] %.5f != %.5f\n", i, j, c1[i][j], c2[i][j]);
@@ -111,9 +112,6 @@ void matmul(int N, int BS, float a[N][N], float b[N][N])
    free(c1);
    free(c2);
 }
-
-#define SIZE 1024
-#define BLOCK_SIZE 64
 
 float a[SIZE][SIZE];
 float b[SIZE][SIZE];
@@ -142,7 +140,7 @@ int main(int argc, char* argv[])
     {
 #pragma omp single
         {
-            matmul(SIZE, BLOCK_SIZE, a, b);
+            matmul(BLOCK_SIZE, a, b);
         }
     }
     return 0;

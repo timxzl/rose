@@ -9,13 +9,13 @@ C_TESTCODES_TO_COMPILE =
 # Put test codes which can run (with main() ) here
 # They will be compiled and executed when a RTL library path is set
 C_TESTCODES_TO_RUN = \
+	deps_sections_01.c \
 	deps_sections_02.c \
 	deps_sections_03.c \
 	deps_sections_04.c \
 	deps_shaping_01.c
 
-C_TESTCODES_FAILING = \
-	deps_sections_01.c
+C_TESTCODES_FAILING =
 	
 # we reuse the OpenMP sources files from the OpenMP compile test nanos directory
 TEST_DIR = $(top_srcdir)/tests/CompileTests/OpenMP_tests/nanos
