@@ -1050,6 +1050,22 @@ void get_dependency_clauses( SgOmpTaskStatement * task, SgExprListExp * & depend
             {    
                 array_dimensions = d_cls->get_array_dimensions( );
                 ptr_shape = d_cls->get_ptr_shape( );
+                
+//                 std::cerr << "CLAUSE :: " << d_cls->unparseToString( ) << std::endl;
+//                 std::cerr << "    Array dimensions: " << std::endl;
+//                 for( std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > >::iterator it = array_dimensions.begin( );
+//                      it != array_dimensions.end( ); it++ )
+//                 {
+//                     std::cerr << "        '" << it->first->get_name( ) << "'  -->  [" 
+//                             << it->second.size() /*it->second.first->unparseToString( ) << " : " << it->second.second->unparseToString( )*/ << "]" << std::endl; 
+//                 }
+//                 std::cerr << "    Pointer shape: " << std::endl;
+//                 for( std::map<SgSymbol*, std::vector<SgExpression*> >::iterator it = ptr_shape.begin( );
+//                      it != ptr_shape.end( ); it++ )
+//                 {
+//                     std::cerr << "        '" << it->first->get_name( ) << "'  -->  [" 
+//                             << it->second.size() /*it->second.first->unparseToString( ) << " : " << it->second.second->unparseToString( )*/ << "]" << std::endl; 
+//                 }
             }
             
             SgOmpClause::omp_depend_operator_enum depend_operator = d_cls->get_operation( );

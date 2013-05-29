@@ -322,10 +322,9 @@ unique_task_clause : IF {
 depend_clause : DEPEND {
                   ompattribute->addClause(e_depend);
                   omptype = e_depend; // use as a flag to see if it will be reset later
-                } '(' depend_clause_seq { 
-                        b_within_variable_list = true;
-                  }
-                variable_list ')' { b_within_variable_list = false; } 
+                } '(' depend_clause_seq { b_within_variable_list = true; }
+                      nanos_variable_list ')' { b_within_variable_list = false; }
+              ;
 
 depend_clause_seq : IN    ':' { ompattribute->setDependVariant(e_depend_in); omptype = e_depend_in; } 
                   | OUT   ':' { ompattribute->setDependVariant(e_depend_out); omptype = e_depend_out; } 
@@ -911,12 +910,8 @@ variable-list : identifier
 
 
 /* in C++ (we use the C++ version) */ 
-variable_list : extended_expr
-              | variable_list ',' extended_expr
-              ;
-
-extended_expr : id_expression_opt_dimension
-              | id_shaped_expression
+variable_list : id_expression_opt_dimension
+              | variable_list ',' id_expression_opt_dimension
               ;
 
 id_expression_opt_dimension : ID_EXPRESSION { if (!addVar((const char*)$1)) YYABORT; } dimension_field_optseq
@@ -946,25 +941,80 @@ dimension_field : '[' expression { lower_exp = current_exp; }
                   ']'
                 ;
 
+/* Nanos accepts shaping expressions and array sections
+   The way dimensions are treated for OpenMP accelerator model is not convinient because:
+     - we need the dimensions to be tied to the specific clauses (otherwise we may lose information)
+       Example: #pramga omp task depend(in: a[0:1]) depend(out: a)  -> which access to a correspond to each clause
+     - we also want to accept array element accesses, without regions
+ */
+nanos_variable_list : extended_expr
+                    | nanos_variable_list ',' extended_expr
+                    ;
+
+extended_expr : shape_field_optseq 
+                ID_EXPRESSION { 
+                  if (!addVar((const char*)$2)) YYABORT;
+                  assert( array_symbol != NULL );
+                  SgType* t = array_symbol->get_type();
+                  if( shape_exp != NULL ) {
+                    if( isSgPointerType( t ) ) {
+                      ompattribute->ptr_shape[array_symbol].push_back(shape_exp);
+                    } else {
+                      std::cerr<<"Error. ompparser.yy expects a pointer type for a shaping expression."<<std::endl;
+                      std::cerr<<"while seeing "<<t->class_name()<<std::endl;
+                    }
+                  }
+                }
+                nanos_dimension_field_optseq
+              ;
+
 /* Parse size information for shaping expressions: depend( type: [size]ptr ) Sara 5/22/13 */
-id_shaped_expression : shape_field_seq ID_EXPRESSION { 
-                         if (!addVar((const char*)$2)) YYABORT;
-                         assert( array_symbol != NULL );
-                         SgType* t = array_symbol->get_type();
-                         if( isSgPointerType(t) == NULL  ) {
-                           std::cerr<<"Error. ompparser.yy expects a pointer type."<<std::endl;
-                           std::cerr<<"while seeing "<<t->class_name()<<std::endl;
-                         }
-                         ompattribute->ptr_shape[array_symbol].push_back( shape_exp ); 
-                       }
-                     ;
-                     
+shape_field_optseq : /* empty */
+                   | shape_field_seq
+                   ;
+
 shape_field_seq : shape_field
-                | shape_field_seq shape_field
+                | dimension_field_seq shape_field
                 ;
-                
+
 shape_field : '[' expression { shape_exp = current_exp; } ']'
             ;
+            
+nanos_dimension_field_optseq : /* empty */
+                             | nanos_dimension_field_seq
+                             ;
+                             
+nanos_dimension_field_seq : nanos_dimension_field
+                          | nanos_dimension_field_seq nanos_dimension_field
+                          ;
+                          
+nanos_dimension_field : '[' 
+                        expression {
+                          assert( array_symbol != NULL );
+                          lower_exp = current_exp;
+                          SgType* t = array_symbol->get_type();
+                          bool isPointer= ( isSgPointerType(t) != NULL );
+                          bool isArray= ( isSgArrayType(t) != NULL);
+                          if( !isPointer && ! isArray ) {
+                            std::cerr<<"Error. ompparser.yy expects a pointer or array type."<<std::endl;
+                            std::cerr<<"while seeing "<<t->class_name()<<std::endl;
+                          }
+                          ompattribute->array_dimensions[array_symbol].push_back( std::make_pair (lower_exp, SageBuilder::buildIntVal(1)) );
+                        }
+                        nanos_section_opt
+                        ']'
+                      ;
+
+nanos_section_opt : /* empty */
+                  | nanos_section
+                  ;
+                    
+nanos_section : ':' expression { 
+                      upper_exp = current_exp;
+                      ompattribute->array_dimensions[array_symbol][ompattribute->array_dimensions[array_symbol].size()-1]=
+                            std::make_pair (lower_exp, upper_exp);
+                    }
+              ;
 %%
 
 
