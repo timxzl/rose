@@ -1,32 +1,39 @@
-#include <stdlib.h>
+#include <assert.h>
 #include <omp.h>
 
-
-int main(int arg, char* argv[])
+void producer(int c[][100], int row)
 {
-    int x[10][20];
-
-    int i, j;
-    for (i = 0; i < 10; i++)
+    int i;
+    for (i = 0; i < 100; ++i)
     {
-        for (j = 0; j < 20; j++)
-        {
-            x[i][j] = 1;
-        }
+        c[row][i] = row;
     }
+}
+
+void consumer(int c[][100], int row)
+{
+    int i;
+    for (i = 0; i < 100; ++i)
+    {
+        assert(c[row][i] == row);
+    }
+}
+
+int main()
+{
+    int c[100][100];
+
 #pragma omp parallel
 #pragma omp single
     {
-#pragma omp task depend(inout : x[1:1][2:1])
+        int i;
+        for(i=0; i<100; i++)
         {
-            x[1][2] += 41;
-        }
-
-#pragma omp task depend(in : x[1:1][2:1])
-        {
-            if (x[1][2] != 42) abort();
+#pragma omp task firstprivate(i) depend(out : c[i][0:100]) 
+            producer(c, i);
+#pragma omp task firstprivate(i) depend(inout : c[i][0:100])
+            consumer(c, i);
+#pragma omp taskwait
         }
     }
-
-    return 0;
 }

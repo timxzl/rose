@@ -1869,12 +1869,12 @@ void XOMP_reduction_for_NANOS( int n_reductions, void ( ** all_threads_reduction
                      global_th_data, global_data, global_data_size, num_scalars, filename, fileline );
 }
 
-int XOMP_get_nanos_thread_num( )
+int XOMP_get_nanos_thread_num( void )
 {
     return NANOS_get_thread_num( );
 }
 
-int XOMP_get_nanos_num_threads( )
+int XOMP_get_nanos_num_threads( void )
 {
     return NANOS_get_num_threads( );
 }

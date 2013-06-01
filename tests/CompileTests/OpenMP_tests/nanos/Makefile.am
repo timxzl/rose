@@ -1,9 +1,9 @@
 include $(top_srcdir)/config/Makefile.for.ROSE.includes.and.libs
 
 TESTCODES_REQUIRED_TO_PASS = \
+    deps_array_access_01.c
 	deps_sections_02.c \
 	deps_sections_03.c \
-	deps_sections_04.c \
 	deps_shaping_01.c
 	
 TESTCODES_FAILING = \

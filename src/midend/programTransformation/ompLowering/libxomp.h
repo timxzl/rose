@@ -150,7 +150,7 @@ extern void XOMP_atomic_for_NANOS (int, int, void *, void *);
 extern void XOMP_reduction_for_NANOS( int, void ( ** )( void *, void *, int ), void ( ** )( void **, void ** ), void ( * )( void *, int ), 
                                       void *, void ***, void **, long *, int, const char *, int );
 extern int XOMP_get_nanos_thread_num( void );
-extern int XOMP_get_nanos_num_threads( );
+extern int XOMP_get_nanos_num_threads( void );
 
 extern void XOMP_loop_end (void);
 extern void XOMP_loop_end_nowait (void);

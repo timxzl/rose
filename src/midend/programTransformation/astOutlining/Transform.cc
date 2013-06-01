@@ -83,19 +83,19 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
   ROSE_ASSERT (def_scope != NULL);
 
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-    // Sara Royuela: it is important that this member is the first in the struct
-    // It is expected to be there in method 'generateLoopFunction'
-    if( is_nanos_loop )
-    {
-        string member_name = "wsd";
-        SgType* member_type = buildOpaqueType( "nanos_loop_info_t", getGlobalScope( s ) );
-        SgVariableDeclaration * member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
-        appendStatement( member_decl, def_scope );
-    }
+  // Sara Royuela: it is important that this member is the first in the struct
+  // It is expected to be there in method 'generateLoopFunction'
+  if( is_nanos_loop )
+  {
+    string member_name = "wsd";
+    SgType* member_type = buildOpaqueType( "nanos_loop_info_t", getGlobalScope( s ) );
+    SgVariableDeclaration * member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
+    appendStatement( member_decl, def_scope );
+  }
 #endif
 
   for (ASTtools::VarSymSet_t::const_iterator i = syms.begin ();
-      i != syms.end (); ++i)
+       i != syms.end (); ++i)
   {
     const SgInitializedName* i_name = (*i)->get_declaration ();
     ROSE_ASSERT (i_name);
@@ -104,26 +104,40 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
     string member_name= i_name->get_name ().str ();
     SgType* member_type = i_name->get_type() ;
     // use pointer type or its original type?
+    SgType * non_typef_type = member_type->stripType( SgType::STRIP_TYPEDEF_TYPE );
     if (symsUsingAddress.find(i_symbol) != symsUsingAddress.end())
     {
-       member_name = member_name+"_p";
-       // member_type = buildPointerType(member_type);
-       // Liao, 10/26/2009
-       // We use void* instead of type* to ease the handling of C++ class pointers wrapped into the data structure
-       // Using void* can avoid adding a forward class declaration  which is needed for classA *
-       // It also simplifies unparsing: unparsing the use of classA* has some complications. 
-       // The downside is that type casting is needed for setting and using the pointer typed values
-       if( isSgArrayType( member_type->stripType( SgType::STRIP_TYPEDEF_TYPE ) ) )
-       { // Sara, 05/10/2013
-         // An array type here means that the memory was statically allocated.
-         // In this case we need the array to be allocated in the struct
-         member_type = buildPointerType( buildArrayMemberType( member_type ) );
-       }
-       else
-       {
-         member_type = buildPointerType( buildVoidType( ) );
-       }
-       
+      member_name = member_name+"_p";
+      // member_type = buildPointerType(member_type);
+      // Liao, 10/26/2009
+      // We use void* instead of type* to ease the handling of C++ class pointers wrapped into the data structure
+      // Using void* can avoid adding a forward class declaration  which is needed for classA *
+      // It also simplifies unparsing: unparsing the use of classA* has some complications. 
+      // The downside is that type casting is needed for setting and using the pointer typed values
+      if( isSgArrayType( non_typef_type ) != NULL )
+      {   // Sara, 05/10/2013
+          // An array type here means that the memory was statically allocated.
+          // In this case we need the array to be allocated in the struct
+        if( isSgFunctionDefinition( i_symbol->get_scope( ) ) )
+        {   // When the variable is a parameter (function definition scope), the first dimension is passed by pointer
+            member_type = buildPointerType( buildPointerType( isSgArrayType( non_typef_type )->get_base_type( ) ) );
+        }
+        else
+        {   // Otherwise, all dimensions remain
+            member_type = buildPointerType( member_type );
+        }
+      }
+      else if( isSgArrayType( non_typef_type->stripType( SgType::STRIP_POINTER_TYPE ) ) )
+      {   // Shared array which first dimension is expressed as a pointerbuildPointerType( non_typef_type->get_base_type( ) )
+          // int (*c1)[10] = calloc(sizeof(int), 10 * 10);
+          // #pragma omp task shared(c1)
+        member_type = buildPointerType( non_typef_type );
+      }
+      else
+      {   // Scalars, Pointers, Structures
+        member_type = buildPointerType( buildVoidType( ) );
+      }
+    
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
       if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
       {
@@ -133,29 +147,34 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
 #endif
 
     }
+    else if( ( isSgArrayType( non_typef_type ) ) && ( isSgFunctionDefinition( i_symbol->get_scope( ) ) ) )
+    {   // First dimension is passed by pointer for all array symbols that are parameters
+        member_type = buildPointerType( isSgArrayType( non_typef_type )->get_base_type( ) );
+    }
+    
     SgVariableDeclaration *member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
     appendStatement( member_decl, def_scope );
   }
 
-    // insert it before the s, but must be in a global scope
-    // s might be within a class, namespace, etc. we need to find its ancestor scope
-    SgNode* global_scoped_ancestor = getEnclosingFunctionDefinition( s, false ); 
-    while( !isSgGlobal( global_scoped_ancestor->get_parent( ) ) ) 
-    // use get_parent() instead of get_scope() since a function definition node's scope is global while its parent is its function declaration
-    {
-        global_scoped_ancestor = global_scoped_ancestor->get_parent( );
-    }
-    //  cout<<"global_scoped_ancestor class_name: "<<global_scoped_ancestor->class_name()<<endl; 
-    ROSE_ASSERT( isSgStatement( global_scoped_ancestor ) );
-    insertStatementBefore( isSgStatement( global_scoped_ancestor ), result ); 
-    moveUpPreprocessingInfo( result, isSgStatement( global_scoped_ancestor ) );
+  // insert it before the s, but must be in a global scope
+  // s might be within a class, namespace, etc. we need to find its ancestor scope
+  SgNode* global_scoped_ancestor = getEnclosingFunctionDefinition( s, false ); 
+  while( !isSgGlobal( global_scoped_ancestor->get_parent( ) ) ) 
+  // use get_parent() instead of get_scope() since a function definition node's scope is global while its parent is its function declaration
+  {
+    global_scoped_ancestor = global_scoped_ancestor->get_parent( );
+  }
+  //  cout<<"global_scoped_ancestor class_name: "<<global_scoped_ancestor->class_name()<<endl; 
+  ROSE_ASSERT( isSgStatement( global_scoped_ancestor ) );
+  insertStatementBefore( isSgStatement( global_scoped_ancestor ), result ); 
+  moveUpPreprocessingInfo( result, isSgStatement( global_scoped_ancestor ) );
     
-    if( global_scoped_ancestor->get_parent( ) != func_scope )
-    {   //TODO 
-        cout << "Outliner::generateParameterStructureDeclaration() separated file case is not yet handled." << endl;
-        ROSE_ASSERT( false );
-    }
-    return result;
+  if( global_scoped_ancestor->get_parent( ) != func_scope )
+  {   //TODO 
+    cout << "Outliner::generateParameterStructureDeclaration() separated file case is not yet handled." << endl;
+    ROSE_ASSERT( false );
+  }
+  return result;
 }
 
 //!  A helper function to decide if some variables need to be restored from their clones in the end of the outlined function
