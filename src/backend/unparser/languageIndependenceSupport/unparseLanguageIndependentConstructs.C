@@ -3407,7 +3407,7 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
     dims = m_clause->get_array_dimensions();
   }
   // prepare pointer shaping info and array dimension info for depend variables
-  std::map<SgSymbol*, std::vector<SgExpression*> > shapes;
+  std::map<SgSymbol*, std::vector<std::vector<SgExpression*> > > shapes;
   if (is_depend)
   {
     SgOmpDependClause * d_clause = isSgOmpDependClause (clause);
@@ -3424,19 +3424,23 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
     ROSE_ASSERT (sym != NULL);
     if (is_depend)
     {
-      std::vector<SgExpression*> sizes = shapes[sym];
+      std::vector<std::vector<SgExpression*> > sizes = shapes[sym];
       if (!sizes.empty())
       {
-        std::vector<SgExpression*>::const_iterator iter;
+        std::vector<std::vector<SgExpression*> >::const_iterator iter;
         for (iter = sizes.begin(); iter != sizes.end(); iter ++)
         {
-          SgUnparse_Info ninfo(info);
-          SgExpression* size = (*iter);
-          ROSE_ASSERT (size != NULL);
+          std::vector<SgExpression*> size = (*iter);
+          ROSE_ASSERT (!size.empty());
           
-          curprint(string("["));
-          unparseExpression(size, ninfo);
-          curprint(string("]"));
+          SgUnparse_Info ninfo(info);
+          std::vector<SgExpression*>::const_iterator iter_2;
+          for (iter_2 = size.begin(); iter_2 != size.end(); iter_2 ++)
+          {
+            curprint(string("["));
+            unparseExpression(*iter_2, ninfo);
+            curprint(string("]"));
+          }
         } // end for
       } // end if has shape
     } // end if depend

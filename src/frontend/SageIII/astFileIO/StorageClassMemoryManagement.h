@@ -1106,11 +1106,11 @@ class EasyStorage < std::map< SgSymbol*,  std::vector < std::pair <SgExpression*
      static void readFromFile (std::istream& in) {};
    };
 
-// Sara 5/22/2013, placeholder for storing std::map <SgSymbol*, std::vector< SgExpression* > >
+// Sara 5/22/2013, placeholder for storing std::map <SgSymbol*, std::vector< std::vector < SgExpression* > > >
 // this is used for representing shaping expressions information for the depend clause.
 // FIXME We may want attache shaping information to the clause, instead to the directive
 template < >
-class EasyStorageMapEntry <SgSymbol*, std::vector < SgExpression* > > 
+class EasyStorageMapEntry <SgSymbol*, std::vector < std::vector < SgExpression* > > > 
    {
        private:
            int global_id; // this is the global id for the SgNode*
@@ -1118,8 +1118,8 @@ class EasyStorageMapEntry <SgSymbol*, std::vector < SgExpression* > >
        public: 
            EasyStorageMapEntry () { global_id = 0; }
            void storeDataInEasyStorageClass(const std::pair<SgNode*, const int >& iter) {  };
-           std::pair<SgSymbol*, std::vector < SgExpression* > >  rebuildDataStoredInEasyStorageClass() const {
-               std::vector < SgExpression* > vec;
+           std::pair<SgSymbol*, std::vector < std::vector < SgExpression* > > >  rebuildDataStoredInEasyStorageClass() const {
+               std::vector < std::vector < SgExpression* > > vec;
                SgSymbol* s = NULL; 
                return std::make_pair (s, vec);
            };
@@ -1131,16 +1131,16 @@ class EasyStorageMapEntry <SgSymbol*, std::vector < SgExpression* > >
    };
 
 template <>
-class EasyStorage < std::map< SgSymbol*,  std::vector < SgExpression* > > > 
-    : public StorageClassMemoryManagement< EasyStorageMapEntry< SgSymbol*, std::vector < SgExpression* > > >
+class EasyStorage < std::map< SgSymbol*,  std::vector < std::vector < SgExpression* > > > > 
+    : public StorageClassMemoryManagement< EasyStorageMapEntry< SgSymbol*, std::vector < std::vector < SgExpression* > > > >
     {
-        typedef StorageClassMemoryManagement< EasyStorageMapEntry<SgSymbol*, std::vector < SgExpression* > > > Base;
+        typedef StorageClassMemoryManagement< EasyStorageMapEntry<SgSymbol*, std::vector < std::vector < SgExpression* > > > > Base;
         public:
-            void storeDataInEasyStorageClass(const std::map<SgSymbol*, std::vector < SgExpression* > >& data_) 
+            void storeDataInEasyStorageClass(const std::map<SgSymbol*, std::vector < std::vector < SgExpression* > > >& data_) 
             {  };
-            std::map< SgSymbol*, std::vector < SgExpression* > > rebuildDataStoredInEasyStorageClass() const
+            std::map< SgSymbol*, std::vector < std::vector < SgExpression* > > > rebuildDataStoredInEasyStorageClass() const
             {
-                std::map< SgSymbol*, std::vector < SgExpression* > > rt;
+                std::map< SgSymbol*, std::vector < std::vector < SgExpression* > > > rt;
                 return rt;
             };
             static void arrangeMemoryPoolInOneBlock() {};

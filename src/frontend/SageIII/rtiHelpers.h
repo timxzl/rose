@@ -87,6 +87,20 @@ static std::string toStringForRTI(const std::vector<bool>& x) {
   return ss.str();
 }
 
+// Sara Royuela (5/29/2013): Added support for new OpenMP attribute format
+template <typename T>
+static std::string toStringForRTI(const std::vector<std::vector<T> >& x) {
+  std::ostringstream ss;
+  for (typename std::vector<std::vector<T> >::const_iterator i = x.begin(); i != x.end(); ++i) {
+    ss << "[";
+    for (typename std::vector<T>::const_iterator j = i->begin(); j != i->end(); ++j) {
+        if (j != i->begin()) ss << ", "; ss << (*j);
+    }
+    ss << "]";
+  }
+  return ss.str();
+}
+
 template <typename T>
 static std::string toStringForRTI(const std::list<T>& x) {
   std::ostringstream ss;

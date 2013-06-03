@@ -157,7 +157,7 @@ namespace OmpSupport
     void get_dependency_clauses( SgOmpTaskStatement * task, SgExprListExp * & dependences_direction, 
                                  SgExprListExp * & dependences_data, int & n_deps, std::map<SgSymbol*, 
                                  std::vector<std::pair<SgExpression*, SgExpression*> > > & array_dimensions, 
-                                 std::map<SgSymbol*, std::vector<SgExpression*> > & ptr_shape );
+                                 std::map<SgSymbol*, std::vector<std::vector<SgExpression*> > > & ptr_shape );
     
     SgExpression * build_nanos_dependencies_array( SgExprListExp * dependences, std::string & array_name, SgArrayType * array_type,
                                                    SgOmpTaskStatement * task, SgScopeStatement * scope, bool build_data );
@@ -168,7 +168,7 @@ namespace OmpSupport
                                                    SgOmpTaskStatement * task, SgScopeStatement * scope,
                                                    SgExpression * & all_dims_ref, SgExpression * & n_dims_ref, 
                                                    std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > > array_dimensions, 
-                                                   std::map<SgSymbol*, std::vector<SgExpression*> > & ptr_shape );
+                                                   std::map<SgSymbol*, std::vector<std::vector<SgExpression*> > > & ptr_shape );
   
     void generate_nanos_reduction( SgFunctionDeclaration * func,
                                    SgOmpClauseBodyStatement * target, SgClassDeclaration*& struct_decl, std::string func_name,

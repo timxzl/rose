@@ -1210,12 +1210,18 @@ namespace OmpSupport
          result += c_pair.second->unparseToString();
          result+="]";
        }
-       std::vector < SgExpression* > shapes = ptr_shape[sym];
-       for ( std::vector < SgExpression* >::const_iterator citer = shapes.begin(); citer!= shapes.end(); citer ++)
+       std::vector < std::vector < SgExpression* > > shapes = ptr_shape[sym];
+       for ( std::vector < std::vector < SgExpression* > >::const_iterator citer = shapes.begin(); 
+             citer!= shapes.end(); citer ++ )
        {
-         result+="[";
-         result += (*citer)->unparseToString();
-         result+="]";
+           std::vector < SgExpression* > shape = *citer;
+           for ( std::vector < SgExpression* >::const_iterator citer2 = shape.begin(); 
+                 citer2 != shape.end(); citer2 ++ )
+           {
+               result+="[";
+               result += (*citer2)->unparseToString();
+               result+="]";
+           }
        }
       }
     }

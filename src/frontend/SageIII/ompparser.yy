@@ -71,7 +71,7 @@ bool b_within_variable_list  = false;  // a flag to indicate if the program is n
 static SgVariableSymbol* array_symbol; 
 static SgExpression* lower_exp = NULL;
 static SgExpression* upper_exp = NULL;
-static SgExpression* shape_exp = NULL;
+static std::vector<SgExpression*> shape_exp;
 
 %}
 
@@ -956,13 +956,14 @@ extended_expr : shape_field_optseq
                   if (!addVar((const char*)$2)) YYABORT;
                   assert( array_symbol != NULL );
                   SgType* t = array_symbol->get_type();
-                  if( shape_exp != NULL ) {
+                  if( !shape_exp.empty() ) {
                     if( isSgPointerType( t ) ) {
                       ompattribute->ptr_shape[array_symbol].push_back(shape_exp);
                     } else {
                       std::cerr<<"Error. ompparser.yy expects a pointer type for a shaping expression."<<std::endl;
                       std::cerr<<"while seeing "<<t->class_name()<<std::endl;
                     }
+                    shape_exp.clear();
                   }
                 }
                 nanos_dimension_field_optseq
@@ -974,10 +975,10 @@ shape_field_optseq : /* empty */
                    ;
 
 shape_field_seq : shape_field
-                | dimension_field_seq shape_field
+                | shape_field_seq shape_field
                 ;
 
-shape_field : '[' expression { shape_exp = current_exp; } ']'
+shape_field : '[' expression { shape_exp.push_back(current_exp); } ']'
             ;
             
 nanos_dimension_field_optseq : /* empty */

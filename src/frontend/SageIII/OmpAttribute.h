@@ -294,7 +294,7 @@ namespace OmpSupport
       std::map<SgSymbol*,  std::vector < std::pair <SgExpression*, SgExpression*> > >  array_dimensions;  
       
       //! Size information for arrays shaped into pointers, used by depend clause, such as depend (in:[size]ptr)
-      std::map<SgSymbol*,  std::vector < SgExpression* > > ptr_shape;
+      std::map<SgSymbol*,  std::vector < std::vector< SgExpression* > > > ptr_shape;
       
       //! Find the relevant clauses for a variable 
       std::vector<enum omp_construct_enum> get_clauses(const std::string& variable);

@@ -6,7 +6,7 @@
 #include <sys/time.h>
 #include <omp.h>
 
-#define SIZE 512
+#define SIZE 256
 #define BLOCK_SIZE 16
 
 typedef struct
@@ -91,7 +91,6 @@ void matmul(int BS, float a[SIZE][SIZE], float b[SIZE][SIZE])
       }
    }
    timing_end(&serial_time);
-
    fprintf(stderr, "Serial ended. %.2f sec\n", timing_elapsed(&serial_time));
 
    // Check
@@ -105,9 +104,7 @@ void matmul(int BS, float a[SIZE][SIZE], float b[SIZE][SIZE])
           }
       }
    }
-   fprintf(stderr, "Check is OK\n");
-
-   fprintf(stderr, "Speedup is %.2f\n", timing_elapsed(&serial_time) / timing_elapsed(&parallel_time));
+   fprintf(stderr, "Check is OK. Speedup is %.2f\n", timing_elapsed(&serial_time) / timing_elapsed(&parallel_time));
 
    free(c1);
    free(c2);
@@ -137,11 +134,8 @@ int main(int argc, char* argv[])
     }
 
 #pragma omp parallel default(shared)
-    {
 #pragma omp single
-        {
-            matmul(BLOCK_SIZE, a, b);
-        }
-    }
+    matmul(BLOCK_SIZE, a, b);
+
     return 0;
 }
