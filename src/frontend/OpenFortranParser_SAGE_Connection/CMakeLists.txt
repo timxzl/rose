@@ -42,7 +42,7 @@ if(enable-fortran)
     COMMAND ${CMAKE_COMMAND} -E rename lex.yy.c preproc-fortran-fixed.cc
   )
 
-  set(libroseFortran_SOURCES
+set(libroseFortran_SOURCES
     fortran_support.C fortran_error_handler.C openFortranParser_main.C
     jserver.C ofp.C FortranModuleInfo.C FortranParserState.C
     preproc-fortran.cc preproc-fortran-fixed.cc)
@@ -50,6 +50,7 @@ else()
   # Compile using a function that represents the API of the Open Fortran Parser
   set(libroseFortran_SOURCES dummy_openFortranParser_main.C)
 endif()
+
 add_library(roseFortran ${libroseFortran_SOURCES})
 target_link_libraries(roseFortran ${JAVA_JVM_LIBRARY})
 add_dependencies(roseFortran rosetta_generated)

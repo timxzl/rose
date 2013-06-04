@@ -5,12 +5,14 @@ add_subdirectory(BinaryFormats)
 add_subdirectory(Disassemblers)
 add_subdirectory(PHPFrontend)
 
-# These subdirectories contains logic to handle the "language disabled" case.
-add_subdirectory(OpenFortranParser_SAGE_Connection)
-add_subdirectory(ECJ_ROSE_Connection)
-
 if(enable-c)
   add_subdirectory(CxxFrontend)
+endif()
+if(enable-fortran)
+  add_subdirectory(OpenFortranParser_SAGE_Connection)
+endif()
+if(enable-java)
+  add_subdirectory(ECJ_ROSE_Connection)
 endif()
 
 if(enable-python)

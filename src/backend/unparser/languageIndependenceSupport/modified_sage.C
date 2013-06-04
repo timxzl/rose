@@ -617,6 +617,7 @@ SgExpression* GetFirstOperand(SgExpression* expr) {
 int GetPrecedence(int variant)
    {
        ROSE_ASSERT(!"Deprecated. Use UnparseLanguageIndependentConstructs::getPrecedence instead");
+       return -1;
    }
 
 //-----------------------------------------------------------------------------------
@@ -628,6 +629,7 @@ int GetPrecedence(int variant)
 int GetAssociativity(int variant)
    {
        ROSE_ASSERT(!"Deprecated. Use UnparseLanguageIndependentConstructs::getAssociativity instead");
+       return 0;
    }
 
 
@@ -642,6 +644,7 @@ int GetAssociativity(int variant)
 bool Unparse_MOD_SAGE::PrintStartParen(SgExpression* expr, SgUnparse_Info& info)
    {
        ROSE_ASSERT(!"deprecated. use UnparseLanguageIndependentConstructs::requiresParentheses instead");
+       return false;
    }
 
 //-----------------------------------------------------------------------------------
