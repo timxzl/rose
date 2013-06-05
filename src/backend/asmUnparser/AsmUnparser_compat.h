@@ -17,11 +17,7 @@ ROSE_DLL_API std::string unparseMnemonic(SgAsmInstruction*);
 
 /** Returns the string representation of an instruction operand (SgAsmExpression), the format of which might depend on the
  *  instruction with which it's associated. */
-<<<<<<< HEAD
-ROSE_DLL_API std::string unparseExpression(SgAsmExpression*, const AsmUnparser::LabelMap *labels=NULL);
-=======
-std::string unparseExpression(SgAsmExpression*, const AsmUnparser::LabelMap *labels, const RegisterDictionary *registers);
->>>>>>> cmake_on_windows
+ROSE_DLL_API std::string unparseExpression(SgAsmExpression*, const AsmUnparser::LabelMap *labels, const RegisterDictionary *registers);
 
 ROSE_DLL_API std::string unparseAsmStatement(SgAsmStatement*);
 
