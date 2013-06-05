@@ -836,6 +836,7 @@ Terminal::evaluateType(std::string& varTypeString)
                  ( varTypeString == "SgOmpClause::omp_default_option_enum" ) ||
                  ( varTypeString == "SgOmpClause::omp_schedule_kind_enum" ) ||
                  ( varTypeString == "SgOmpClause::omp_reduction_operator_enum" ) ||
+                 ( varTypeString == "SgOmpClause::omp_map_operator_enum" ) ||
                  ( varTypeString == "SgProcedureHeaderStatement::subprogram_kind_enum" ) ||
                  ( varTypeString == "SgLabelSymbol::label_type_enum" ) ||
                  ( varTypeString == "SgAsmFunction::function_kind_enum" ) ||
@@ -856,6 +857,7 @@ Terminal::evaluateType(std::string& varTypeString)
                  ( varTypeString == "PowerpcConditionRegisterAccessGranularity" ) ||
                  ( varTypeString == "PowerpcSpecialPurposeRegister" ) ||
                  ( varTypeString == "PowerpcTimeBaseRegister" ) ||
+                 ( varTypeString == "MipsInstructionKind") ||
               // Note that these enum names do not conform to the naming scheme used in ROSE.
                  ( varTypeString == "SgAsmGenericSection::SectionPurpose" ) ||
                  ( varTypeString == "SgAsmGenericFormat::InsSetArchitecture" ) ||

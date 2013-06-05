@@ -265,6 +265,10 @@ CommandlineProcessing::isOptionTakingSecondParameter( string argument )
           argument == "-rose:java:classpath" ||
           argument == "-rose:java:sourcepath" ||
           argument == "-rose:java:d" ||
+          argument == "-rose:java:ds" ||
+          argument == "-rose:java:source" ||
+          argument == "-rose:java:target" ||
+          argument == "-rose:java:encoding" ||
 
        // negara1 (08/16/2011)
           argument == "-rose:unparseHeaderFilesRootFolder" ||
@@ -408,6 +412,7 @@ CommandlineProcessing::generateSourceFilenames ( Rose_STL_Container<string> argL
                     goto incrementPosition;
                   }
 #if 1
+               cout << "second call " << endl;
                if ( isObjectFilename(*i) == false && isSourceFilename(*i) == false && isValidFileWithExecutableFileSuffixes(*i) == true )
                   {
                  // printf ("This is at least an existing file of some kind: *i = %s \n",(*i).c_str());
@@ -702,6 +707,20 @@ SgProject::processCommandLine(const vector<string>& input_argv)
      if (CommandlineProcessing::isOptionWithParameter(local_commandLineArgumentList, javaRosePrefix,"(d)", javaTmpParameter, true) == true) {
          set_Java_destdir(javaTmpParameter);
      }
+
+     // Java destination source dir option support
+     if (CommandlineProcessing::isOptionWithParameter(local_commandLineArgumentList, javaRosePrefix,"(ds)", javaTmpParameter, true) == true) {
+         set_Java_source_destdir(javaTmpParameter);
+     }
+
+#ifdef ROSE_JAVA_SUPPORT
+     // Enable remoteDebug of the spawned JVM
+     // This is defined in jserver.C, had to rely on that because there's no way
+     // to access the command line arguments from there.
+     extern bool roseJavaRemoteDebug;
+     roseJavaRemoteDebug = CommandlineProcessing::isOption(local_commandLineArgumentList, javaRosePrefix,"(remoteDebug)", true);
+
+#endif
 
      if ( CommandlineProcessing::isOption(local_commandLineArgumentList,"-rose:","wave",false) == true )
         {
@@ -1123,6 +1142,14 @@ SgFile::usage ( int status )
 "                             Sourcepath to look for java sources\n"
 "     -rose:java:d\n"
 "                             Specifies generated classes destination dir\n"
+"     -rose:java:ds\n"
+"                             Specifies translated sources destination dir\n"
+"     -rose:java:source\n"
+"                             Specifies java sources version\n"
+"     -rose:java:target\n"
+"                             Specifies java classes target version\n"
+"     -rose:java:encoding\n"
+"                             Specifies the character encoding\n"
 "     -rose:Python, -rose:python, -rose:py\n"
 "                             compile Python code\n"
 "     -rose:OpenMP, -rose:openmp\n"
@@ -2824,34 +2851,41 @@ SgFile::stripFortranCommandLineOptions ( vector<string> & argv )
 void
 SgFile::stripJavaCommandLineOptions ( vector<string> & argv )
    {
-  // Strip out the ECJ specific command line options then assume all
-  // other arguments are to be passed onto the vendor Java compiler
-     CommandlineProcessing::removeArgs (argv,"-ecj:");
-     CommandlineProcessing::removeArgs (argv,"--ecj:");
-     CommandlineProcessing::removeArgsWithParameters (argv,"-ecj_parameter:");
-     CommandlineProcessing::removeArgsWithParameters (argv,"--ecj_parameter:");
-
+     // Need to rewrite rose:java-prefixed options before handing them to the backend.
      string javaRosePrefix = "-rose:java:";
-     // if destination is not provided, insert rose's default one for java.
-     if (!CommandlineProcessing::isOption(argv, javaRosePrefix, "d", false)) {
-         // Put *.class files generated from calling that backend compiler (javac) and the ROSE generated code
-         // into the current directory.  This makes the semantics for Java similar to all other languages in
-         // ROSE but it is different from the default behavior for "javac".  So it is not clear if we really
-         // want this semantics, but another reason for this desired behavior is that it will avoid having
-         // the source-to-source generated code from overwriting the input source code.
-         //
-         // Note: we don't use the get_Java_destdir here because we don't have a handle on the SgProject
-         // Check get_Java_destdir implementation in Support.code
-         argv.push_back("-d");
-         argv.push_back(ROSE::getWorkingDirectory());
-     }
-
-     // Need to rewrite javac options prefix before handing them to the backend.
-     Rose_STL_Container<string> rose_java_options = CommandlineProcessing::generateOptionWithNameParameterList(argv, javaRosePrefix, "-");
+     Rose_STL_Container<string> rose_java_options =
+                 CommandlineProcessing::generateOptionWithNameParameterList(argv, javaRosePrefix, "-");
      for (Rose_STL_Container<string>::iterator i = rose_java_options.begin(); i != rose_java_options.end(); ++i)
        {
-         argv.push_back(*i);
+         if (*i == "-ds") {
+           // Removes -ds as javac wouldn't know what to do with it.
+           i++;
+         } else {
+           argv.push_back(*i);
+         }
        }
+   }
+
+Rose_STL_Container<string>
+CommandlineProcessing::generateOptionListWithDeclaredParameters (const Rose_STL_Container<string> & argList, string inputPrefix )
+   {
+  // This function returns a list of options using the inputPrefix (with the inputPrefix stripped off).
+     Rose_STL_Container<string> optionList;
+     unsigned int prefixLength = inputPrefix.length();
+     for (Rose_STL_Container<string>::const_iterator     i = argList.begin(); i != argList.end(); i++)
+        {
+          if ( (*i).substr(0,prefixLength) == inputPrefix )
+             {
+            // get the rest of the string as the option
+               string option = (*i).substr(prefixLength);
+               optionList.push_back(option);
+               if (isOptionTakingSecondParameter(*i)) {
+                   i++;
+                   optionList.push_back(*i);
+               }
+             }
+        }
+     return optionList;
    }
 
 void
@@ -3204,10 +3238,19 @@ SgFile::build_EDG_CommandLine ( vector<string> & inputCommandLine, vector<string
         if (enable_cuda && !enable_opencl) {
           commandLine.push_back("--preinclude");
           commandLine.push_back(header_path + "/cuda_HEADERS/preinclude-cuda.h");
+
+          // CUDA is a C++ extention, add default C++ options
+          commandLine.push_back("-DROSE_LANGUAGE_MODE=1");
+          commandLine.push_back("-D__cplusplus=1");
+          SageSupport::Cmdline::makeSysIncludeList(Cxx_ConfigIncludeDirs, commandLine);
         }
         else if (enable_opencl && !enable_cuda) {
           commandLine.push_back("--preinclude");
           commandLine.push_back(header_path + "/opencl_HEADERS/preinclude-opencl.h");
+
+          // OpenCL is a C extention, add default C options
+          commandLine.push_back("-DROSE_LANGUAGE_MODE=0");
+          SageSupport::Cmdline::makeSysIncludeList(C_ConfigIncludeDirs, commandLine);
         }
         else {
                 printf ("Error: CUDA and OpenCL are mutually exclusive.\n");

@@ -1,4 +1,3 @@
-// tps (01/14/2010) : Switching from rose.h to sage3.
 #include "sage3basic.h"
 
 // DQ (10/14/2010): This should only be included by source files that require it.
@@ -59,6 +58,8 @@ DisassemblerX86::can_disassemble(SgAsmGenericHeader *header) const
 void
 DisassemblerX86::init(size_t wordsize)
 {
+    /* The default register dictionary.  If a register dictionary is specified in an SgAsmInterpretation, then that one will be
+     * used instead of the default we set here. */
     switch (wordsize) {
         case 2: insnSize = x86_insnsize_16; set_registers(RegisterDictionary::dictionary_i286());  break;
         case 4: insnSize = x86_insnsize_32; set_registers(RegisterDictionary::dictionary_pentium4());  break;
@@ -465,7 +466,7 @@ DisassemblerX86::makeRegister(uint8_t fullRegisterNumber, RegisterMode m, SgAsmT
             name = "mm" + StringUtility::numberToString(fullRegisterNumber);
             break;
         case rmXMM:
-            name = "mmx" + StringUtility::numberToString(fullRegisterNumber);
+            name = "xmm" + StringUtility::numberToString(fullRegisterNumber);
             break;
         case rmControl:
             name = "cr" + StringUtility::numberToString(fullRegisterNumber);
@@ -3121,8 +3122,36 @@ DisassemblerX86::decodeOpcode0F()
             decodeOpcode0F38(); /*SSSE3*/
         case 0x39:
             throw ExceptionX86("bad opcode 0x0f39", this);
-        case 0x3A:
-            throw ExceptionX86("not implemented 0x0f3a", this);
+        case 0x3A: {
+            /* more SSE3? should this be in a decodeOpcode0F3A() instead? */
+            uint8_t thirdOpcodeByte = getByte();
+            switch (thirdOpcodeByte) {
+                case 0x0F: { /* palignr */
+                    SgAsmExpression* shiftAmount;
+                    switch (mmPrefix()) {
+                        /* Note that getModRegRM sets the states reg and modrm. Also, standard prefixed used in the manual,
+                         * "mm" refers to "mmx" registers and "xmm" refers to "sse" registers. */
+                        case mmNone:
+                            getModRegRM(rmMM, rmMM, QWORDT);
+                            shiftAmount = getImmByte();
+                            return makeInstruction(x86_palignr, "palignr", reg, modrm, shiftAmount);
+                        case mmF3:
+                            throw ExceptionX86("bad mm prefix F3 for opcode 0x0f3a0f", this);
+                        case mm66:
+                            getModRegRM(rmXMM, rmXMM, DQWORDT);
+                            shiftAmount = getImmByte();
+                            return makeInstruction(x86_palignr, "palignr", reg, modrm, shiftAmount);
+                        case mmF2:
+                            throw ExceptionX86("bad mm prefix F2 for opcode 0x0f3a0f", this);
+                    }
+                }
+                default: {
+                    char opcodestr[16];
+                    sprintf(opcodestr, "0x0f3a%02x", thirdOpcodeByte);
+                    throw ExceptionX86(std::string("bad or unimplemented opcode ")+opcodestr, this);
+                }
+            }
+        }
         case 0x3B:
             throw ExceptionX86("bad opcode 0x0f3b", this);
         case 0x3C:

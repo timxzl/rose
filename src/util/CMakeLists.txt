@@ -6,10 +6,9 @@ add_subdirectory(commandlineProcessing)
 add_subdirectory(support)
 add_subdirectory(graphs)
 
-###############################################################################################################################
+#############################################################################
 #Generating "rose_paths.C"
-#We may want to generate it in a different way in the future
-###############################################################################################################################
+#############################################################################
 file( REMOVE ${ROSE_TOP_BINARY_DIR}/src/util/rose_paths.C.tmp )
 file( WRITE  ${ROSE_TOP_BINARY_DIR}/src/util/rose_paths.C.tmp "\#include <string> \n\n" )
 #file( APPEND ${ROSE_TOP_BINARY_DIR}/test.txt we have ${CMAKE_Fortran_COMPILER} )
@@ -40,11 +39,11 @@ file( APPEND ${ROSE_TOP_BINARY_DIR}/src/util/rose_paths.C.tmp "ROSE_UTIL_API con
 file( APPEND ${ROSE_TOP_BINARY_DIR}/src/util/rose_paths.C.tmp "/* Numeric form of ROSE version -- assuming ROSE version x.y.zL \(where */\n" )
 file( APPEND ${ROSE_TOP_BINARY_DIR}/src/util/rose_paths.C.tmp "/* x, y, and z are numbers, and L is a single lowercase letter from a to j\), */\n" )
 file( APPEND ${ROSE_TOP_BINARY_DIR}/src/util/rose_paths.C.tmp "/* the numeric value is x * 1000000 + y * 10000 + z * 100 + \(L - 'a'\). */\n" )
-#	@@echo "@PACKAGE_VERSION@" | sed 's/\([0-9]\)\([a-z]\)/\1_\2/g' | tr .a-j _0-9 | awk -F_ '{printf "%02d%02d%02d%02d\n", $$1, $$2, $$3, $$4}' | sed 's/^0*//' | sed 's/.*/const int ROSE_NUMERIC_VERSION = \0;/' >> src/util/rose_paths.C
+
 execute_process(
   COMMAND ${CMAKE_COMMAND} -E copy_if_different
-  ${ROSE_TOP_BINARY_DIR}/src/util/rose_paths.C.tmp
-  ${ROSE_TOP_BINARY_DIR}/src/util/rose_paths.C
+          ${ROSE_TOP_BINARY_DIR}/src/util/rose_paths.C.tmp
+          ${ROSE_TOP_BINARY_DIR}/src/util/rose_paths.C
 )
 ########### next target ###############
 
