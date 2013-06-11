@@ -2247,10 +2247,19 @@ BUILD_BINARY_DEF(XorAssignOp)
 BUILD_BINARY_DEF(VarArgCopyOp)
 BUILD_BINARY_DEF(VarArgStartOp)
 
+BUILD_BINARY_DEF(ShapeExpression)
+
 #undef BUILD_BINARY_DEF
 
-
-
+SgArraySectionExp* SageBuilder::buildArraySectionExp( SgExprListExp* lower_bound_list/*=NULL*/, SgExprListExp* length_list/*=NULL*/, SgExpression* base/*=NULL*/ )
+{
+    SgArraySectionExp* result = new SgArraySectionExp( lower_bound_list, length_list, base );
+    if( length_list != NULL ) {length_list->set_parent(result);}
+    if( base != NULL ) {base->set_parent(result);}
+    setOneSourcePositionForTransformation(result);
+    return result;
+}
+        
 SgArrayType* SageBuilder::buildArrayType(SgType* base_type/*=NULL*/, SgExpression* index/*=NULL*/)
 {
   SgArrayType* result = new SgArrayType(base_type,index);

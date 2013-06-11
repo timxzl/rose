@@ -1106,50 +1106,6 @@ class EasyStorage < std::map< SgSymbol*,  std::vector < std::pair <SgExpression*
      static void readFromFile (std::istream& in) {};
    };
 
-// Sara 5/22/2013, placeholder for storing std::map <SgSymbol*, std::vector< std::vector < SgExpression* > > >
-// this is used for representing shaping expressions information for the depend clause.
-// FIXME We may want attache shaping information to the clause, instead to the directive
-template < >
-class EasyStorageMapEntry <SgSymbol*, std::vector < std::vector < SgExpression* > > > 
-   {
-       private:
-           int global_id; // this is the global id for the SgNode*
-           EasyStorage < std::string > nameString; // this is the mangled name
-       public: 
-           EasyStorageMapEntry () { global_id = 0; }
-           void storeDataInEasyStorageClass(const std::pair<SgNode*, const int >& iter) {  };
-           std::pair<SgSymbol*, std::vector < std::vector < SgExpression* > > >  rebuildDataStoredInEasyStorageClass() const {
-               std::vector < std::vector < SgExpression* > > vec;
-               SgSymbol* s = NULL; 
-               return std::make_pair (s, vec);
-           };
-           static void arrangeMemoryPoolInOneBlock(){} ;
-           static void deleteMemoryPool(){} ;
-
-           static void writeToFile(std::ostream& out) {};
-           static void readFromFile (std::istream& in) {};
-   };
-
-template <>
-class EasyStorage < std::map< SgSymbol*,  std::vector < std::vector < SgExpression* > > > > 
-    : public StorageClassMemoryManagement< EasyStorageMapEntry< SgSymbol*, std::vector < std::vector < SgExpression* > > > >
-    {
-        typedef StorageClassMemoryManagement< EasyStorageMapEntry<SgSymbol*, std::vector < std::vector < SgExpression* > > > > Base;
-        public:
-            void storeDataInEasyStorageClass(const std::map<SgSymbol*, std::vector < std::vector < SgExpression* > > >& data_) 
-            {  };
-            std::map< SgSymbol*, std::vector < std::vector < SgExpression* > > > rebuildDataStoredInEasyStorageClass() const
-            {
-                std::map< SgSymbol*, std::vector < std::vector < SgExpression* > > > rt;
-                return rt;
-            };
-            static void arrangeMemoryPoolInOneBlock() {};
-            static void deleteMemoryPool(){ };
-
-            static void writeToFile(std::ostream& out) { };
-            static void readFromFile (std::istream& in) {};
-    };
-
 /** Maps SgSharedVector to/from file representation. This is almost exactly the same as the
  *  vector of Sg object pointers specialization except the rebuildDataStoredInEasyStorageClass() constructs the SgSharedVector
  *  in a different manner. In an original AST all SgSharedVector objects probably pointed to a common underlying storage pool

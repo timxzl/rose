@@ -722,6 +722,8 @@ void AstNodeMemoryPoolStatistics::visit ( SgNode* node)
           IR_NODE_VISIT_CASE(SgLocatedNodeSupport)
           IR_NODE_VISIT_CASE(SgToken)
 
+          IR_NODE_VISIT_CASE(SgArraySectionExp)
+          IR_NODE_VISIT_CASE(SgShapeExpression)
        // IR_NODE_VISIT_CASE()
 
           default:

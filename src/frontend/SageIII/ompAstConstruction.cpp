@@ -740,6 +740,21 @@ namespace OmpSupport
     }
   }
 
+  static void setClauseExpressionList(SgOmpExpressionsClause* target, OmpAttribute* att, omp_construct_enum key)
+  {
+      ROSE_ASSERT(target&&att);
+      std::vector<SgExpression*> exprlist = att->getExpressionList(key);
+      ROSE_ASSERT(exprlist.size()!=0);
+      std::vector<SgExpression*>::iterator iter;
+      for (iter = exprlist.begin(); iter!= exprlist.end(); iter ++)
+      {
+          SgExpressionPtrList current_exprs = target->get_expressions();
+          current_exprs.push_back(*iter);
+          target->set_expressions( current_exprs );
+          (*iter)->set_parent(target);
+      }
+  }
+  
   //! Try to build a reduction clause with a given operation type from OmpAttribute
   SgOmpReductionClause* buildOmpReductionClause(OmpAttribute* att, omp_construct_enum reduction_op)
   {
@@ -792,10 +807,8 @@ namespace OmpSupport
       ROSE_ASSERT( result != NULL );
       
       // build variable list
-      setClauseVariableList( result, att, depend_op );
+      setClauseExpressionList( result, att, depend_op );
       
-      result->set_array_dimensions( att->array_dimensions );
-      result->set_ptr_shape( att->ptr_shape );
       return result;
   }
   

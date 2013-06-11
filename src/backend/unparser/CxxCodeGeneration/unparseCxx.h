@@ -417,6 +417,10 @@ class Unparse_ExprStmt : public UnparseLanguageIndependentConstructs
        // TV (05/06/2010): SgCudaKernelCallExp
           virtual void unparseCudaKernelCall(SgExpression* expr, SgUnparse_Info& info);
 
+       // Sara Royuela(06/07/2013): C++ expression extensions
+          virtual void unparseShapeExpression(SgExpression* expr, SgUnparse_Info& info);
+          virtual void unparseArraySectionExp(SgExpression* expr, SgUnparse_Info& info);
+          
        // DQ (10/5/2012): Added support for GNU type attributes.
           void unparseTypeAttributes ( SgDeclarationStatement* declaration );
    };

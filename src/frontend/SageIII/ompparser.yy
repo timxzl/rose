@@ -43,6 +43,9 @@ static bool addVar(const char* var);
 //Insert expression into some clause
 static bool addExpression(const char* expr);
 
+//Insert expression into a list of expressions of some clause
+static void addExpToList(SgExpression* expr);
+
 // The current AST annotation being built
 static OmpAttribute* ompattribute = NULL;
 
@@ -66,12 +69,19 @@ static SgNode* gNode;
 static SgExpression* current_exp = NULL;
 bool b_within_variable_list  = false;  // a flag to indicate if the program is now processing a list of variables
 
-// the latest variable symbol being parsed, used to help parsing the array dimensions and shaping expressions associated with array symbol
-// such as a[0:n][0:m] or [N]a
+// the latest variable symbol being parsed, used to help parsing the array dimensions associated with array symbol
+// such as a[0:n][0:m]
 static SgVariableSymbol* array_symbol; 
-static SgExpression* lower_exp = NULL;
+static SgExpression* lower_exp = NULL;      // Reused for array_section
 static SgExpression* upper_exp = NULL;
-static std::vector<SgExpression*> shape_exp;
+
+// support for array sections and shaping expressions in omp task depend clauses
+static SgExpression* length_exp = NULL;
+static SgExpression* section_base_exp = NULL;
+static SgExprListExp* shape_dims = NULL;
+static SgExprListExp* section_lbs = NULL;
+static SgExprListExp* section_lengths = NULL;
+static int array_accessed_dims = 0;
 
 %}
 
@@ -108,6 +118,8 @@ corresponding C type is union name defaults to YYSTYPE.
               shift_expr additive_expr multiplicative_expr 
               primary_expr incr_expr unary_expr
               device_clause if_clause num_threads_clause
+              extended_expr shape_expr shape_field 
+              array_section section_field
 
 %type <itype> schedule_kind
 
@@ -322,8 +334,7 @@ unique_task_clause : IF {
 depend_clause : DEPEND {
                   ompattribute->addClause(e_depend);
                   omptype = e_depend; // use as a flag to see if it will be reset later
-                } '(' depend_clause_seq { b_within_variable_list = true; }
-                      nanos_variable_list ')' { b_within_variable_list = false; }
+                } '(' depend_clause_seq expression_list ')'
               ;
 
 depend_clause_seq : IN    ':' { ompattribute->setDependVariant(e_depend_in); omptype = e_depend_in; } 
@@ -947,75 +958,121 @@ dimension_field : '[' expression { lower_exp = current_exp; }
        Example: #pramga omp task depend(in: a[0:1]) depend(out: a)  -> which access to a correspond to each clause
      - we also want to accept array element accesses, without regions
  */
-nanos_variable_list : extended_expr
-                    | nanos_variable_list ',' extended_expr
-                    ;
+expression_list : extended_expr
+                | expression_list ',' extended_expr
+                ;
 
-extended_expr : shape_field_optseq 
-                ID_EXPRESSION { 
-                  if (!addVar((const char*)$2)) YYABORT;
-                  assert( array_symbol != NULL );
-                  SgType* t = array_symbol->get_type();
-                  if( !shape_exp.empty() ) {
-                    if( isSgPointerType( t ) ) {
-                      ompattribute->ptr_shape[array_symbol].push_back(shape_exp);
-                    } else {
-                      std::cerr<<"Error. ompparser.yy expects a pointer type for a shaping expression."<<std::endl;
-                      std::cerr<<"while seeing "<<t->class_name()<<std::endl;
-                    }
-                    shape_exp.clear();
-                  }
+extended_expr : shape_expr
+              | array_section { array_accessed_dims = 0; }
+              | ID_EXPRESSION { 
+                  current_exp = SageBuilder::buildVarRefExp( (const char*)($1), SageInterface::getScope(gNode) );
+                  addExpToList( current_exp );
                 }
-                nanos_dimension_field_optseq
               ;
 
 /* Parse size information for shaping expressions: depend( type: [size]ptr ) Sara 5/22/13 */
-shape_field_optseq : /* empty */
-                   | shape_field_seq
-                   ;
-
+shape_expr : shape_field_seq ID_EXPRESSION {
+               SgExpression* base_exp = SageBuilder::buildVarRefExp( (const char*)($2),SageInterface::getScope(gNode) ); 
+               assert( base_exp != NULL );
+               SgType* t = base_exp->get_type();
+               if( !isSgPointerType( t ) ) {
+                 std::cerr<<"Error. ompparser.yy expects a pointer type for a shaping expression."<<std::endl;
+                 std::cerr<<"while seeing "<<t->class_name()<<std::endl;
+               }
+               
+               current_exp = SageBuilder::buildShapeExpression( shape_dims, base_exp );
+               addExpToList( current_exp );
+               
+               shape_dims = NULL;
+             }
+           ;
+           
 shape_field_seq : shape_field
                 | shape_field_seq shape_field
                 ;
 
-shape_field : '[' expression { shape_exp.push_back(current_exp); } ']'
+shape_field : '[' additive_expr ']' {
+                if( shape_dims == NULL ) {
+                  shape_dims = SageBuilder::buildExprListExp( );
+                }
+                shape_dims->append_expression( current_exp );
+              }
             ;
-            
-nanos_dimension_field_optseq : /* empty */
-                             | nanos_dimension_field_seq
-                             ;
-                             
-nanos_dimension_field_seq : nanos_dimension_field
-                          | nanos_dimension_field_seq nanos_dimension_field
-                          ;
-                          
-nanos_dimension_field : '[' 
-                        expression {
-                          assert( array_symbol != NULL );
-                          lower_exp = current_exp;
-                          SgType* t = array_symbol->get_type();
-                          bool isPointer= ( isSgPointerType(t) != NULL );
-                          bool isArray= ( isSgArrayType(t) != NULL);
-                          if( !isPointer && ! isArray ) {
-                            std::cerr<<"Error. ompparser.yy expects a pointer or array type."<<std::endl;
-                            std::cerr<<"while seeing "<<t->class_name()<<std::endl;
-                          }
-                          ompattribute->array_dimensions[array_symbol].push_back( std::make_pair (lower_exp, SageBuilder::buildIntVal(1)) );
-                        }
-                        nanos_section_opt
-                        ']'
-                      ;
-
-nanos_section_opt : /* empty */
-                  | nanos_section
-                  ;
-                    
-nanos_section : ':' expression { 
-                      upper_exp = current_exp;
-                      ompattribute->array_dimensions[array_symbol][ompattribute->array_dimensions[array_symbol].size()-1]=
-                            std::make_pair (lower_exp, upper_exp);
-                    }
+           
+array_section : ID_EXPRESSION {
+                  section_base_exp = SageBuilder::buildVarRefExp( (const char*)($1),SageInterface::getScope(gNode) );
+                  SgType* t = section_base_exp->get_type();
+                  if( isSgPointerType(t)==NULL && isSgArrayType(t)==NULL ) {
+                    std::cerr<<"Error. ompparser.yy expects a pointer or array type."<<std::endl;
+                    std::cerr<<"while seeing "<<t->class_name()<<std::endl;
+                  }
+                } 
+                section_field_seq {
+                  current_exp = SageBuilder::buildArraySectionExp( section_lbs, section_lengths, section_base_exp );
+                  addExpToList( current_exp );
+                  
+                  section_lbs = NULL;
+                  section_lengths = NULL;
+                  section_base_exp = NULL;
+                }
               ;
+                 
+section_field_seq : section_field
+                  | section_field_seq section_field
+                  ;
+                          
+section_field : '[' unary_expr_opt {
+                      lower_exp = current_exp;
+                      if( lower_exp == NULL ) {
+                        lower_exp = SageBuilder::buildIntVal( 0 ); 
+                      } else {
+                        SgType* t = lower_exp->get_type();
+                        if( !isSgTypeUnsignedInt( t ) && !isSgTypeInt( t ) ) {
+                          std::cerr<<"Error. ompparser.yy expects an integral expression evaluating to non-negative integer"<<std::endl;
+                          std::cerr<<"while seeing "<<t->class_name()<<std::endl;
+                        }
+                      }
+                      array_accessed_dims++;
+                    }
+                length_field_opt {
+                  if( section_lbs == NULL ) {
+                    section_lbs = SageBuilder::buildExprListExp( );
+                    section_lengths = SageBuilder::buildExprListExp( );
+                  }
+                  section_lbs->append_expression( lower_exp );
+                  section_lengths->append_expression( length_exp );
+                }
+              ;
+
+length_field_opt : ']' {
+                     length_exp = SageBuilder::buildIntVal( 1 );
+                   }
+                 | ':' unary_expr_opt {
+                         length_exp = current_exp;
+                         if( length_exp == NULL ) {
+                           SgType* t = lower_exp->get_type( );
+                           if( isSgArrayType( t ) == NULL ) {
+                             std::cerr<<"Error. ompparser.yy expects a expression with array type evaluating an array section"<<std::endl;
+                             std::cerr<<"while seeing "<<t->class_name()<<std::endl;
+                           } else {
+                             SgExpressionPtrList dim_info = isSgArrayType( t )->get_dim_info( )->get_expressions( );
+                             length_exp = SageBuilder::buildSubtractOp( dim_info[array_accessed_dims-1], lower_exp );
+                           }
+                         } else {
+                           SgType* t = length_exp->get_type();
+                           if( !isSgTypeUnsignedInt( t ) && !isSgTypeInt( t ) ) {
+                             std::cerr<<"Error. ompparser.yy expects an integral expression evaluating to non-negative integer"<<std::endl;
+                             std::cerr<<"while seeing "<<t->class_name()<<std::endl;
+                           }
+                         }
+                       }
+                   ']'
+                 ;
+
+unary_expr_opt : /* empty */
+               | additive_expr
+               ;
+
 %%
 
 
@@ -1037,6 +1094,10 @@ void omp_parser_init(SgNode* aNode, const char* str) {
 static bool addVar(const char* var)  {
     array_symbol = ompattribute->addVariable(omptype,var);
     return true;
+}
+
+static void addExpToList(SgExpression* expr) {
+    ompattribute->addExpressionToList(omptype, expr);
 }
 
 // The ROSE's string-based AST construction is not stable,

@@ -291,10 +291,7 @@ namespace OmpSupport
 
       //! Dimension information for array variables, used by map and depend clauses, such as map/depend (inout:array[0:n][0:m])
       // We store a list (vector) of dimension bounds for each array variable
-      std::map<SgSymbol*,  std::vector < std::pair <SgExpression*, SgExpression*> > >  array_dimensions;  
-      
-      //! Size information for arrays shaped into pointers, used by depend clause, such as depend (in:[size]ptr)
-      std::map<SgSymbol*,  std::vector < std::vector< SgExpression* > > > ptr_shape;
+      std::map<SgSymbol*,  std::vector < std::pair <SgExpression*, SgExpression*> > >  array_dimensions;
       
       //! Find the relevant clauses for a variable 
       std::vector<enum omp_construct_enum> get_clauses(const std::string& variable);
@@ -302,11 +299,15 @@ namespace OmpSupport
       //!--------Expressions -----------------------------
       //! Add an expression to a clause
       void addExpression(omp_construct_enum targetConstruct, const std::string& expString, SgExpression*    sgexp=NULL); 
-
+      
       //! Get expression of a clause
       std::pair<std::string, SgExpression*>  
         getExpression(omp_construct_enum targetConstruct);
 
+      //!--------expr list ---------------
+      void addExpressionToList( omp_construct_enum targetConstruct, SgExpression* expr ); 
+      std::vector<SgExpression*> getExpressionList( omp_construct_enum );
+        
       //!--------values for some clauses ----------
       //
       // Reduction needs special handling 
@@ -444,6 +445,9 @@ namespace OmpSupport
       // expressions ----------------------
       // e.g.: if (exp), num_threads(exp), schedule(,exp), collapse(exp)
       std::map<omp_construct_enum, std::pair<std::string, SgExpression*> > expressions;
+      
+      // expression lists ----------------------
+      std::map<omp_construct_enum, std::vector<SgExpression*> > expressions_list;
 
       // values for some clauses -------------------------
       // values for default() clause: data scoping information

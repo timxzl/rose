@@ -1338,6 +1338,14 @@ HEADER_CUDA_KERNEL_CALL_EXPRESSION_START
 HEADER_LIST_DECLARATIONS
 HEADER_CUDA_KERNEL_CALL_EXPRESSION_END
 
+HEADER_ARRAY_SECTION_EXP_START
+HEADER_ARRAY_SECTION_EXP_END
+
+HEADER_SHAPE_EXPRESSION_START
+    // Maybe we should use get_base_type
+    SgType* get_type() const;
+HEADER_SHAPE_EXPRESSION_END
+
 // #########################################################
 // #########################################################
 //                      SOURCE CODE
@@ -4960,6 +4968,109 @@ $CLASSNAME::replace_expression(SgExpression *o, SgExpression *n)
 SOURCE_ASSIGNMENT_INITIALIZER_EXPRESSION_END
 
 
+SOURCE_SHAPE_EXPRESSION_START
+
+SgType*
+SgShapeExpression::get_type() const
+{
+    // In this function we want to return the base type of the pointer being reshaped (lhs->get_type()).
+    ROSE_ASSERT(get_lhs_operand() != NULL);
+    ROSE_ASSERT(get_rhs_operand() != NULL);
+
+    SgType* someType = get_rhs_operand()->get_type();
+    ROSE_ASSERT(someType != NULL);
+
+    SgType* returnType = NULL;
+    keepStripping:
+    ROSE_ASSERT (someType);
+    switch(someType->variantT())
+    {
+        // These cases all have base types and the pointer dereferencing returns the base type
+        // But since p_base_type is placed at each of the different SgType IR nodes we have 
+        // to handle each case separately.
+        case V_SgArrayType:
+        case V_SgPointerType:
+        {
+            goto lastStrip;
+        }
+        case V_SgTypedefType:
+        {
+            SgTypedefType* typedefType = isSgTypedefType(someType);
+            someType = typedefType->get_base_type();
+            goto keepStripping;
+        }
+        default:
+        {
+            printf("Error: default reached in In SgArraySectionExp::get_type() someType = %s \n",someType->class_name().c_str());
+            ROSE_ASSERT(false);
+        }
+    }
+    lastStrip:
+    returnType = someType;
+    ROSE_ASSERT(returnType != NULL);
+    
+    return returnType;
+}
+
+SOURCE_SHAPE_EXPRESSION_END
+
+SOURCE_ARRAY_SECTION_EXP_START
+
+void
+SgArraySectionExp::post_construction_initialization()
+{
+     if (p_lower_bound_list != NULL)
+          p_lower_bound_list->set_parent(this);
+     if (p_length_list != NULL)
+          p_length_list->set_parent(this);
+     if (p_base != NULL)
+          p_base->set_parent(this);  
+}
+
+SgType*
+SgArraySectionExp::get_type() const
+{
+    // In this function we want to return the base type of the array
+    ROSE_ASSERT(p_base != NULL);
+
+    SgType* someType = p_base->get_type();
+    ROSE_ASSERT(someType != NULL);
+
+    SgType* returnType = NULL;
+    keepStripping:
+    ROSE_ASSERT (someType);
+    switch(someType->variantT())
+    {
+        // These cases all have base types and the pointer dereferencing returns the base type
+        // But since p_base_type is placed at each of the different SgType IR nodes we have 
+        // to handle each case separately.
+        case V_SgArrayType:
+        case V_SgPointerType:
+        {
+            goto lastStrip;
+        }
+        case V_SgTypedefType:
+        {
+            SgTypedefType* typedefType = isSgTypedefType(someType);
+            someType = typedefType->get_base_type();
+            goto keepStripping;
+        }
+        default:
+        {
+            printf("Error: default reached in In SgArraySectionExp::get_type() someType = %s \n",someType->class_name().c_str());
+            ROSE_ASSERT(false);
+        }
+    }
+    lastStrip:
+    returnType = someType;
+    ROSE_ASSERT(returnType != NULL);
+    
+    return returnType;
+}
+
+SOURCE_ARRAY_SECTION_EXP_END
+
+
 // ######################################################
 // ######################################################
 // ######################################################
@@ -5476,8 +5587,6 @@ $CLASSNAME::get_type() const
    }
 
 SOURCE_ASM_OP_END
-
-
 
 SOURCE_EXPONENTIATION_EXPRESSION_START
 

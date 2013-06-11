@@ -1051,97 +1051,73 @@ SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapp
 
 // Get dependency clauses from 'task'
 void get_dependency_clauses( SgOmpTaskStatement * task, SgExprListExp * & dependences_direction, 
-                             SgExprListExp * & dependences_data, int & n_deps, 
-                             std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > > & array_dimensions, 
-                             std::map<SgSymbol*, std::vector<std::vector<SgExpression*> > > & ptr_shape )
+                             SgExprListExp * & dependences_data, int & n_deps )
 {
     ROSE_ASSERT( task != NULL );
     n_deps = 0;  
     Rose_STL_Container<SgOmpClause*> depend_clauses = getClause( task, V_SgOmpDependClause );
     if( !depend_clauses.empty( ) )
     {
-        // FIXME I think this only works when there is only one map clause per operation type
         for( Rose_STL_Container<SgOmpClause*>::const_iterator iter = depend_clauses.begin( ); 
              iter != depend_clauses.end( ); iter++ )
         {   // dimension map is the same for all the map clauses under the same omp task directive
             SgOmpDependClause* d_cls = isSgOmpDependClause( *iter );
             ROSE_ASSERT (d_cls != NULL);
-            
-            if( iter == depend_clauses.begin( ) )
-            {    
-                array_dimensions = d_cls->get_array_dimensions( );
-                ptr_shape = d_cls->get_ptr_shape( );
-                
-//                 if( !array_dimensions.empty( ) || !ptr_shape.empty( ) ) {
-//                     std::cerr << "CLAUSE :: " << d_cls->unparseToString( ) << std::endl;
-//                     if( !array_dimensions.empty( ) ) {
-//                         std::cerr << "    Array dimensions: " << std::endl;
-//                         std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > >::iterator it;
-//                         for( it = array_dimensions.begin( ); it != array_dimensions.end( ); it++ ) {
-//                             std::cerr << "        '" << it->first->get_name( ) << "'  -->  [";
-//                             std::vector<std::pair<SgExpression*, SgExpression*> >::iterator it2;
-//                             for( it2 = it->second.begin( ); it2 != it->second.end( ); ++it2 )
-//                                 std::cerr << it2->first->unparseToString( ) << " : " << it2->second->unparseToString( ) << ", ";
-//                             std::cerr << "]" << std::endl; 
-//                         }
-//                     }
-//                     if( !ptr_shape.empty( ) ) {
-//                         std::cerr << "    Pointer shape: " << std::endl;
-//                         std::map<SgSymbol*, std::vector<std::vector<SgExpression*> > >::iterator it;
-//                         for( it = ptr_shape.begin( ); it != ptr_shape.end( ); it++ ) {
-//                             std::cerr << "        '" << it->first->get_name( ) << "'  -->  ";
-//                             std::vector<std::vector<SgExpression*> >::iterator it2;
-//                             for( it2 = it->second.begin( ); it2 != it->second.end( ); ++it2 ) {
-//                                 std::cerr << "[";
-//                                 std::vector<SgExpression*>::iterator it3;
-//                                 for( it3 = it2->begin( ); it3 != it2->end( ); ++it3 )
-//                                     std::cerr << (*it3)->unparseToString( ) << ", ";
-//                                 std::cerr << "]" << std::endl; 
-//                             }
-//                         }
-//                     }
-//                 }
-            }
-            
             SgOmpClause::omp_depend_operator_enum depend_operator = d_cls->get_operation( );
-            SgVarRefExpPtrList deps = isSgOmpVariablesClause( isSgOmpDependClause( *iter ) )->get_variables( );
+            SgExpressionPtrList deps = isSgOmpExpressionsClause( isSgOmpDependClause( *iter ) )->get_expressions( );
+            
+            SgExpression * dep_direction;
             if( depend_operator == SgOmpClause::e_omp_depend_in )
             {    
-                for( SgVarRefExpPtrList::iterator it = deps.begin( ); it != deps.end( ); it++ )
-                {
-                    dependences_direction->append_expression( buildIntVal( e_dep_dir_in ) );
-                    dependences_data->append_expression( *it );
-                    n_deps++;
-                }
+                dep_direction = buildIntVal( e_dep_dir_in );
             }
             else if( depend_operator == SgOmpClause::e_omp_depend_out )
             {    
-                for( SgVarRefExpPtrList::iterator it = deps.begin( ); it != deps.end( ); it++ )
-                {
-                    dependences_direction->append_expression( buildIntVal( e_dep_dir_out ) );
-                    dependences_data->append_expression( *it );
-                    n_deps++;
-                }
+                dep_direction = buildIntVal( e_dep_dir_out );
             }
             else if( depend_operator == SgOmpClause::e_omp_depend_inout )
             {      
-                for( SgVarRefExpPtrList::iterator it = deps.begin( ); it != deps.end( ); it++ )
-                {
-                    dependences_direction->append_expression( buildIntVal( e_dep_dir_inout ) );
-                    dependences_data->append_expression( *it );
-                    n_deps++;
-                }
+                dep_direction = buildIntVal( e_dep_dir_inout );
             }
             else 
             {
                 std::cerr << "Error. get_dependency_clauses() from omp_lowering.cpp: " 
-                        << "found unacceptable map operator type:" << depend_operator << std::endl;
+                          << "found unacceptable map operator type:" << depend_operator << std::endl;
                 ROSE_ASSERT( false );
+            }
+            
+            for( SgExpressionPtrList::iterator it = deps.begin( ); it != deps.end( ); it++ )
+            {
+                dependences_direction->append_expression( dep_direction );
+                dependences_data->append_expression( *it );
+                n_deps++;
             }
         }
     }
 }
-  
+
+static SgVarRefExp * get_dependecy_base_symbol_exp( SgExpression * dep_expr )
+{
+    SgVarRefExp * result;
+    
+    if( isSgShapeExpression( dep_expr ) )
+    {
+        result = isSgVarRefExp( isSgShapeExpression( dep_expr )->get_rhs_operand( ) );
+    }
+    else if( isSgArraySectionExp( dep_expr ) )
+    {
+        result = isSgVarRefExp( isSgArraySectionExp( dep_expr )->get_base( ) );
+    }
+    else
+    {
+        result = isSgVarRefExp( dep_expr );
+    }
+    
+    ROSE_ASSERT( result != NULL );
+    
+    return result;
+}
+
 // Create the dependency arrays containing
 //        - the dependencies direction (input, output, inout)
 //        - the dependencies data (object which is the actual dependency)
@@ -1164,7 +1140,8 @@ SgExpression * build_nanos_dependencies_array( SgExprListExp * dependences, std:
     {
         for( SgExpressionPtrList::iterator dep = dependences_exprs.begin( ); dep != dependences_exprs.end( ); dep++ )
         {
-            initializers->append_expression( buildAssignInitializer( buildAddressOfOp( *dep ), buildPointerType( buildVoidType( ) ) ) );
+            SgExpression * base_expr = get_dependecy_base_symbol_exp( *dep );
+            initializers->append_expression( buildAssignInitializer( buildAddressOfOp( base_expr ), buildPointerType( buildVoidType( ) ) ) );
         }          
     }
     else
@@ -1185,9 +1162,7 @@ SgExpression * build_nanos_dependencies_array( SgExprListExp * dependences, std:
 void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std::string & n_dims_name, std::string & offsets_name,
                                                SgExprListExp * dependences_data, 
                                                SgOmpTaskStatement * task, SgScopeStatement * scope,
-                                               SgExpression * & all_dims_ref, SgExpression * & n_dims_ref, SgExpression * & offsets_ref,
-                                               std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > > array_dimensions, 
-                                               std::map<SgSymbol*, std::vector<std::vector<SgExpression*> > > & ptr_shape )
+                                               SgExpression * & all_dims_ref, SgExpression * & n_dims_ref, SgExpression * & offsets_ref )
 {
     // For each dependency, we build an array of 'nanos_region_dimension_t' with n_dim elements
     //       {
@@ -1207,68 +1182,64 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
     SgType * region_dim_type = buildOpaqueType( "nanos_region_dimension_t", getGlobalScope( task ) );
     
     int n_deps = 0;
-    std::map<SgSymbol*, int> used_dependency_dimensions;
-    std::map<SgSymbol*, int> used_ptr_shape;
     SgExpressionPtrList dependences_exprs = dependences_data->get_expressions( );
     for(SgExpressionPtrList::iterator dep = dependences_exprs.begin( ); dep != dependences_exprs.end( ); dep++ )
     {
         // Get the current dependence dimensions characteristics: size, lower bound, upper bound, length
-        SgVarRefExp* dep_exp = isSgVarRefExp( *dep );
-        ROSE_ASSERT( dep_exp != NULL );
-        SgSymbol* dep_sym = dep_exp->get_symbol( );
-        SgType * dep_type = dep_sym->get_type( );
+        SgExpression* dep_exp = *dep;
+        SgType * dep_type = dep_exp->get_type( );
         SgType * dim_base_type;
         SgExpression * dim_size, * lower_bound, * length;
         int n_dims = 1;
         SgExprListExp * dep_dims_initializers = buildExprListExp( );
         if( isSgArrayType( dep_type ) )
         {
-            if( array_dimensions.find( dep_sym ) != array_dimensions.end( ) )
+            if( isSgArraySectionExp( dep_exp ) )
             {
                 SgType * last_dim_type = dep_type;
                 
-                if( isSgArrayType( dep_type ) )
+                dim_base_type = isSgArrayType( dep_type )->get_base_type( );
+                SgExpressionPtrList lower_bound_list = isSgArraySectionExp( dep_exp )->get_lower_bound_list( )->get_expressions( );
+                SgExpressionPtrList length_list = isSgArraySectionExp( dep_exp )->get_length_list( )->get_expressions( );
+                while( isSgArrayType( dim_base_type ) )
                 {
-                    dim_base_type = isSgArrayType( dep_type )->get_base_type( );
-                    while( isSgArrayType( dim_base_type ) )
-                    {
-                        // Get the current sections data
-                        if( used_dependency_dimensions.find( dep_sym ) != used_dependency_dimensions.end( ) )
-                        {
-                            used_dependency_dimensions[dep_sym]++;
-                        }
-                        else
-                        {
-                            used_dependency_dimensions.insert( std::pair<SgSymbol*, int>( dep_sym, 0 ) );
-                        }
-                        lower_bound = array_dimensions[dep_sym][ used_dependency_dimensions[dep_sym] ].first;
-                        length = array_dimensions[dep_sym][ used_dependency_dimensions[dep_sym] ].second;
-                        dim_size = isSgArrayType( last_dim_type )->get_index( );
-                
-                        // Dimensions other thant the least significant one are expressed in units
-                        dep_dims_initializers->prepend_expression( buildAggregateInitializer (
-                                buildExprListExp( buildAssignInitializer( dim_size ), 
-                                buildAssignInitializer( lower_bound ), 
-                                buildAssignInitializer( length ) ) ) );
-                    
-                        // Keep iterating
-                        n_dims++;
-                        last_dim_type = dim_base_type;
-                        dim_base_type = isSgArrayType( dim_base_type )->get_base_type( );
+                    // Compute current dependency dimension data
+                    if( lower_bound_list.size( ) >= n_dims )
+                    {   // A section is defined for the current dimension
+                        lower_bound = lower_bound_list[n_dims - 1];
+                        length = length_list[n_dims - 1];
                     }
+                    else
+                    {   // If no section defined, then the whole dimension is a dependency
+                        lower_bound = buildIntVal( 0 );
+                        length = buildSubtractOp( isSgArrayType( dim_base_type )->get_index( ), buildIntVal( 1 ) );
+                    }
+                    dim_size = isSgArrayType( last_dim_type )->get_index( );
+            
+                    // Dimensions other thant the least significant one are expressed in units
+                    dep_dims_initializers->prepend_expression( buildAggregateInitializer (
+                            buildExprListExp( buildAssignInitializer( dim_size ), 
+                            buildAssignInitializer( lower_bound ), 
+                            buildAssignInitializer( length ) ) ) );
+                
+                    n_dims++;
+                    
+                    // Keep iterating
+                    last_dim_type = dim_base_type;
+                    dim_base_type = isSgArrayType( dim_base_type )->get_base_type( );
                 }
             
-                // Get the current dependency data
-                if( used_dependency_dimensions.find( dep_sym ) != used_dependency_dimensions.end( ) )
-                {
-                    used_dependency_dimensions[dep_sym]++;
+                // Compute current dependency dimension data
+                if( lower_bound_list.size( ) >= n_dims )
+                {   // A section is defined for the current dimension
+                    lower_bound = lower_bound_list[n_dims - 1];
+                    length = length_list[n_dims - 1];
                 }
                 else
-                {
-                    used_dependency_dimensions.insert( std::pair<SgSymbol*, int>( dep_sym, 0 ) );
+                {   // If no section defined, then the whole dimension is a dependency
+                    lower_bound = buildIntVal( 0 );
+                    length = buildSubtractOp( isSgArrayType( dim_base_type )->get_index( ), buildIntVal( 1 ) );
                 }
-                lower_bound = array_dimensions[dep_sym][ used_dependency_dimensions[dep_sym] ].first;
-                length = array_dimensions[dep_sym][ used_dependency_dimensions[dep_sym] ].second;
                 dim_size = isSgArrayType( last_dim_type )->get_index( );
             
                 // Least sifgnificant dimension (the contiguous one) must be expressed in bytes
@@ -1285,28 +1256,17 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
         }
         else if( isSgPointerType( dep_type ) )
         {
-            SgVarRefExp* dep_exp = isSgVarRefExp( *dep );
-            ROSE_ASSERT( dep_exp != NULL );
-            SgSymbol* dep_sym = dep_exp->get_symbol( );
-            if( ptr_shape.find( dep_sym ) != ptr_shape.end( ) )
+            SgExpression* dep_exp = *dep;
+            if( isSgShapeExpression( dep_exp ) )
             {
-                if( used_ptr_shape.find( dep_sym ) != used_ptr_shape.end( ) )
-                {
-                    used_ptr_shape[dep_sym]++;
-                }
-                else
-                {
-                    used_ptr_shape.insert( std::pair<SgSymbol*, int>( dep_sym, 0 ) );
-                }
-                
-                n_dims = ptr_shape[dep_sym][ used_ptr_shape[dep_sym] ].size( );
-                std::vector<SgExpression*> shape = ptr_shape[dep_sym][ used_ptr_shape[dep_sym] ];
+                SgExpressionPtrList shape_list = isSgExprListExp( isSgShapeExpression( dep_exp )->get_lhs_operand( ) )->get_expressions( ); 
+                n_dims = shape_list.size( );
                 int i = 0;
                 for( ; i < n_dims - 1; ++i )
                 {
                     lower_bound = buildIntVal( 0 );
-                    length = shape[i];
-                    dim_size = shape[i];
+                    length = shape_list[i];
+                    dim_size = shape_list[i];
                     
                     // Dimensions other thant the least significant one are expressed in units
                     dep_dims_initializers->prepend_expression( buildAggregateInitializer (
@@ -1316,8 +1276,8 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
                 }
                 
                 lower_bound = buildIntVal( 0 );
-                length = shape[i];
-                dim_size = shape[i];
+                length = shape_list[i];
+                dim_size = shape_list[i];
                 dim_base_type = dep_type->stripType( SgType::STRIP_POINTER_TYPE );
                 
                 // Least sifgnificant dimension (the contiguous one) must be expressed in bytes
@@ -1326,15 +1286,17 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
                                           buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), lower_bound ) ),
                                           buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), length ) ) ) ) );
             }
-            else if( array_dimensions.find( dep_sym ) != array_dimensions.end( ) )
+            else if( isSgArraySectionExp( dep_exp ) )
             {
-                n_dims = array_dimensions.find( dep_sym )->second.size( );
+                SgExpressionPtrList lower_bound_list = isSgArraySectionExp( dep_exp )->get_lower_bound_list( )->get_expressions( );
+                SgExpressionPtrList length_list = isSgArraySectionExp( dep_exp )->get_length_list( )->get_expressions( );
+                n_dims = lower_bound_list.size( );
                 SgType * last_dim_type = dep_type;
-                int d = 0;
-                for( ; d < n_dims-1; ++d )
+                int i = 0;
+                for( ; i < n_dims- 1; ++i )
                 {
-                    lower_bound = array_dimensions[dep_sym][d].first;
-                    length = array_dimensions[dep_sym][d].second;
+                    lower_bound = lower_bound_list[i];
+                    length = length_list[i];
                     // Check for array type hidden in pointer types:
                     // float (*c1)[SIZE] = calloc(sizeof(float), SIZE * SIZE);
                     if( isSgArrayType( last_dim_type ) )
@@ -1355,8 +1317,8 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
                                               buildAssignInitializer( length ) ) ) );
                 }
                 
-                lower_bound = array_dimensions[dep_sym][d].first;
-                length = array_dimensions[dep_sym][d].second;
+                lower_bound = lower_bound_list[i];
+                length = length_list[i];
                 if( isSgArrayType( last_dim_type ) )
                     dim_size = isSgArrayType( last_dim_type )->get_index( );
                 else
@@ -1371,7 +1333,7 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
             }
             else
             {
-                std::cerr << "TODO: pointer dependencies without shaping expression" << std::endl;
+                std::cerr << "TODO: pointer dependencies without shape expression nor array section expression " << std::endl;
                 ROSE_ABORT( );
 //                 dim_base_type = dep_type;
 //                 dim_size = buildSizeOfOp( dim_base_type );
@@ -4736,9 +4698,7 @@ SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wr
       SgExprListExp * dependences_direction = buildExprListExp( );
       SgExprListExp * dependences_data = buildExprListExp( );
       int n_deps;
-      std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > > array_dimensions;
-      std::map<SgSymbol*, std::vector<std::vector<SgExpression*> > > ptr_shape;
-      get_dependency_clauses( target, dependences_direction, dependences_data, n_deps, array_dimensions, ptr_shape );
+      get_dependency_clauses( target, dependences_direction, dependences_data, n_deps );
             // Build the number of dependencies 
       SgExpression* parameter_num_dependencies = buildIntVal(n_deps);      
             // Build the dependencies direction array
@@ -4761,8 +4721,7 @@ SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wr
       std::string offsets_name = "deps_offsets";
       SgExpression * parameter_deps_dims, * parameter_n_dims, * parameter_offsets;
       build_nanos_dependencies_dimension_array( dims_array_name, n_dims_array_name, offsets_name, dependences_data, 
-                                                target, p_scope, parameter_deps_dims, parameter_n_dims, parameter_offsets, 
-                                                array_dimensions, ptr_shape );
+                                                target, p_scope, parameter_deps_dims, parameter_n_dims, parameter_offsets );
       
       // Parameters to the NANOS function call
       SgExpression* array_params[] = { buildFunctionRefExp(outlined_func), parameter_data, parameter_arg_size, parameter_arg_align,
@@ -5163,6 +5122,41 @@ SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wr
     return isInClauseVariableList(var, clause_stmt, VariantVector(vt));
   }
 
+  //! Collect variables from OpenMP clauses containing expressions ( task depend clause )
+  SgInitializedNamePtrList collectVariablesFromExpressionsClause( SgOmpClauseBodyStatement * clause_stmt, const VariantVector & vvt )
+  {
+      SgInitializedNamePtrList result, result2;
+      ROSE_ASSERT(clause_stmt != NULL);
+      Rose_STL_Container<SgOmpClause*> p_clause =
+              NodeQuery::queryNodeList<SgOmpClause>( clause_stmt->get_clauses( ), vvt );
+      for( size_t i=0; i<p_clause.size( ); i++ ) // can have multiple reduction clauses of different reduction operations
+      {
+          SgExpressionPtrList refs = isSgOmpExpressionsClause( p_clause[i] )->get_expressions( );
+          result2.clear( );
+          for( size_t j=0; j< refs.size( ); j++ )
+          {
+              SgVarRefExp * base_expr = get_dependecy_base_symbol_exp( refs[j] );
+              result2.push_back( base_expr->get_symbol( )->get_declaration( ) ); 
+          }
+          std::copy( result2.begin( ), result2.end( ), back_inserter( result ) );
+      }
+      return result;
+  }
+  
+  //! Check if a variable is in a expression list of a given clause type.
+  bool isInClauseExpressionList( SgInitializedName * var, SgOmpClauseBodyStatement * clause_stmt, const VariantVector& vvt )
+  {
+      SgInitializedNamePtrList var_list = collectVariablesFromExpressionsClause( clause_stmt, vvt );
+      if( find( var_list.begin( ), var_list.end( ), var ) != var_list.end( ) )
+          return true;
+      else
+          return false;
+  }
+  bool isInClauseExpressionList( SgInitializedName * var, SgOmpClauseBodyStatement * clause_stmt, const VariantT& vt )
+  {
+      return isInClauseExpressionList( var, clause_stmt, VariantVector( vt ) );
+  }
+  
  // lastprivate can be used with loop constructs or sections.
    /* if (i is the last iteration)
    *   *shared_i_p = local_i
@@ -6365,10 +6359,8 @@ int patchUpFirstprivateVariables(SgFile*  file)
       // These dependencies can contain expressions such as shaping expressions ([SIZE]array) and array sections (array[LB:SIZE])
       // Variables appearing in a depend clause are always considered shared. 
       // Shaping expressions and array sections cause the associated variable (pointer or array respectively) to be firstprivate
-      if( isInClauseVariableList(init_var, target, V_SgOmpDependClause) )
+      if( isInClauseExpressionList(init_var, target, V_SgOmpDependClause) )
       {
-        std::map<SgSymbol*, std::vector<std::pair<SgExpression*, SgExpression*> > > array_dimensions;
-        std::map<SgSymbol*, std::vector<std::vector<SgExpression*> > > ptr_shape;
         Rose_STL_Container<SgOmpClause*> depend_clauses = getClause( target, V_SgOmpDependClause );
         bool must_be_fp = false;
         for( Rose_STL_Container<SgOmpClause*>::const_iterator iter_deps = depend_clauses.begin( ); 
@@ -6376,15 +6368,11 @@ int patchUpFirstprivateVariables(SgFile*  file)
         {
           SgOmpDependClause* d_cls = isSgOmpDependClause( *iter_deps );
           ROSE_ASSERT (d_cls != NULL);
-          if( iter_deps == depend_clauses.begin( ) )
-          {    
-            array_dimensions = d_cls->get_array_dimensions( );
-            ptr_shape = d_cls->get_ptr_shape( );
-          }
-          SgVarRefExpPtrList deps = isSgOmpVariablesClause( isSgOmpDependClause( *iter_deps ) )->get_variables( );
-          for( SgVarRefExpPtrList::iterator it_dep = deps.begin( ); it_dep != deps.end( ); it_dep++ )
+          SgExpressionPtrList deps = isSgOmpExpressionsClause( isSgOmpDependClause( *iter_deps ) )->get_expressions( );
+          for( SgExpressionPtrList::iterator it_dep = deps.begin( ); it_dep != deps.end( ); it_dep++ )
           {
-            if( (*it_dep)->get_symbol( ) == var_ref->get_symbol( ) )
+              SgVarRefExp * dep_base_exp = get_dependecy_base_symbol_exp( *it_dep );
+              if( dep_base_exp->get_symbol( ) == var_ref->get_symbol( ) )
                 must_be_fp = true;
           }
         }

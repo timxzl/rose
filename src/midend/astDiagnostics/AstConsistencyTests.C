@@ -3477,6 +3477,17 @@ TestLValues::visit ( SgNode* node )
                                 verifiedLValue = (cond->get_true_exp()->isLValue() && cond->get_false_exp()->isLValue()) && (cond->get_true_exp()->get_type() == cond->get_false_exp()->get_type());
                                 break;
                         }
+                        case V_SgArraySectionExp:          
+                        {
+                            SgArraySectionExp* sectionExp = isSgArraySectionExp(node);
+                            verifiedLValue = (sectionExp->get_base()->isLValue());
+                            break;
+                        }
+                        case V_SgShapeExpression:
+                        {
+                            verifiedLValue = true;
+                            break;
+                        }
                         case V_SgShortVal:               
                         case V_SgCharVal:         
                         case V_SgUnsignedCharVal: 
