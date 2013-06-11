@@ -314,7 +314,7 @@ set(roseBinaryFormats_fileList_part0
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/ExecGeneric.C 
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/ExtentMap.C
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/Hexdump.C
-   ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/MemoryMap.C 
+   ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/MemoryMap.C
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/Rva.C 
 
    ### Generic Base Classes ###
@@ -355,7 +355,7 @@ set(roseBinaryFormats_fileList_part0
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/ExecNE.C 
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryFormats/ExecLE.C 
    )
-
+   
 set(roseBinaryLoader_SRC
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryLoader/BinaryLoader.C
    ${CMAKE_SOURCE_DIR}/src/frontend/BinaryLoader/BinaryLoaderElf.C
@@ -873,9 +873,15 @@ endif (NOT WIN32)
 ### The stringify.h and stringify.C files have prototypes and definitions for functions that convert enum constants
 ### to strings. The add_custom_target is necessary because the add_custom_command only applies to the current directory
 ### (this CMakeList.txt file), but we use these two files when building librose in a higher directory.
+
+find_package(Perl)
+if(NOT PERL_FOUND)
+  message(FATAL_ERROR "Could not find perl.  Perl is needed to generate stringify.C")
+endif()
+
 add_custom_command(
      OUTPUT  ${CMAKE_BINARY_DIR}/src/roseSupport/stringify.C ${CMAKE_BINARY_DIR}/src/roseSupport/stringify.h
-     COMMAND perl ${CMAKE_SOURCE_DIR}/scripts/stringify.pl --header --generic --output=${CMAKE_BINARY_DIR}/src/roseSupport/stringify.C ${CMAKE_SOURCE_DIR}/src ${CMAKE_BINARY_DIR}/src/frontend/SageIII
+     COMMAND ${PERL_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/stringify.pl --header --generic --output=${CMAKE_BINARY_DIR}/src/roseSupport/stringify.C ${CMAKE_SOURCE_DIR}/src ${CMAKE_BINARY_DIR}/src/frontend/SageIII
      #FIXME: This should also depend on all the files that contain enums, but I'm not sure how to do that. [RPM 2010-10-15]
      DEPENDS ${CMAKE_SOURCE_DIR}/scripts/stringify.pl
      )
@@ -910,12 +916,17 @@ add_dependencies(ROSE_DLL OMPPARSER ROSE_PREPROCESSOR edg33 libhpdf generate_str
 
 # tps : independant Components : ROSE, libhpdf
 set(LINK_FILES
-   edg33
 #   PHP_FRONTEND_LIB 
    libhpdf
 #   libdl
    ${CMAKE_DL_LIBS}
 )
+
+if (have_EDG_source OR NOT WIN32)
+  list(APPEND LINK_FILES edg33)
+else()
+  add_definitions(-DUSE_FAKE_EDG)
+endif()
 
 if(enable-fortran)
   list(APPEND LINK_FILES roseFortran)

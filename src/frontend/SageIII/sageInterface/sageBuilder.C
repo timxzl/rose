@@ -5630,7 +5630,7 @@ SgClassDeclaration * SageBuilder::buildClassDeclaration_nfi(const SgName& name, 
        // of source position that would be more precise.  FIXME.
        // setOneSourcePositionNull(nondefdecl);
           setOneSourcePositionForTransformation(nondefdecl);
-          ROSE_ASSERT (nondefdecl->get_startOfConstruct() != __null);
+          ROSE_ASSERT (nondefdecl->get_startOfConstruct() != NULL);
 
           nondefdecl->set_firstNondefiningDeclaration(nondefdecl);
           nondefdecl->set_definingDeclaration(defdecl);
