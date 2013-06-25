@@ -19,6 +19,7 @@ C_TESTCODES_REQUIRED_TO_PASS = \
 	jacobi.c \
 	alignment.c \
 	array_init.c \
+	array_init_2.c \
 	atomic.c \
 	atoms-2.c \
 	barrier.c \
@@ -41,6 +42,7 @@ C_TESTCODES_REQUIRED_TO_PASS = \
 	falsesharing.c \
 	firstprivate.c \
 	firstPrivateArray.c \
+	firstPrivateArray_2.c \
 	firstlastprivate.c \
 	flush.c \
 	flush_exampleA_21_1c.c \
@@ -112,8 +114,10 @@ C_TESTCODES_REQUIRED_TO_PASS = \
 	subteam2.c \
 	subteam.c \
 	task_array.c \
+	task_array2.c \
 	task_largenumber.c \
 	task_orphaned.c \
+	task_outlining.c \
 	task_untied.c \
 	task_untied2.c \
 	task_untied3.c \
