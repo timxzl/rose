@@ -3640,21 +3640,9 @@ void Unparse_ExprStmt::unparseArraySectionExp(SgExpression* expr, SgUnparse_Info
     SgArraySectionExp* array_section = isSgArraySectionExp( expr );
     ROSE_ASSERT( array_section );
     
-    // Unparse the base
-    SgExpression* base = array_section->get_base( );
-    unparseExpression(base, info);
-    
-    // Unparse the section
-    SgExpressionPtrList lbs = array_section->get_lower_bound_list( )->get_expressions();
-    SgExpressionPtrList lengths = array_section->get_length_list( )->get_expressions();
-    SgExpressionPtrList::iterator it1 = lbs.begin( );
-    SgExpressionPtrList::iterator it2 = lengths.begin( );
-    for( ; it1 != lbs.end( ) && it2 != lengths.end( ); it1++, it2++ )
-    {
-        curprint(string("["));
-        unparseExpression(*it1, info);
-        curprint(string(":"));
-        unparseExpression(*it2, info);
-        curprint(string("]"));
-    }
+    SgExpression* lb = array_section->get_lower_bound( );
+    SgExpression* length = array_section->get_length( );
+    unparseExpression(lb, info);
+    curprint(string(":"));
+    unparseExpression(length, info);
 }

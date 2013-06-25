@@ -1995,11 +1995,9 @@ Grammar::setUpExpressions ()
   // Sara Royuela (6/5/13): C++ expression extensions
      ArraySectionExp.setFunctionPrototype ( "HEADER_ARRAY_SECTION_EXP","../Grammar/Expression.code" );
      ArraySectionExp.setFunctionSource    ( "SOURCE_ARRAY_SECTION_EXP","../Grammar/Expression.code" );
-     ArraySectionExp.setDataPrototype     ( "SgExprListExp*", "lower_bound_list", "= NULL",
+     ArraySectionExp.setDataPrototype     ( "SgExpression*", "lower_bound", "= NULL",
                                             CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, DEF_TRAVERSAL, NO_DELETE);
-     ArraySectionExp.setDataPrototype     ( "SgExprListExp*", "length_list"     , "= NULL",
-                                            CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, DEF_TRAVERSAL, NO_DELETE);
-     ArraySectionExp.setDataPrototype     ( "SgExpression*" , "base"        , "= NULL",
+     ArraySectionExp.setDataPrototype     ( "SgExpression*", "length"     , "= NULL",
                                             CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, DEF_TRAVERSAL, NO_DELETE);
      
      ShapeExpression.setFunctionPrototype ( "HEADER_SHAPE_EXPRESSION", "../Grammar/Expression.code" );

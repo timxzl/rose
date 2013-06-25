@@ -458,7 +458,7 @@ BUILD_BINARY_PROTO(ShapeExpression)
 #undef BUILD_BINARY_PROTO
 
 //! Build an array section expression
-SgArraySectionExp * buildArraySectionExp(SgExprListExp* lower_bound_list =NULL, SgExprListExp* length_list =NULL, SgExpression* base =NULL);
+SgArraySectionExp * buildArraySectionExp( SgExpression* lower_bound =NULL, SgExpression* length =NULL );
 
 //! Build a conditional expression ?:
 SgConditionalExp * buildConditionalExp(SgExpression* test =NULL, SgExpression* a =NULL, SgExpression* b =NULL);

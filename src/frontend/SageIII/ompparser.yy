@@ -77,11 +77,11 @@ static SgExpression* upper_exp = NULL;
 
 // support for array sections and shaping expressions in omp task depend clauses
 static SgExpression* length_exp = NULL;
-static SgExpression* section_base_exp = NULL;
 static SgExprListExp* shape_dims = NULL;
-static SgExprListExp* section_lbs = NULL;
-static SgExprListExp* section_lengths = NULL;
-static int array_accessed_dims = 0;
+static SgExpression* array_base = NULL;
+static SgExpression* array_subscript = NULL;
+static SgExpression* section_lb = NULL;
+static SgExpression* section_length = NULL;
 
 %}
 
@@ -297,6 +297,7 @@ unique_single_clause : COPYPRIVATE {
                          omptype = e_copyprivate; 
                        }
                        '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list =false;}
+                     ;
 
 task_directive : /* #pragma */ OMP TASK {
                    ompattribute = buildOmpAttribute(e_task, gNode, true);
@@ -963,7 +964,7 @@ expression_list : extended_expr
                 ;
 
 extended_expr : shape_expr
-              | array_section { array_accessed_dims = 0; }
+              | array_section
               | ID_EXPRESSION { 
                   current_exp = SageBuilder::buildVarRefExp( (const char*)($1), SageInterface::getScope(gNode) );
                   addExpToList( current_exp );
@@ -998,73 +999,56 @@ shape_field : '[' additive_expr ']' {
                 shape_dims->append_expression( current_exp );
               }
             ;
-           
+
 array_section : ID_EXPRESSION {
-                  section_base_exp = SageBuilder::buildVarRefExp( (const char*)($1),SageInterface::getScope(gNode) );
-                  SgType* t = section_base_exp->get_type();
+                  array_base = SageBuilder::buildVarRefExp( (const char*)($1),SageInterface::getScope(gNode) );
+                  SgType* t = array_base->get_type();
                   if( isSgPointerType(t)==NULL && isSgArrayType(t)==NULL ) {
                     std::cerr<<"Error. ompparser.yy expects a pointer or array type."<<std::endl;
                     std::cerr<<"while seeing "<<t->class_name()<<std::endl;
                   }
                 } 
                 section_field_seq {
-                  current_exp = SageBuilder::buildArraySectionExp( section_lbs, section_lengths, section_base_exp );
-                  addExpToList( current_exp );
-                  
-                  section_lbs = NULL;
-                  section_lengths = NULL;
-                  section_base_exp = NULL;
+                  assert( array_base != NULL );
+                  addExpToList( array_base );
                 }
               ;
-                 
+
 section_field_seq : section_field
                   | section_field_seq section_field
                   ;
-                          
+
 section_field : '[' unary_expr_opt {
-                      lower_exp = current_exp;
-                      if( lower_exp == NULL ) {
-                        lower_exp = SageBuilder::buildIntVal( 0 ); 
-                      } else {
-                        SgType* t = lower_exp->get_type();
-                        if( !isSgTypeUnsignedInt( t ) && !isSgTypeInt( t ) ) {
-                          std::cerr<<"Error. ompparser.yy expects an integral expression evaluating to non-negative integer"<<std::endl;
-                          std::cerr<<"while seeing "<<t->class_name()<<std::endl;
-                        }
-                      }
-                      array_accessed_dims++;
+                      section_lb = current_exp;
                     }
                 length_field_opt {
-                  if( section_lbs == NULL ) {
-                    section_lbs = SageBuilder::buildExprListExp( );
-                    section_lengths = SageBuilder::buildExprListExp( );
-                  }
-                  section_lbs->append_expression( lower_exp );
-                  section_lengths->append_expression( length_exp );
+                  array_base = SageBuilder:: buildPntrArrRefExp( array_base, array_subscript );
                 }
               ;
 
 length_field_opt : ']' {
-                     length_exp = SageBuilder::buildIntVal( 1 );
+                     assert( section_lb != NULL );
+                     array_subscript = section_lb;
                    }
                  | ':' unary_expr_opt {
-                         length_exp = current_exp;
-                         if( length_exp == NULL ) {
-                           SgType* t = lower_exp->get_type( );
-                           if( isSgArrayType( t ) == NULL ) {
-                             std::cerr<<"Error. ompparser.yy expects a expression with array type evaluating an array section"<<std::endl;
-                             std::cerr<<"while seeing "<<t->class_name()<<std::endl;
-                           } else {
-                             SgExpressionPtrList dim_info = isSgArrayType( t )->get_dim_info( )->get_expressions( );
-                             length_exp = SageBuilder::buildSubtractOp( dim_info[array_accessed_dims-1], lower_exp );
-                           }
+                         // Check LB and compute if necessary
+                         if( section_lb == NULL ) {
+                           section_lb = SageBuilder::buildIntVal( 0 ); 
                          } else {
-                           SgType* t = length_exp->get_type();
+                           SgType* t = section_lb->get_type();
                            if( !isSgTypeUnsignedInt( t ) && !isSgTypeInt( t ) ) {
                              std::cerr<<"Error. ompparser.yy expects an integral expression evaluating to non-negative integer"<<std::endl;
                              std::cerr<<"while seeing "<<t->class_name()<<std::endl;
                            }
                          }
+                         // Check length and compute if necessary
+                         section_length = current_exp;
+                         SgType* t = section_length->get_type();
+                         if( !isSgTypeUnsignedInt( t ) && !isSgTypeInt( t ) ) {
+                           std::cerr<<"Error. ompparser.yy expects an integral expression evaluating to non-negative integer"<<std::endl;
+                           std::cerr<<"while seeing "<<t->class_name()<<std::endl;
+                         }
+                         array_subscript = SageBuilder::buildArraySectionExp( section_lb, section_length );
                        }
                    ']'
                  ;

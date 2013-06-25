@@ -18,14 +18,12 @@ extern "C" {
 #include <assert.h>
 #include <sys/time.h>
 
+#include "nanos-int.h"
+
 // return the current time stamp in a double floating point number
 extern double xomp_time_stamp(void);
 extern int env_region_instr_val; // save the environment variable value for instrumentation support
 //e.g. export XOMP_REGION_INSTR=0|1
-
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-#include "nanos-int.h"
-#endif
 
 //enum omp_rtl_enum {
 //  e_gomp,

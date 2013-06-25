@@ -4550,6 +4550,7 @@ int SgProject::link ( const std::vector<std::string>& argv, std::string linkerNa
            linkingCommand.push_back("-lnanox-omp");
            linkingCommand.push_back("-lnanox-c");
            linkingCommand.push_back("-lnanox-ss");
+           linkingCommand.push_back("-lnanox-opencl-api");
     #else
       printf("Warning: OpenMP lowering is requested but no target runtime library is specified!\n");
     #endif

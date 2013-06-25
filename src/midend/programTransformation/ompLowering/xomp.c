@@ -22,9 +22,9 @@
 #endif
 
 // avoid include omp.h 
-#include <omp.h>
-// extern int omp_get_thread_num(void);
-// extern int omp_get_num_threads(void);
+// #include <omp.h>
+extern int omp_get_thread_num(void);
+extern int omp_get_num_threads(void);
 
 #include <stdlib.h> // for getenv(), malloc(), etc
 #include <stdio.h> // for getenv(), file

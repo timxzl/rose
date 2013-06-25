@@ -179,7 +179,7 @@ void NANOS_task( void ( * func ) ( void * ), void *data,
         nanos_data_access_t dep = { deps_data[i], flags, deps_n_dims[i], deps_dims[i], deps_offset[i] };
         dependences[i] = dep;
     }
-        
+    
     // Create the Device descriptor (at the moment, only SMP is supported)
     nanos_smp_args_t _smp_args = { func };
     char * task_name; 
@@ -189,14 +189,14 @@ void NANOS_task( void ( * func ) ( void * ), void *data,
             !untied,    // tied 
             0, 0, 0, 0, 0, 0 },                     // properties 
         ( *get_data_align )( ),                     // data alignment
-          num_copies, num_devices, num_dimensions,                            
+          num_copies, num_devices, num_dimensions,
           task_name                                 // description
         }, 
         { { &nanos_smp_factory,                     // device description
             &_smp_args }                            // outlined function
         }
     };
-
+    
     // Compute properties of the WD: mandatory creation, priority, tiedness, real-time info and copy declarations
     nanos_wd_dyn_props_t dyn_props;
     dyn_props.tie_to = 0;

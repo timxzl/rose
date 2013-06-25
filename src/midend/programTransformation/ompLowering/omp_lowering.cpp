@@ -1068,15 +1068,15 @@ void get_dependency_clauses( SgOmpTaskStatement * task, SgExprListExp * & depend
             
             SgExpression * dep_direction;
             if( depend_operator == SgOmpClause::e_omp_depend_in )
-            {    
+            {
                 dep_direction = buildIntVal( e_dep_dir_in );
             }
             else if( depend_operator == SgOmpClause::e_omp_depend_out )
-            {    
+            {
                 dep_direction = buildIntVal( e_dep_dir_out );
             }
             else if( depend_operator == SgOmpClause::e_omp_depend_inout )
-            {      
+            {
                 dep_direction = buildIntVal( e_dep_dir_inout );
             }
             else 
@@ -1098,21 +1098,15 @@ void get_dependency_clauses( SgOmpTaskStatement * task, SgExprListExp * & depend
 
 static SgVarRefExp * get_dependecy_base_symbol_exp( SgExpression * dep_expr )
 {
-    SgVarRefExp * result;
+    SgExpression * result_tmp = dep_expr;
+    if( isSgShapeExpression( result_tmp ) )
+        result_tmp = isSgShapeExpression( result_tmp )->get_rhs_operand( );
     
-    if( isSgShapeExpression( dep_expr ) )
+    while( isSgPntrArrRefExp( result_tmp ) )
     {
-        result = isSgVarRefExp( isSgShapeExpression( dep_expr )->get_rhs_operand( ) );
+        result_tmp = isSgPntrArrRefExp( result_tmp )->get_lhs_operand( );
     }
-    else if( isSgArraySectionExp( dep_expr ) )
-    {
-        result = isSgVarRefExp( isSgArraySectionExp( dep_expr )->get_base( ) );
-    }
-    else
-    {
-        result = isSgVarRefExp( dep_expr );
-    }
-    
+    SgVarRefExp * result = isSgVarRefExp( result_tmp );
     ROSE_ASSERT( result != NULL );
     
     return result;
@@ -1181,186 +1175,133 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
     // Create the 'nanos_region_dimension_t' in the Global scope, so it is only created once
     SgType * region_dim_type = buildOpaqueType( "nanos_region_dimension_t", getGlobalScope( task ) );
     
-    int n_deps = 0;
-    SgExpressionPtrList dependences_exprs = dependences_data->get_expressions( );
-    for(SgExpressionPtrList::iterator dep = dependences_exprs.begin( ); dep != dependences_exprs.end( ); dep++ )
+    unsigned int n_deps = 0;
+    SgExpressionPtrList dependency_exprs = dependences_data->get_expressions( );
+    for(SgExpressionPtrList::iterator dep = dependency_exprs.begin( ); dep != dependency_exprs.end( ); dep++ )
     {
         // Get the current dependence dimensions characteristics: size, lower bound, upper bound, length
         SgExpression* dep_exp = *dep;
-        SgType * dep_type = dep_exp->get_type( );
-        SgType * dim_base_type;
-        SgExpression * dim_size, * lower_bound, * length;
-        int n_dims = 1;
         SgExprListExp * dep_dims_initializers = buildExprListExp( );
-        if( isSgArrayType( dep_type ) )
+        
+        // Get the list of array access, if exist
+        SgExprListExp * array_accesses_l = buildExprListExp( );
+        SgExpression * dep_exp_tmp = dep_exp;
+        while( isSgPntrArrRefExp( dep_exp_tmp ) )
         {
-            if( isSgArraySectionExp( dep_exp ) )
+            array_accesses_l->prepend_expression( isSgPntrArrRefExp( dep_exp_tmp )->get_rhs_operand( ) );
+            dep_exp_tmp = isSgPntrArrRefExp( dep_exp_tmp )->get_lhs_operand( );
+        }
+        
+        // Get the size of dimensions, if exist
+        SgExprListExp * array_dims_l = buildExprListExp( );
+        unsigned int n_dims = 0;
+        if( isSgShapeExpression( dep_exp ) )
+        {
+            array_dims_l = isSgExprListExp( isSgShapeExpression( dep_exp )->get_lhs_operand( ) );
+            n_dims = array_dims_l->get_expressions( ).size( );
+        }
+        // After reshaping, we can have array type with the
+        {
+            SgVariableSymbol * base_sym = get_dependecy_base_symbol_exp( *dep )->get_symbol( );
+            SgType * dep_type_tmp = base_sym->get_type( )->stripType( SgType::STRIP_POINTER_TYPE | SgType::STRIP_TYPEDEF_TYPE );
+            while( isSgArrayType( dep_type_tmp ) )
             {
-                SgType * last_dim_type = dep_type;
-                
-                dim_base_type = isSgArrayType( dep_type )->get_base_type( );
-                SgExpressionPtrList lower_bound_list = isSgArraySectionExp( dep_exp )->get_lower_bound_list( )->get_expressions( );
-                SgExpressionPtrList length_list = isSgArraySectionExp( dep_exp )->get_length_list( )->get_expressions( );
-                while( isSgArrayType( dim_base_type ) )
-                {
-                    // Compute current dependency dimension data
-                    if( lower_bound_list.size( ) >= n_dims )
-                    {   // A section is defined for the current dimension
-                        lower_bound = lower_bound_list[n_dims - 1];
-                        length = length_list[n_dims - 1];
-                    }
-                    else
-                    {   // If no section defined, then the whole dimension is a dependency
-                        lower_bound = buildIntVal( 0 );
-                        length = buildSubtractOp( isSgArrayType( dim_base_type )->get_index( ), buildIntVal( 1 ) );
-                    }
-                    dim_size = isSgArrayType( last_dim_type )->get_index( );
-            
-                    // Dimensions other thant the least significant one are expressed in units
-                    dep_dims_initializers->prepend_expression( buildAggregateInitializer (
-                            buildExprListExp( buildAssignInitializer( dim_size ), 
-                            buildAssignInitializer( lower_bound ), 
-                            buildAssignInitializer( length ) ) ) );
-                
-                    n_dims++;
-                    
-                    // Keep iterating
-                    last_dim_type = dim_base_type;
-                    dim_base_type = isSgArrayType( dim_base_type )->get_base_type( );
-                }
-            
-                // Compute current dependency dimension data
-                if( lower_bound_list.size( ) >= n_dims )
-                {   // A section is defined for the current dimension
-                    lower_bound = lower_bound_list[n_dims - 1];
-                    length = length_list[n_dims - 1];
-                }
-                else
-                {   // If no section defined, then the whole dimension is a dependency
-                    lower_bound = buildIntVal( 0 );
-                    length = buildSubtractOp( isSgArrayType( dim_base_type )->get_index( ), buildIntVal( 1 ) );
-                }
-                dim_size = isSgArrayType( last_dim_type )->get_index( );
-            
-                // Least sifgnificant dimension (the contiguous one) must be expressed in bytes
-                dep_dims_initializers->prepend_expression( buildAggregateInitializer (
-                        buildExprListExp( buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), dim_size ) ), 
-                                          buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), lower_bound ) ),
-                                          buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), length ) ) ) ) );
+                n_dims++;
+                array_dims_l->append_expression( isSgArrayType( dep_type_tmp )->get_index( ) );
+                dep_type_tmp = isSgArrayType( dep_type_tmp )->get_base_type( );
             }
-            else
+            if( isSgPointerType( dep_type_tmp ) )
             {
-                std::cerr << "TODO: array dependencies without element access" << std::endl;
+                std::cerr << "Dependencies in a variable of pointer type without specifying a size are not supported" << std::endl;
                 ROSE_ABORT( );
             }
         }
-        else if( isSgPointerType( dep_type ) )
+        
+        SgExpressionPtrList array_accesses = array_accesses_l->get_expressions( );
+        SgExpressionPtrList array_dims = array_dims_l->get_expressions( );
+        if( array_dims.size( ) < array_accesses.size( ) )
         {
-            SgExpression* dep_exp = *dep;
-            if( isSgShapeExpression( dep_exp ) )
+            for( unsigned int i = array_dims.size( ); i < array_accesses.size(); ++i )
             {
-                SgExpressionPtrList shape_list = isSgExprListExp( isSgShapeExpression( dep_exp )->get_lhs_operand( ) )->get_expressions( ); 
-                n_dims = shape_list.size( );
-                int i = 0;
-                for( ; i < n_dims - 1; ++i )
+                SgExpression * access = array_accesses[array_accesses.size() - i];
+                SgExpression * dim_size;
+                if( isSgArraySectionExp( access ) )
                 {
-                    lower_bound = buildIntVal( 0 );
-                    length = shape_list[i];
-                    dim_size = shape_list[i];
-                    
-                    // Dimensions other thant the least significant one are expressed in units
-                    dep_dims_initializers->prepend_expression( buildAggregateInitializer (
-                            buildExprListExp( buildAssignInitializer( dim_size ), 
-                                              buildAssignInitializer( lower_bound ), 
-                                              buildAssignInitializer( length ) ) ) );
+                    dim_size = isSgArraySectionExp( access )->get_length( );
                 }
-                
-                lower_bound = buildIntVal( 0 );
-                length = shape_list[i];
-                dim_size = shape_list[i];
-                dim_base_type = dep_type->stripType( SgType::STRIP_POINTER_TYPE );
-                
-                // Least sifgnificant dimension (the contiguous one) must be expressed in bytes
-                dep_dims_initializers->prepend_expression( buildAggregateInitializer (
-                        buildExprListExp( buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), dim_size ) ), 
-                                          buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), lower_bound ) ),
-                                          buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), length ) ) ) ) );
-            }
-            else if( isSgArraySectionExp( dep_exp ) )
-            {
-                SgExpressionPtrList lower_bound_list = isSgArraySectionExp( dep_exp )->get_lower_bound_list( )->get_expressions( );
-                SgExpressionPtrList length_list = isSgArraySectionExp( dep_exp )->get_length_list( )->get_expressions( );
-                n_dims = lower_bound_list.size( );
-                SgType * last_dim_type = dep_type;
-                int i = 0;
-                for( ; i < n_dims- 1; ++i )
-                {
-                    lower_bound = lower_bound_list[i];
-                    length = length_list[i];
-                    // Check for array type hidden in pointer types:
-                    // float (*c1)[SIZE] = calloc(sizeof(float), SIZE * SIZE);
-                    if( isSgArrayType( last_dim_type ) )
-                    {    
-                        dim_size = isSgArrayType( last_dim_type )->get_index( );
-                        last_dim_type = isSgArrayType( last_dim_type )->get_base_type( );
-                    }
-                    else
-                    {    
-                        dim_size = SageInterface::copyExpression( length );
-                        last_dim_type = isSgPointerType( last_dim_type )->get_base_type( );
-                    }
-                    
-                        // Dimensions other thant the least significant one are expressed in units
-                    dep_dims_initializers->prepend_expression( buildAggregateInitializer (
-                            buildExprListExp( buildAssignInitializer( dim_size ), 
-                                              buildAssignInitializer( lower_bound ), 
-                                              buildAssignInitializer( length ) ) ) );
-                }
-                
-                lower_bound = lower_bound_list[i];
-                length = length_list[i];
-                if( isSgArrayType( last_dim_type ) )
-                    dim_size = isSgArrayType( last_dim_type )->get_index( );
                 else
-                    dim_size = SageInterface::copyExpression( length );
-                dim_base_type = dep_type->stripType( SgType::STRIP_POINTER_TYPE | SgType::STRIP_ARRAY_TYPE );
-                
-                // Least sifgnificant dimension (the contiguous one) must be expressed in bytes
-                dep_dims_initializers->prepend_expression( buildAggregateInitializer (
-                        buildExprListExp( buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), dim_size ) ), 
-                                          buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), lower_bound ) ),
-                                          buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), length ) ) ) ) );
+                {
+                    dim_size = buildIntVal( 1 );
+                }
+                array_dims_l->prepend_expression( dim_size );
+                n_dims++;
             }
-            else
-            {
-                std::cerr << "TODO: pointer dependencies without shape expression nor array section expression " << std::endl;
-                ROSE_ABORT( );
-//                 dim_base_type = dep_type;
-//                 dim_size = buildSizeOfOp( dim_base_type );
-//                 lower_bound = buildIntVal( 0 );
-//                 length = buildSizeOfOp( dim_base_type );
-//                 dep_dims_initializers->prepend_expression( buildAggregateInitializer (
-//                         buildExprListExp( buildAssignInitializer( dim_size ), 
-//                                           buildAssignInitializer( lower_bound ),
-//                                           buildAssignInitializer( length ) ) ) );
-            }
+            array_dims = array_dims_l->get_expressions( );
         }
-        else
+        else if( array_dims.size( ) > array_accesses.size( ) )
         {
-            dim_base_type = dep_type;
-            // First expression is the dimension size
+            for( unsigned int i = array_accesses.size( ); i < array_dims.size(); ++i )
+            {
+                array_accesses_l->prepend_expression( array_dims[i] );
+            }
+            array_accesses = array_accesses_l->get_expressions( );
+        }
+        ROSE_ASSERT( array_dims.size( ) == array_accesses.size( ) );
+        
+        SgType * dep_base_type = dep_exp->get_type( )->stripType( SgType::STRIP_POINTER_TYPE | SgType::STRIP_ARRAY_TYPE | SgType::STRIP_TYPEDEF_TYPE );
+        SgExpression * dim_size, * lower_bound, * length;
+        if( n_dims == 0 )
+        {
             dim_size =  buildIntVal( 1 );
-            // Second expression is the lower bound
             lower_bound = buildIntVal( 0 );
-            // Third expression is the accessed length
             length = buildIntVal( 1 );
-            // Prepend the current dimension initializers
+            
             dep_dims_initializers->prepend_expression( buildAggregateInitializer( 
                     buildExprListExp( buildAssignInitializer( dim_size ), 
                                       buildAssignInitializer( lower_bound ), 
                                       buildAssignInitializer( length ) ) ) );
         }
-        
+        else
+        {
+            for( unsigned int i = 0; i < n_dims; ++i )
+            {
+                if( i < array_accesses.size( ) )
+                {   // Only the accessed region becomes dependence
+                    SgExpression * current_access = array_accesses[i];
+                    if( isSgArraySectionExp( current_access ) )
+                    {   // A section is defined for the current dimension
+                        lower_bound = isSgArraySectionExp( current_access )->get_lower_bound( );
+                        length = isSgArraySectionExp( current_access )->get_length( );
+                    }
+                    else
+                    {   // Single element access
+                        lower_bound = current_access;
+                        length = buildIntVal( 1 );
+                    }
+                }
+                else
+                {   // No access, the whole dimension is a dependence
+                    lower_bound = buildIntVal( 0 );
+                    length = buildSubtractOp( array_dims[i], buildIntVal( 1 ) );
+                }
+                
+                if( i < n_dims - 1 )
+                {   // Dimensions other thant the least significant one are expressed in units
+                    dep_dims_initializers->prepend_expression( buildAggregateInitializer (
+                            buildExprListExp( buildAssignInitializer( array_dims[i] ), 
+                                            buildAssignInitializer( lower_bound ), 
+                                            buildAssignInitializer( length ) ) ) );
+                }
+                else
+                {   // Least sifgnificant dimension (the contiguous one) must be expressed in bytes
+                    dep_dims_initializers->prepend_expression( buildAggregateInitializer (
+                            buildExprListExp( buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dep_base_type ), array_dims[i] ) ), 
+                                              buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dep_base_type ), lower_bound ) ),
+                                              buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dep_base_type ), length ) ) ) ) );
+                }
+            }
+        }
+
         // Create the actual array with the dependence dimensions information
         SgType * dep_dims_type = buildArrayType( region_dim_type, buildIntVal( n_dims ) );
         SgInitializer * dep_dims_initializers_array = buildAggregateInitializer( dep_dims_initializers, dep_dims_type );
@@ -1374,7 +1315,7 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
         
         // TODO Calculate the offset of the current dependency
         offsets_initializers->append_expression( 
-                buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dim_base_type ), lower_bound ) ) );
+                buildAssignInitializer( buildMultiplyOp( buildSizeOfOp( dep_base_type ), lower_bound ) ) );
         
         n_deps++;
     }
@@ -5595,7 +5536,7 @@ static void insertInnerThreadBlockReduction(SgOmpClause::omp_reduction_operator_
        vvt.push_back(V_SgOmpReductionClause);
 
       //TODO: No such concept of firstprivate and lastprivate in accelerator model??
-       if (!isAcceleratorModel) // we actually already has enable_accelerator, but it is too global for handling both CPU and GPU translation
+       if (isAcceleratorModel != '1') // we actually already has enable_accelerator, but it is too global for handling both CPU and GPU translation
        {
          vvt.push_back(V_SgOmpFirstprivateClause);
          vvt.push_back(V_SgOmpLastprivateClause);
@@ -5626,9 +5567,9 @@ static void insertInnerThreadBlockReduction(SgOmpClause::omp_reduction_operator_
       //   int (**M)[10UL] = (int (**)[10UL])(&(((struct OUT__17__7038___data *)__out_argv) -> M));
       //   (*M)[0][0] = 4;
       // }
-      if (isInClauseVariableList(orig_var, clause_stmt, vvt))
+      if (isInClauseVariableList(orig_var, clause_stmt, vvt) )
       {
-        if( !(isSgArrayType(orig_type) && isSgFunctionDefinition (orig_var->get_scope ())) )
+        if( !(isSgArrayType(orig_type) && isSgFunctionDefinition( orig_var->get_scope( ) ) ) )
         {
           SgInitializer * init = NULL;
           // use copy constructor for firstprivate on C++ class object variables
@@ -6197,6 +6138,21 @@ static void insertInnerThreadBlockReduction(SgOmpClause::omp_reduction_operator_
     return result;
   } // end isSharedInEnclosingConstructs()
 
+static bool expression_contains_array_section( SgExpression * expr )
+{
+    bool res = false;
+    
+    SgExpression * expr_tmp = expr;
+    while( isSgPntrArrRefExp( expr_tmp  ) && !res )
+    {
+        expr_tmp = isSgPntrArrRefExp( expr_tmp )->get_rhs_operand( );
+        if( isSgArraySectionExp( expr_tmp ) )
+            res = true;
+    }
+    
+    return res;
+}
+
 //! Patch up firstprivate variables for omp task. The reason is that the specification 3.0 defines rules for implicitly determined data-sharing attributes and this function will make the implicit firstprivate variable of omp task explicit.
 /*
 variables used in task block: 
@@ -6372,7 +6328,8 @@ int patchUpFirstprivateVariables(SgFile*  file)
           for( SgExpressionPtrList::iterator it_dep = deps.begin( ); it_dep != deps.end( ); it_dep++ )
           {
               SgVarRefExp * dep_base_exp = get_dependecy_base_symbol_exp( *it_dep );
-              if( dep_base_exp->get_symbol( ) == var_ref->get_symbol( ) )
+              if( ( dep_base_exp->get_symbol( ) == var_ref->get_symbol( ) ) && 
+                  ( isSgShapeExpression( *it_dep ) || expression_contains_array_section( *it_dep ) ) )
                 must_be_fp = true;
           }
         }
@@ -6414,7 +6371,7 @@ void lower_omp(SgSourceFile* file)
 #endif
     
   ROSE_ASSERT(file != NULL);
-
+  
   patchUpPrivateVariables(file); // the order of these two functions matter! We want to patch up private variable first!
   patchUpFirstprivateVariables(file);
   // Liao 12/2/2010, Fortran does not require function prototypes

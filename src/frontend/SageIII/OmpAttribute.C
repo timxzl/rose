@@ -381,24 +381,9 @@ namespace OmpSupport
   
   std::vector<SgExpression*> OmpAttribute::getExpressionList(omp_construct_enum targetConstruct)
   {
-      std::vector<SgExpression*> * result = new std::vector<SgExpression*>; 
-      // e_depend is a collective concept, 
-      // There may have multiple depend clauses for different operations.
-      // return all of them. Return special one if e_reduction_operatorX is used
       if( targetConstruct==e_depend_in || targetConstruct==e_depend_out || targetConstruct==e_depend_inout )
       {
-          std::vector<omp_construct_enum> ops = getDependVariants( );
-          std::vector<omp_construct_enum>::iterator iter = ops.begin( );
-          for( ; iter != ops.end( ); iter++ ) // for each reduction operator
-          { 
-              omp_construct_enum operation = *iter;
-              assert( isDependVariant( operation ) );
-              std::vector<SgExpression*> temp = expressions_list[operation];
-              std::vector<SgExpression*>::iterator iter2 = temp.begin();
-              for( ; iter2 != temp.end(); iter2++ )
-                  result->push_back( *iter2 );
-          }  
-          return *result;
+          return expressions_list[targetConstruct];
       } 
       else
       {
@@ -406,7 +391,6 @@ namespace OmpSupport
               <<toOpenMPString(targetConstruct)<<endl;
           ROSE_ABORT();
       }
-      return *result;
   }
     
   // default () value

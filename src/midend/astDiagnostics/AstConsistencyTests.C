@@ -3477,15 +3477,10 @@ TestLValues::visit ( SgNode* node )
                                 verifiedLValue = (cond->get_true_exp()->isLValue() && cond->get_false_exp()->isLValue()) && (cond->get_true_exp()->get_type() == cond->get_false_exp()->get_type());
                                 break;
                         }
-                        case V_SgArraySectionExp:          
-                        {
-                            SgArraySectionExp* sectionExp = isSgArraySectionExp(node);
-                            verifiedLValue = (sectionExp->get_base()->isLValue());
-                            break;
-                        }
                         case V_SgShapeExpression:
                         {
-                            verifiedLValue = true;
+                            SgShapeExpression* shapeExp = isSgShapeExpression(node);
+                            verifiedLValue = (shapeExp->get_rhs_operand()->isLValue());
                             break;
                         }
                         case V_SgShortVal:               
@@ -3573,6 +3568,7 @@ TestLValues::visit ( SgNode* node )
                         case V_SgPseudoDestructorRefExp:                    
                         case V_SgCudaKernelCallExp:   
                         case V_SgCudaKernelExecConfig: 
+                        case V_SgArraySectionExp:
                                 break;
                         /*UseRenameExpression*/
                         /*UseOnlyExpression*/ 
