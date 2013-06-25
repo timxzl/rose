@@ -43,9 +43,10 @@ C_TESTCODES_REQUIRED_TO_COMPILE = \
 	staticChunk.c \
 	task_orphaned.c \
 	task_underIf.c \
+	task_array.c \
+	task_array2.c \
 	task_wait.c \
 	task_wait2.c \
-	task_array2.c \
 	task_untied4.c \
 	twoRegions.c
 else
@@ -54,6 +55,7 @@ else
 	dynamicChunk.c \
 	endif.c \
 	endif3.c \
+	firstPrivateArray.c \
 	full_verify.c \
 	init.c \
 	lastprivateOrphaned.c \
@@ -69,9 +71,10 @@ else
 	staticChunk.c \
 	task_orphaned.c \
 	task_underIf.c \
+	task_array.c \
+	task_array2.c \
 	task_wait.c \
 	task_wait2.c \
-	task_array2.c \
 	task_untied4.c \
 	twoRegions.c
 endif
