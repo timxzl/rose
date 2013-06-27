@@ -4054,7 +4054,7 @@ SgFile::compileOutput ( vector<string>& argv, int fileNameIndex )
                   if (itInput != compilerCmdLine.end()) {
                           itInput++;
                           string destDirName = *itInput;
-                          if(mkdir(destDirName.c_str(),0777) == -1) {
+                          if(!boost::filesystem::create_directory(destDirName.c_str())) {
                                   if(errno != EEXIST) {
                                           printf ("Can't create javac destination folder\n");
                                           ROSE_ASSERT(false);
@@ -4550,7 +4550,6 @@ int SgProject::link ( const std::vector<std::string>& argv, std::string linkerNa
            linkingCommand.push_back("-lnanox-omp");
            linkingCommand.push_back("-lnanox-c");
            linkingCommand.push_back("-lnanox-ss");
-           linkingCommand.push_back("-lnanox-opencl-api");
     #else
       printf("Warning: OpenMP lowering is requested but no target runtime library is specified!\n");
     #endif

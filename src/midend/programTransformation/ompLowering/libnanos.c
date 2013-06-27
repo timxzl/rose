@@ -482,13 +482,17 @@ int NANOS_get_num_threads( void )
 void NANOS_reduction( int n_reductions,
                       void ( ** all_threads_reduction )( void * out, void * in, int num_scalars ),
                       void ( ** init_thread_reduction_array )( void **, void ** ),
-                      void ( * single_thread_reduction )( void *, int ), void * single_thread_data,
+                      void ( * single_thread_reduction )( void * ), void * single_thread_data,
                       void *** global_th_data, void ** global_data, long * global_data_size, int num_scalars,
                       const char * filename, int fileline )
 {
     nanos_err_t err;
     
-    if( NANOS_single( ) )
+    bool red_single_guard;
+    err = nanos_enter_sync_init( &red_single_guard );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
+    if( red_single_guard )
     {
         int nanos_n_threads = nanos_omp_get_num_threads( );
         
@@ -505,8 +509,8 @@ void NANOS_reduction( int n_reductions,
             if( err != NANOS_OK )
                 nanos_handle_error( err );
             ( *result ).descriptor = ( *result ).privates;
-            ( * ( init_thread_reduction_array[i] ) )( global_th_data[i], &( *result ).privates );
             ( *result).vop = 0;
+            ( * ( init_thread_reduction_array[i] ) )( global_th_data[i], &( *result ).privates );
             ( *result ).bop = ( void ( * )( void *, void *, int ) ) all_threads_reduction[i];
             ( *result ).element_size = global_data_size[i];
             ( *result ).num_scalars = num_scalars;
@@ -538,7 +542,7 @@ void NANOS_reduction( int n_reductions,
         }
     }
     
-    ( * single_thread_reduction )( single_thread_data, 0 );
+    ( * single_thread_reduction )( single_thread_data );
 }
 
 // *************************** END Nanos Reduction methods **************************** //

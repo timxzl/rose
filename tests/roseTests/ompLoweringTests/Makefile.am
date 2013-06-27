@@ -229,7 +229,8 @@ endif
 
 # C++ test codes which can only be compiled
 CXX_TESTCODES_REQUIRED_TO_COMPILE = \
-	memberFunction.cpp 
+	memberFunction.cpp \
+	memberFunction2.cpp
 
 # C++ test codes which can be compiled and linked to final executables
 # Following tests fail with Nanos: helloNested.cpp, objectLastprivate.cpp

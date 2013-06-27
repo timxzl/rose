@@ -1860,7 +1860,7 @@ void XOMP_atomic_for_NANOS(int op, int type, void * variable, void * operand)
 
 void XOMP_reduction_for_NANOS( int n_reductions, void ( ** all_threads_reduction )( void * out, void * in, int num_scalars ),
                                void ( ** init_thread_reduction_array )( void **, void ** ),
-                               void ( * single_thread_reduction )( void *, int ), void * single_thread_data,
+                               void ( * single_thread_reduction )( void * ), void * single_thread_data,
                                void *** global_th_data, void ** global_data, long * global_data_size, int num_scalars,
                                const char * filename, int fileline )
 {

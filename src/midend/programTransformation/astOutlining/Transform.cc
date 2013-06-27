@@ -703,15 +703,19 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
           {
               member_name = member_name+"_p";
               // member_type = buildPointerType(member_type);
-              //rhs = buildAddressOfOp(rhs); 
-              rhs = buildCastExp( buildAddressOfOp(rhs), buildPointerType(buildVoidType()));
+              rhs = buildAddressOfOp(rhs); 
           }
       }
 
       lhs = buildDotExp ( buildVarRefExp(out_argv), buildVarRefExp (member_name, class_def));
       
-
       SgType * lhs_type = lhs->get_type()->stripType( SgType::STRIP_TYPEDEF_TYPE );
+      if( pdsyms.find(i_symbol) != pdsyms.end() )   // only pointer members with type void* need cast
+      {
+        if( isSgPointerType( lhs_type) != NULL )
+            if( isSgTypeVoid( isSgPointerType( lhs_type )->get_base_type( ) ) != NULL )
+                rhs = buildCastExp( rhs, buildPointerType(buildVoidType())); 
+      }
       if( pdsyms.find(i_symbol) == pdsyms.end() && isSgArrayType( lhs_type ) )
       {   // Copy each position of the array
           assignment = build_array_packing_statement( lhs, rhs, target );

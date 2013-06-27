@@ -286,7 +286,7 @@ if (WIN32)
 # /MP multiple processors compilation
 # /0s small files
 set( CMAKE_BUILD_TYPE Release )
-set( CMAKE_CXX_FLAGS " /TP /MP /O1 /Os /GR- /EHsc /wd4541 " )
+set( CMAKE_CXX_FLAGS " /TP /MP /O1 /Os /GR /EHsc /wd4541 " )
 set( CMAKE_C_FLAGS "   /wd4541 " )
 set( CMAKE_SHARED_LINKER_FLAGS_DEBUG " ${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO" )
 set( CMAKE_SHARED_LINKER_FLAGS_RELEASE " ${CMAKE_SHARED_LINKER_FLAGS_RELEASE} /INCREMENTAL:NO" )
@@ -369,6 +369,8 @@ endif()
 
 option(enable-java "Enable Java support in ROSE." ON)
 if (enable-java)
+  message(Status "Looking for JAVA ...")
+  include(FindJava)
   find_package(JNI)
   add_definitions(-DROSE_BUILD_JAVA_LANGUAGE_SUPPORT)
 endif()
@@ -560,9 +562,6 @@ include(FindOpenSSL)
 include(FindSQLITE3)
 endif (NOT WIN32)
 
-message(Status "Looking for JAVA ...")
-include(FindJava)
-
 message(Status "Looking for flex ...")
 find_package(FLEX)
 if(NOT FLEX_FOUND)
@@ -727,13 +726,57 @@ include_directories(${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES} )
 message(Status "Enabling QT ...")
 set(QT_INCLUDES ${ROSE_INCLUDES} ${Boost_INCLUDE_DIRS} )
 
+# Set default output paths for libraries and directories.
+# This causes all the libraries to be built into a single lib directory,
+# and all the executables to be built into a single bin directory.
+# If these variables are not set, then by default the targets will be
+# littered throughout the binary directory, matching the structure of
+# the source directory.
+#
+# Organizing the output of the build directory this way is important
+# when building on Windows.  By default, Windows .exes do not know where
+# to find their required .dlls.  The easiest way to overcome this problem
+# is by placing the .exe and all its dependent .dlls in the same directory.
+# We accomplish this with CMake by setting CMAKE_RUNTIME_OUTPUT_DIRECTORY.
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 add_subdirectory(config)
 add_subdirectory(src)
 add_subdirectory(tests)
 
 enable_testing()
 
-#TODO: support for other compilers & operating systems
+# Copy CTestCustom.cmake into the binary directory.
+# This file tells CTest to ignore some output that it otherwise
+# considers compilation errors.
+configure_file(
+  cmake/CTestCustom.cmake.in
+  ${CMAKE_BINARY_DIR}/CTestCustom.cmake
+  @ONLY)
+
+#TODO: better support for other compilers & operating systems
+set(C_INCLUDE_STRING
+  "{\"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs\",  \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs1\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs2\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs3\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs4\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs5\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs6\", \\
+  \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs7\"")
+set(CXX_INCLUDE_STRING
+  "{\"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs\",  \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs1\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs2\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs3\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs4\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs5\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs6\", \\
+  \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs7\"")
 find_program(shell sh)
 if(shell AND CMAKE_COMPILER_IS_GNUCXX)
   execute_process(
@@ -747,38 +790,40 @@ if(shell AND CMAKE_COMPILER_IS_GNUCXX)
   string(REPLACE "\n" ";" C_backend_includes "${C_backend_includes}")
   string(REPLACE "\n" ";" CXX_backend_includes "${CXX_backend_includes}")
 
-  set(C_INCLUDE_STRING
-    "{\"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS\", \\
-    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs\",  \\
-    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs1\", \\
-    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs2\", \\
-    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs3\", \\
-    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs4\", \\
-    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs5\", \\
-    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs6\", \\
-    \"${BACKEND_C_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs7\"")
   foreach(C_include_dir ${C_backend_includes})
     string(STRIP "${C_include_dir}" C_include_dir)
     set(C_INCLUDE_STRING "${C_INCLUDE_STRING}, \"${C_include_dir}\"")
   endforeach()
-  set(C_INCLUDE_STRING "${C_INCLUDE_STRING}}")
 
-  set(CXX_INCLUDE_STRING
-    "{\"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS\", \\
-    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs\",  \\
-    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs1\", \\
-    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs2\", \\
-    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs3\", \\
-    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs4\", \\
-    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs5\", \\
-    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs6\", \\
-    \"${BACKEND_CXX_COMPILER_NAME_WITHOUT_PATH}_HEADERS/hdrs7\"")
   foreach(CXX_include_dir ${CXX_backend_includes})
     string(STRIP "${CXX_include_dir}" CXX_include_dir)
     set(CXX_INCLUDE_STRING "${CXX_INCLUDE_STRING}, \"${CXX_include_dir}\"")
   endforeach()
-  set(CXX_INCLUDE_STRING "${CXX_INCLUDE_STRING}}")
+
+  # In the Autools build system, ROSE stores compiler specific headers in two
+  # distinct locations:
+  #    In the build tree, the directory is named $ROSE_BUILD/include-staging
+  #    In the installation tree, the directory is named $ROSE_INSTALL/include
+  # During make-install, the content of $ROSE_BUILD/include-staging is simply
+  # copied over into $ROSE_INSTALL/include.
+  #
+  # If a ROSE translator is detected as being run from the build tree, then the
+  # associated header file include paths are added to the translator's command
+  # line, e.g. <translator> -I$ROSE_BUILD/include-staging/<path>. Similarly, if
+  # the ROSE translator is detected as being run from the install tree, the
+  # command line will contain the associated paths in the installation
+  # location, e.g. -I$ROSE_INSTALL/include/<path>
+  #
+  # The setup of CMake for ROSE, on the other hand, does not make this
+  # distinction. Instead, the CMake system utilizes a single directory
+  # $ROSE_CMAKE_BIN/include for the same purpose.
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+    ${CMAKE_BINARY_DIR}/include-staging ${CMAKE_BINARY_DIR}/include
+  )
 endif()
+set(C_INCLUDE_STRING "${C_INCLUDE_STRING}}")
+set(CXX_INCLUDE_STRING "${CXX_INCLUDE_STRING}}")
 
 # ------------------------- Private Configuration File ----------------------------
 # The rose_config.h file contains CPP macros describing what features were detected

@@ -15,6 +15,12 @@
 #include "rose_config.h"    // For task clauses rules
 #include "sageBuilder.h"
 #include "OmpAttribute.h"
+
+#ifdef _MSC_VER
+  #undef IN
+  #undef OUT
+#endif
+
 using namespace OmpSupport;
 
 /* Parser - BISON */
