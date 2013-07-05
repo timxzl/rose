@@ -14,7 +14,6 @@ endif()
 if(enable-java)
   add_subdirectory(ECJ_ROSE_Connection)
 endif()
-
 if(enable-python)
   add_subdirectory(PythonFrontend)
 endif()

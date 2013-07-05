@@ -66,12 +66,12 @@ extern std::list<SgScopeStatement*> ScopeStack;
 extern bool symbol_table_case_insensitive_semantics;
 
 //! Public interfaces of the scope stack, should be stable
-void pushScopeStack (SgScopeStatement* stmt);
-void pushScopeStack (SgNode* node);
-void popScopeStack();
-SgScopeStatement* topScopeStack() ;
-bool emptyScopeStack();
-void clearScopeStack();
+ROSE_DLL_API void pushScopeStack (SgScopeStatement* stmt);
+ROSE_DLL_API void pushScopeStack (SgNode* node);
+ROSE_DLL_API void popScopeStack();
+ROSE_DLL_API SgScopeStatement* topScopeStack() ;
+ROSE_DLL_API bool emptyScopeStack();
+ROSE_DLL_API void clearScopeStack();
    
 //@} 
 
@@ -84,76 +84,76 @@ void clearScopeStack();
 */
 
 //! Built in simple types
-SgTypeBool *  buildBoolType();
-SgTypeChar *  buildCharType();
-SgTypeDouble* buildDoubleType();
-SgTypeFloat*  buildFloatType();
-SgTypeInt *   buildIntType();
-SgTypeLong*    buildLongType();
-SgTypeLongDouble* buildLongDoubleType();
-SgTypeLongLong * buildLongLongType();
-SgTypeShort*    buildShortType();
+ROSE_DLL_API SgTypeBool *  buildBoolType();
+ROSE_DLL_API SgTypeChar *  buildCharType();
+ROSE_DLL_API SgTypeDouble* buildDoubleType();
+ROSE_DLL_API SgTypeFloat*  buildFloatType();
+ROSE_DLL_API SgTypeInt *   buildIntType();
+ROSE_DLL_API SgTypeLong*    buildLongType();
+ROSE_DLL_API SgTypeLongDouble* buildLongDoubleType();
+ROSE_DLL_API SgTypeLongLong * buildLongLongType();
+ROSE_DLL_API SgTypeShort*    buildShortType();
 
 // DQ (8/21/2010): We want to move to the new buildStringType( SgExpression*,size_t) function over the older buildStringType() function.
-SgTypeString* buildStringType();
+ROSE_DLL_API SgTypeString* buildStringType();
 // SgTypeString* buildStringType( SgExpression* stringLengthExpression, size_t stringLengthLiteral );
-SgTypeString* buildStringType( SgExpression* stringLengthExpression );
+ROSE_DLL_API SgTypeString* buildStringType( SgExpression* stringLengthExpression );
 
-SgTypeVoid * buildVoidType();
-SgTypeWchar* buildWcharType();
+ROSE_DLL_API SgTypeVoid * buildVoidType();
+ROSE_DLL_API SgTypeWchar* buildWcharType();
 
-SgTypeSignedChar*  buildSignedCharType();
-SgTypeSignedInt*   buildSignedIntType();
-SgTypeSignedLong*  buildSignedLongType();
-SgTypeSignedLongLong* buildSignedLongLongType();
-SgTypeSignedShort* buildSignedShortType();
+ROSE_DLL_API SgTypeSignedChar*  buildSignedCharType();
+ROSE_DLL_API SgTypeSignedInt*   buildSignedIntType();
+ROSE_DLL_API SgTypeSignedLong*  buildSignedLongType();
+ROSE_DLL_API SgTypeSignedLongLong* buildSignedLongLongType();
+ROSE_DLL_API SgTypeSignedShort* buildSignedShortType();
 
-SgTypeUnsignedChar* buildUnsignedCharType();
-SgTypeUnsignedInt* buildUnsignedIntType();
-SgTypeUnsignedLong*    buildUnsignedLongType();
-SgTypeUnsignedLongLong*    buildUnsignedLongLongType();
-SgTypeUnsignedShort*    buildUnsignedShortType();
-SgTypeUnknown * buildUnknownType();
+ROSE_DLL_API SgTypeUnsignedChar* buildUnsignedCharType();
+ROSE_DLL_API SgTypeUnsignedInt* buildUnsignedIntType();
+ROSE_DLL_API SgTypeUnsignedLong*    buildUnsignedLongType();
+ROSE_DLL_API SgTypeUnsignedLongLong*    buildUnsignedLongLongType();
+ROSE_DLL_API SgTypeUnsignedShort*    buildUnsignedShortType();
+ROSE_DLL_API SgTypeUnknown * buildUnknownType();
 
 //! Build a pointer type
-SgPointerType* buildPointerType(SgType *base_type = NULL);
+ROSE_DLL_API SgPointerType* buildPointerType(SgType *base_type = NULL);
 
 //! Build a reference type
-SgReferenceType* buildReferenceType(SgType *base_type = NULL);
+ROSE_DLL_API SgReferenceType* buildReferenceType(SgType *base_type = NULL);
 
 // Liao, entirely phase out this function ! Build a modifier type with no modifiers set
 //SgModifierType* buildModifierType(SgType *base_type = NULL);
 
 // DQ (7/29/2010): Changed return type from SgType to SgModifierType for a number of the functions below.
 //! Build a modifier type.
-SgModifierType* buildModifierType(SgType* base_type = NULL);
+ROSE_DLL_API SgModifierType* buildModifierType(SgType* base_type = NULL);
 
 //! Build a const type.
-SgModifierType* buildConstType(SgType* base_type = NULL);
+ROSE_DLL_API SgModifierType* buildConstType(SgType* base_type = NULL);
 
 //! Build a volatile type.
-SgModifierType* buildVolatileType(SgType* base_type = NULL);
+ROSE_DLL_API SgModifierType* buildVolatileType(SgType* base_type = NULL);
 
 //! Build a restrict type.
-SgModifierType* buildRestrictType(SgType* base_type);
+ROSE_DLL_API SgModifierType* buildRestrictType(SgType* base_type);
 
 //! Build ArrayType
-SgArrayType* buildArrayType(SgType* base_type=NULL, SgExpression* index=NULL);
+ROSE_DLL_API SgArrayType* buildArrayType(SgType* base_type=NULL, SgExpression* index=NULL);
 
 // DQ (8/27/2010): Added Fortran specific support for types based on kind expressions.
 //! Build a type based on the Fortran kind mechanism
-SgModifierType* buildFortranKindType(SgType* base_type, SgExpression* kindExpression );
+ROSE_DLL_API SgModifierType* buildFortranKindType(SgType* base_type, SgExpression* kindExpression );
 
 //! Build function type from return type and parameter type list
-SgFunctionType * 
+ROSE_DLL_API SgFunctionType * 
 buildFunctionType(SgType* return_type, SgFunctionParameterTypeList * typeList=NULL);
 
 //! Build function type from return type and parameter list
-SgFunctionType * 
+ROSE_DLL_API SgFunctionType * 
 buildFunctionType(SgType* return_type, SgFunctionParameterList * argList=NULL);
 
 // DQ (1/16/2009): Added to support member function in C++ (for new interface)
-SgMemberFunctionType * 
+ROSE_DLL_API SgMemberFunctionType * 
 buildMemberFunctionType(SgType* return_type, SgFunctionParameterTypeList * typeList, SgClassDefinition *struct_name, unsigned int mfunc_specifier);
 
  //! Build an opaque type with a name, useful when a type's details are unknown during transformation, especially for a runtime library's internal type. Must provide scope here. 
@@ -163,36 +163,36 @@ buildMemberFunctionType(SgType* return_type, SgFunctionParameterTypeList * typeL
   * The translation-generated code is expected to include the runtime library's headers to 
   * have the real type declarations. 
   */
-SgType* buildOpaqueType(std::string const type_name, SgScopeStatement * scope);
+ROSE_DLL_API SgType* buildOpaqueType(std::string const type_name, SgScopeStatement * scope);
 
 // DQ (7/29/2010): Changed return type from SgType to SgModifierType for a number of the functions below.
 //! Build a UPC strict type
-SgModifierType* buildUpcStrictType(SgType *base_type = NULL);
+ROSE_DLL_API SgModifierType* buildUpcStrictType(SgType *base_type = NULL);
 
 //! Build a UPC relaxed type
-SgModifierType* buildUpcRelaxedType(SgType *base_type = NULL);
+ROSE_DLL_API SgModifierType* buildUpcRelaxedType(SgType *base_type = NULL);
 
 //! Build a UPC shared type
 // SgModifierType* buildUpcSharedType(SgType *base_type = NULL);
-SgModifierType* buildUpcSharedType(SgType *base_type = NULL, long layout = -1);
+ROSE_DLL_API SgModifierType* buildUpcSharedType(SgType *base_type = NULL, long layout = -1);
 
 //! Build a UPC shared[] type
-SgModifierType* buildUpcBlockIndefiniteType(SgType *base_type = NULL);
+ROSE_DLL_API SgModifierType* buildUpcBlockIndefiniteType(SgType *base_type = NULL);
 
 //! Build a UPC shared[*] type
-SgModifierType* buildUpcBlockStarType(SgType *base_type = NULL);
+ROSE_DLL_API SgModifierType* buildUpcBlockStarType(SgType *base_type = NULL);
 
 //! Build a UPC shared[n] type
-SgModifierType* buildUpcBlockNumberType(SgType *base_type, long block_factor);
+ROSE_DLL_API SgModifierType* buildUpcBlockNumberType(SgType *base_type, long block_factor);
 
 //! Build a complex type
-SgTypeComplex* buildComplexType(SgType *base_type = NULL);
+ROSE_DLL_API SgTypeComplex* buildComplexType(SgType *base_type = NULL);
 
 //! Build an imaginary type
-SgTypeImaginary* buildImaginaryType(SgType *base_type = NULL);
+ROSE_DLL_API SgTypeImaginary* buildImaginaryType(SgType *base_type = NULL);
 
 //! Build a const/volatile type qualifier
-SgConstVolatileModifier * buildConstVolatileModifier (SgConstVolatileModifier::cv_modifier_enum mtype=SgConstVolatileModifier::e_unknown);
+ROSE_DLL_API SgConstVolatileModifier * buildConstVolatileModifier (SgConstVolatileModifier::cv_modifier_enum mtype=SgConstVolatileModifier::e_unknown);
 //@}
 
 //--------------------------------------------------------------
@@ -237,61 +237,61 @@ SgComplexVal* buildImaginaryVal(SgValueExp* imaginary_value);
 SgComplexVal* buildImaginaryVal_nfi(SgValueExp* imaginary_value, const std::string& str);
 
 //! Build a double value expression
-SgDoubleVal* buildDoubleVal(double value = 0.0);
+ROSE_DLL_API SgDoubleVal* buildDoubleVal(double value = 0.0);
 SgDoubleVal* buildDoubleVal_nfi(double value, const std::string& str);
 
-SgFloatVal* buildFloatVal(float value = 0.0);
+ROSE_DLL_API SgFloatVal* buildFloatVal(float value = 0.0);
 SgFloatVal* buildFloatVal_nfi(float value, const std::string& str);
 
 //! Build an integer value expression
-SgIntVal* buildIntVal(int value = 0);
+ROSE_DLL_API SgIntVal* buildIntVal(int value = 0);
 SgIntVal* buildIntValHex(int value = 0);
 SgIntVal* buildIntVal_nfi(int value, const std::string& str);
 
 //! Build a long integer value expression
-SgLongIntVal* buildLongIntVal(long value = 0);
+ROSE_DLL_API SgLongIntVal* buildLongIntVal(long value = 0);
 SgLongIntVal* buildLongIntValHex(long value = 0);
 SgLongIntVal* buildLongIntVal_nfi(long value, const std::string& str);
 
 //! Build a long long integer value expression
-SgLongLongIntVal* buildLongLongIntVal(long long value = 0);
+ROSE_DLL_API SgLongLongIntVal* buildLongLongIntVal(long long value = 0);
 SgLongLongIntVal* buildLongLongIntValHex(long long value = 0);
 SgLongLongIntVal* buildLongLongIntVal_nfi(long long value, const std::string& str);
 
 SgEnumVal* buildEnumVal_nfi(int value, SgEnumDeclaration* decl, SgName name);
 
-SgLongDoubleVal* buildLongDoubleVal(long double value = 0.0);
+ROSE_DLL_API SgLongDoubleVal* buildLongDoubleVal(long double value = 0.0);
 SgLongDoubleVal* buildLongDoubleVal_nfi(long double value, const std::string& str);
 
-SgShortVal* buildShortVal(short value = 0);
+ROSE_DLL_API SgShortVal* buildShortVal(short value = 0);
 SgShortVal* buildShortValHex(short value = 0);
 SgShortVal* buildShortVal_nfi(short value, const std::string& str);
 
-SgStringVal* buildStringVal(std::string value="");
+ROSE_DLL_API SgStringVal* buildStringVal(std::string value="");
 SgStringVal* buildStringVal_nfi(std::string value);
 
 //! Build an unsigned char
-SgUnsignedCharVal* buildUnsignedCharVal(unsigned char v = 0);
+ROSE_DLL_API SgUnsignedCharVal* buildUnsignedCharVal(unsigned char v = 0);
 SgUnsignedCharVal* buildUnsignedCharValHex(unsigned char v = 0);
 SgUnsignedCharVal* buildUnsignedCharVal_nfi(unsigned char v, const std::string& str);
 
 //! Build an unsigned short integer
-SgUnsignedShortVal* buildUnsignedShortVal(unsigned short v = 0);
+ROSE_DLL_API SgUnsignedShortVal* buildUnsignedShortVal(unsigned short v = 0);
 SgUnsignedShortVal* buildUnsignedShortValHex(unsigned short v = 0);
 SgUnsignedShortVal* buildUnsignedShortVal_nfi(unsigned short v, const std::string& str);
 
 //! Build an unsigned integer
-SgUnsignedIntVal* buildUnsignedIntVal(unsigned int v = 0);
+ROSE_DLL_API SgUnsignedIntVal* buildUnsignedIntVal(unsigned int v = 0);
 SgUnsignedIntVal* buildUnsignedIntValHex(unsigned int v = 0);
 SgUnsignedIntVal* buildUnsignedIntVal_nfi(unsigned int v, const std::string& str);
 
 //! Build a unsigned long integer
-SgUnsignedLongVal* buildUnsignedLongVal(unsigned long v = 0);
+ROSE_DLL_API SgUnsignedLongVal* buildUnsignedLongVal(unsigned long v = 0);
 SgUnsignedLongVal* buildUnsignedLongValHex(unsigned long v = 0);
 SgUnsignedLongVal* buildUnsignedLongVal_nfi(unsigned long v, const std::string& str);
 
 //! Build an unsigned long long integer
-SgUnsignedLongLongIntVal* buildUnsignedLongLongIntVal(unsigned long long v = 0);
+ROSE_DLL_API SgUnsignedLongLongIntVal* buildUnsignedLongLongIntVal(unsigned long long v = 0);
 SgUnsignedLongLongIntVal* buildUnsignedLongLongIntValHex(unsigned long long v = 0);
 SgUnsignedLongLongIntVal* buildUnsignedLongLongIntVal_nfi(unsigned long long v, const std::string& str);
 
@@ -326,7 +326,7 @@ template <class T> T* buildUnaryExpression_nfi(SgExpression* operand);
  */
 
 #define BUILD_UNARY_PROTO(suffix) \
-Sg##suffix * build##suffix(SgExpression* op =NULL); \
+ROSE_DLL_API Sg##suffix * build##suffix(SgExpression* op =NULL); \
 Sg##suffix * build##suffix##_nfi(SgExpression* op);
 
 BUILD_UNARY_PROTO(AddressOfOp)
@@ -344,7 +344,7 @@ BUILD_UNARY_PROTO(VarArgStartOneOperandOp)
 BUILD_UNARY_PROTO(VarArgEndOp)
 
 //! Build a type casting expression
-SgCastExp * buildCastExp(SgExpression *  operand_i = NULL,
+ROSE_DLL_API SgCastExp * buildCastExp(SgExpression *  operand_i = NULL,
                 SgType * expression_type = NULL,
                 SgCastExp::cast_type_enum cast_type = SgCastExp::e_C_style_cast);
 SgCastExp * buildCastExp_nfi(SgExpression *  operand_i,
@@ -355,25 +355,25 @@ SgCastExp * buildCastExp_nfi(SgExpression *  operand_i,
 SgVarArgOp * buildVarArgOp_nfi(SgExpression *  operand_i, SgType * expression_type);
 
 //! Build -- expression, Sgop_mode is a value of either SgUnaryOp::prefix or SgUnaryOp::postfix
-SgMinusOp *buildMinusOp(SgExpression* operand_i, SgUnaryOp::Sgop_mode  a_mode);
-SgMinusMinusOp *buildMinusMinusOp(SgExpression* operand_i, SgUnaryOp::Sgop_mode  a_mode);
+ROSE_DLL_API SgMinusOp *buildMinusOp(SgExpression* operand_i, SgUnaryOp::Sgop_mode  a_mode);
+ROSE_DLL_API SgMinusMinusOp *buildMinusMinusOp(SgExpression* operand_i, SgUnaryOp::Sgop_mode  a_mode);
 SgMinusMinusOp *buildMinusMinusOp_nfi(SgExpression* operand_i, SgUnaryOp::Sgop_mode  a_mode);
 
 //! Build ++x or x++ , specify prefix or postfix using either SgUnaryOp::prefix or SgUnaryOp::postfix
-SgPlusPlusOp* buildPlusPlusOp(SgExpression* operand_i, SgUnaryOp::Sgop_mode  a_mode);
+ROSE_DLL_API SgPlusPlusOp* buildPlusPlusOp(SgExpression* operand_i, SgUnaryOp::Sgop_mode  a_mode);
 SgPlusPlusOp* buildPlusPlusOp_nfi(SgExpression* operand_i, SgUnaryOp::Sgop_mode  a_mode);
 
 //! Build a ThrowOp expression
-SgThrowOp* buildThrowOp(SgExpression *, SgThrowOp::e_throw_kind);
+ROSE_DLL_API SgThrowOp* buildThrowOp(SgExpression *, SgThrowOp::e_throw_kind);
 
-SgNewExp * buildNewExp(SgType* type, 
+ROSE_DLL_API SgNewExp * buildNewExp(SgType* type, 
                        SgExprListExp* exprListExp, 
                        SgConstructorInitializer* constInit, 
                        SgExpression* expr, 
                        short int val, 
                        SgFunctionDeclaration* funcDecl);
 
-SgDeleteExp* buildDeleteExp(SgExpression* variable,
+ROSE_DLL_API SgDeleteExp* buildDeleteExp(SgExpression* variable,
                             short is_array,
                             short need_global_specifier,
                             SgFunctionDeclaration* deleteOperatorDeclaration);
@@ -393,8 +393,8 @@ template <class T> T* buildBinaryExpression_nfi(SgExpression* lhs, SgExpression*
  */
 
 #define BUILD_BINARY_PROTO(suffix) \
-Sg##suffix * build##suffix(SgExpression* lhs =NULL, SgExpression* rhs =NULL); \
-Sg##suffix * build##suffix##_nfi(SgExpression* lhs, SgExpression* rhs);
+ROSE_DLL_API Sg##suffix * build##suffix(SgExpression* lhs =NULL, SgExpression* rhs =NULL); \
+ROSE_DLL_API Sg##suffix * build##suffix##_nfi(SgExpression* lhs, SgExpression* rhs);
 
 BUILD_BINARY_PROTO(AddOp)
 BUILD_BINARY_PROTO(AndAssignOp)
@@ -456,37 +456,37 @@ BUILD_BINARY_PROTO(VarArgStartOp)
 #undef BUILD_BINARY_PROTO
 
 //! Build a conditional expression ?:
-SgConditionalExp * buildConditionalExp(SgExpression* test =NULL, SgExpression* a =NULL, SgExpression* b =NULL);
+ROSE_DLL_API SgConditionalExp * buildConditionalExp(SgExpression* test =NULL, SgExpression* a =NULL, SgExpression* b =NULL);
 SgConditionalExp * buildConditionalExp_nfi(SgExpression* test, SgExpression* a, SgExpression* b, SgType* t);
 
 //! Build a SgExprListExp, used for function call parameter list etc.
-SgExprListExp * buildExprListExp(SgExpression * expr1 = NULL, SgExpression* expr2 = NULL, SgExpression* expr3 = NULL, SgExpression* expr4 = NULL, SgExpression* expr5 = NULL, SgExpression* expr6 = NULL, SgExpression* expr7 = NULL, SgExpression* expr8 = NULL, SgExpression* expr9 = NULL, SgExpression* expr10 = NULL);
-SgExprListExp * buildExprListExp(const std::vector<SgExpression*>& exprs);
+ROSE_DLL_API SgExprListExp * buildExprListExp(SgExpression * expr1 = NULL, SgExpression* expr2 = NULL, SgExpression* expr3 = NULL, SgExpression* expr4 = NULL, SgExpression* expr5 = NULL, SgExpression* expr6 = NULL, SgExpression* expr7 = NULL, SgExpression* expr8 = NULL, SgExpression* expr9 = NULL, SgExpression* expr10 = NULL);
+ROSE_DLL_API SgExprListExp * buildExprListExp(const std::vector<SgExpression*>& exprs);
 SgExprListExp * buildExprListExp_nfi();
 SgExprListExp * buildExprListExp_nfi(const std::vector<SgExpression*>& exprs);
 
 //! Build a SgTupleExp
-SgTupleExp * buildTupleExp(SgExpression * expr1 = NULL, SgExpression* expr2 = NULL, SgExpression* expr3 = NULL, SgExpression* expr4 = NULL, SgExpression* expr5 = NULL, SgExpression* expr6 = NULL, SgExpression* expr7 = NULL, SgExpression* expr8 = NULL, SgExpression* expr9 = NULL, SgExpression* expr10 = NULL);
-SgTupleExp * buildTupleExp(const std::vector<SgExpression*>& exprs);
+ROSE_DLL_API SgTupleExp * buildTupleExp(SgExpression * expr1 = NULL, SgExpression* expr2 = NULL, SgExpression* expr3 = NULL, SgExpression* expr4 = NULL, SgExpression* expr5 = NULL, SgExpression* expr6 = NULL, SgExpression* expr7 = NULL, SgExpression* expr8 = NULL, SgExpression* expr9 = NULL, SgExpression* expr10 = NULL);
+ROSE_DLL_API SgTupleExp * buildTupleExp(const std::vector<SgExpression*>& exprs);
 SgTupleExp * buildTupleExp_nfi();
 SgTupleExp * buildTupleExp_nfi(const std::vector<SgExpression*>& exprs);
 
 //! Build a SgListExp
-SgListExp * buildListExp(SgExpression * expr1 = NULL, SgExpression* expr2 = NULL, SgExpression* expr3 = NULL, SgExpression* expr4 = NULL, SgExpression* expr5 = NULL, SgExpression* expr6 = NULL, SgExpression* expr7 = NULL, SgExpression* expr8 = NULL, SgExpression* expr9 = NULL, SgExpression* expr10 = NULL);
-SgListExp * buildListExp(const std::vector<SgExpression*>& exprs);
+ROSE_DLL_API SgListExp * buildListExp(SgExpression * expr1 = NULL, SgExpression* expr2 = NULL, SgExpression* expr3 = NULL, SgExpression* expr4 = NULL, SgExpression* expr5 = NULL, SgExpression* expr6 = NULL, SgExpression* expr7 = NULL, SgExpression* expr8 = NULL, SgExpression* expr9 = NULL, SgExpression* expr10 = NULL);
+ROSE_DLL_API SgListExp * buildListExp(const std::vector<SgExpression*>& exprs);
 SgListExp * buildListExp_nfi();
 SgListExp * buildListExp_nfi(const std::vector<SgExpression*>& exprs);
 
-SgComprehension * buildComprehension(SgExpression *target, SgExpression *iter, SgExprListExp *ifs);
+ROSE_DLL_API SgComprehension * buildComprehension(SgExpression *target, SgExpression *iter, SgExprListExp *ifs);
 SgComprehension * buildComprehension_nfi(SgExpression *target, SgExpression *iter, SgExprListExp *ifs);
 
-SgListComprehension * buildListComprehension(SgExpression *elt, SgExprListExp *generators);
+ROSE_DLL_API SgListComprehension * buildListComprehension(SgExpression *elt, SgExprListExp *generators);
 SgListComprehension * buildListComprehension_nfi(SgExpression *elt, SgExprListExp *generators);
 
-SgSetComprehension * buildSetComprehension(SgExpression *elt, SgExprListExp *generators);
+ROSE_DLL_API SgSetComprehension * buildSetComprehension(SgExpression *elt, SgExprListExp *generators);
 SgSetComprehension * buildSetComprehension_nfi(SgExpression *elt, SgExprListExp *generators);
 
-SgDictionaryComprehension * buildDictionaryComprehension(SgKeyDatumPair *kd_pair, SgExprListExp *generators);
+ROSE_DLL_API SgDictionaryComprehension * buildDictionaryComprehension(SgKeyDatumPair *kd_pair, SgExprListExp *generators);
 SgDictionaryComprehension * buildDictionaryComprehension_nfi(SgKeyDatumPair *kd_pair, SgExprListExp *generators);
 
 //! Build SgVarRefExp based on a variable's Sage name. It will lookup symbol table internally starting from scope. A variable name is unique so type can be inferred (double check this).
@@ -494,61 +494,61 @@ SgDictionaryComprehension * buildDictionaryComprehension_nfi(SgKeyDatumPair *kd_
 /*! 
 It is possible to build a reference to a variable with known name before the variable is declaration, especially during bottomup construction of AST. In this case, SgTypeUnknown is used to indicate the variable reference needing postprocessing fix using fixVariableReferences() once the AST is complete and all variable declarations exist. But the side effect is some get_type() operation may not recognize the unknown type before the fix. So far, I extended SgPointerDerefExp::get_type() and SgPntrArrRefExp::get_type() for SgTypeUnknown. There may be others needing the same extension. 
 */
-SgVarRefExp * buildVarRefExp(const SgName& name, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgVarRefExp * buildVarRefExp(const SgName& name, SgScopeStatement* scope=NULL);
 
 //! Build SgVarRefExp based on a variable's name. It will lookup symbol table internally starting from scope. A variable is unique so type can be inferred.
-SgVarRefExp * buildVarRefExp(const std::string& varName, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgVarRefExp * buildVarRefExp(const std::string& varName, SgScopeStatement* scope=NULL);
 
 //! Build a variable reference using a C style char array
-SgVarRefExp * buildVarRefExp(const char* varName, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgVarRefExp * buildVarRefExp(const char* varName, SgScopeStatement* scope=NULL);
 
 //! Build a variable reference from an existing symbol
-SgVarRefExp * buildVarRefExp(SgVariableSymbol* varSymbol);
-SgVarRefExp * buildVarRefExp_nfi(SgVariableSymbol* varSymbol);
+ROSE_DLL_API SgVarRefExp * buildVarRefExp(SgVariableSymbol* varSymbol);
+ROSE_DLL_API SgVarRefExp * buildVarRefExp_nfi(SgVariableSymbol* varSymbol);
 
 //! Build a variable reference from an existing variable declaration. The assumption is a SgVariableDeclartion only declares one variable in the ROSE AST.
-SgVarRefExp * buildVarRefExp(SgVariableDeclaration* vardecl);
+ROSE_DLL_API SgVarRefExp * buildVarRefExp(SgVariableDeclaration* vardecl);
  
 //!build a variable reference from an initialized name
 //! It first tries to grab the associated symbol, then call buildVarRefExp(const SgName& name, SgScopeStatement*) if symbol does not exist.
-SgVarRefExp * buildVarRefExp(SgInitializedName* initname, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgVarRefExp * buildVarRefExp(SgInitializedName* initname, SgScopeStatement* scope=NULL);
 
 //!Build a variable reference expression at scope to an opaque variable which has unknown information except for its name.  Used when referring to an internal variable defined in some headers of runtime libraries.(The headers are not yet inserted into the file during translation). Similar to buildOpaqueType(); 
 /*! It will declare a hidden int varName  at the specified scope to cheat the AST consistence tests.
  */
-SgVarRefExp* buildOpaqueVarRefExp(const std::string& varName,SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgVarRefExp* buildOpaqueVarRefExp(const std::string& varName,SgScopeStatement* scope=NULL);
 
 //! Build a Fortran numeric label ref exp
-SgLabelRefExp * buildLabelRefExp(SgLabelSymbol * s);
+ROSE_DLL_API SgLabelRefExp * buildLabelRefExp(SgLabelSymbol * s);
 
 //! Build SgFunctionRefExp based on a C++ function's name and function type. It will lookup symbol table internally starting from scope. A hidden prototype will be created internally to introduce a new function symbol if the function symbol cannot be found. 
-SgFunctionRefExp * buildFunctionRefExp(const SgName& name, const SgType* func_type, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgFunctionRefExp * buildFunctionRefExp(const SgName& name, const SgType* func_type, SgScopeStatement* scope=NULL);
 
-SgFunctionRefExp * buildFunctionRefExp(const char* name, const SgType* func_type, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgFunctionRefExp * buildFunctionRefExp(const char* name, const SgType* func_type, SgScopeStatement* scope=NULL);
 
 //! Build SgFunctionRefExp based on a C function's name. It will lookup symbol table internally starting from scope and return the first matching function.
-SgFunctionRefExp * buildFunctionRefExp(const SgName& name,SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgFunctionRefExp * buildFunctionRefExp(const SgName& name,SgScopeStatement* scope=NULL);
 
-SgFunctionRefExp * buildFunctionRefExp(const char* name,SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgFunctionRefExp * buildFunctionRefExp(const char* name,SgScopeStatement* scope=NULL);
 
 //! Build SgFunctionRefExp based on a function's declaration.
-SgFunctionRefExp * buildFunctionRefExp(const SgFunctionDeclaration* func_decl);
+ROSE_DLL_API SgFunctionRefExp * buildFunctionRefExp(const SgFunctionDeclaration* func_decl);
 
 //! Build SgFunctionRefExp based on a function's symbol.
-SgFunctionRefExp * buildFunctionRefExp(SgFunctionSymbol* sym);
+ROSE_DLL_API SgFunctionRefExp * buildFunctionRefExp(SgFunctionSymbol* sym);
 SgFunctionRefExp * buildFunctionRefExp_nfi(SgFunctionSymbol* sym);
 SgMemberFunctionRefExp * buildMemberFunctionRefExp_nfi(SgMemberFunctionSymbol* sym, bool virtual_call, bool need_qualifier);
-SgMemberFunctionRefExp * buildMemberFunctionRefExp(SgMemberFunctionSymbol* sym, bool virtual_call, bool need_qualifier);
+ROSE_DLL_API SgMemberFunctionRefExp * buildMemberFunctionRefExp(SgMemberFunctionSymbol* sym, bool virtual_call, bool need_qualifier);
 SgClassNameRefExp * buildClassNameRefExp_nfi(SgClassSymbol* sym);
-SgClassNameRefExp * buildClassNameRefExp(SgClassSymbol* sym);
+ROSE_DLL_API SgClassNameRefExp * buildClassNameRefExp(SgClassSymbol* sym);
 
 //! Build a function call expression
-SgFunctionCallExp* buildFunctionCallExp(SgFunctionSymbol* sym, SgExprListExp* parameters=NULL);
+ROSE_DLL_API SgFunctionCallExp* buildFunctionCallExp(SgFunctionSymbol* sym, SgExprListExp* parameters=NULL);
 SgFunctionCallExp* buildFunctionCallExp_nfi(SgExpression* f, SgExprListExp* parameters=NULL);
-SgFunctionCallExp* buildFunctionCallExp(SgExpression* f, SgExprListExp* parameters=NULL);
+ROSE_DLL_API SgFunctionCallExp* buildFunctionCallExp(SgExpression* f, SgExprListExp* parameters=NULL);
 
 //! Build a function call expression,it will automatically search for function symbols internally to build a right function reference etc. It tolerates the lack of the function symbol to support generating calls to library functions whose headers have not yet been inserted.
-SgFunctionCallExp* 
+ROSE_DLL_API SgFunctionCallExp*
 buildFunctionCallExp(const SgName& name, SgType* return_type, \
                 SgExprListExp* parameters=NULL, SgScopeStatement* scope=NULL);
 
@@ -568,11 +568,11 @@ SgCudaKernelExecConfig * buildCudaKernelExecConfig_nfi(
 );
 
 //! Build the rhs of a variable declaration which includes an assignment
-SgAssignInitializer * buildAssignInitializer(SgExpression * operand_i = NULL, SgType * expression_type = NULL);
+ROSE_DLL_API SgAssignInitializer * buildAssignInitializer(SgExpression * operand_i = NULL, SgType * expression_type = NULL);
 SgAssignInitializer * buildAssignInitializer_nfi(SgExpression * operand_i = NULL, SgType * expression_type = NULL);
 
 //! Build an aggregate initializer
-SgAggregateInitializer * buildAggregateInitializer(SgExprListExp * initializers = NULL, SgType * type = NULL);
+ROSE_DLL_API SgAggregateInitializer * buildAggregateInitializer(SgExprListExp * initializers = NULL, SgType * type = NULL);
 SgAggregateInitializer * buildAggregateInitializer_nfi(SgExprListExp * initializers, SgType * type = NULL);
 
 //! Build a compound initializer, for vector type initialization
@@ -584,11 +584,11 @@ SgConstructorInitializer * buildConstructorInitializer( SgMemberFunctionDeclarat
 SgConstructorInitializer * buildConstructorInitializer_nfi( SgMemberFunctionDeclaration *declaration,SgExprListExp *args,SgType *expression_type,bool need_name,bool need_qualifier,bool need_parenthesis_after_name,bool associated_class_unknown);
 
 //! Build sizeof() expression with an expression parameter
-SgSizeOfOp* buildSizeOfOp(SgExpression* exp= NULL);
+ROSE_DLL_API SgSizeOfOp* buildSizeOfOp(SgExpression* exp= NULL);
 SgSizeOfOp* buildSizeOfOp_nfi(SgExpression* exp);
 
 //! Build sizeof() expression with a type parameter
-SgSizeOfOp* buildSizeOfOp(SgType* type = NULL);
+ROSE_DLL_API SgSizeOfOp* buildSizeOfOp(SgType* type = NULL);
 SgSizeOfOp* buildSizeOfOp_nfi(SgType* type);
 
 // DQ (7/18/2011): Added support for SgJavaInstanceOfOp
@@ -608,21 +608,21 @@ SgJavaInstanceOfOp* buildJavaInstanceOfOp(SgExpression* exp = NULL, SgType* type
 
 /*!e.g the scope of arguments of functions are different for defining and nondefining functions.
 */ 
-SgInitializedName* buildInitializedName(const SgName & name, SgType* type, SgInitializer* init = NULL);
-SgInitializedName* buildInitializedName(const std::string &name, SgType* type);
-SgInitializedName* buildInitializedName(const char* name, SgType* type);
+ROSE_DLL_API SgInitializedName* buildInitializedName(const SgName & name, SgType* type, SgInitializer* init = NULL);
+ROSE_DLL_API SgInitializedName* buildInitializedName(const std::string &name, SgType* type);
+ROSE_DLL_API SgInitializedName* buildInitializedName(const char* name, SgType* type);
 SgInitializedName* buildInitializedName_nfi(const SgName & name, SgType* type, SgInitializer* init);
 
 //! Build SgFunctionParameterTypeList from SgFunctionParameterList
-SgFunctionParameterTypeList * 
+ROSE_DLL_API SgFunctionParameterTypeList * 
 buildFunctionParameterTypeList(SgFunctionParameterList * paralist);
 
 //! Build SgFunctionParameterTypeList from an expression list, useful when building a function call
-SgFunctionParameterTypeList *
+ROSE_DLL_API SgFunctionParameterTypeList *
 buildFunctionParameterTypeList(SgExprListExp * expList);
 
 //! Build an SgFunctionParameterTypeList from SgTypes. To build an
-SgFunctionParameterTypeList *
+ROSE_DLL_API SgFunctionParameterTypeList *
 buildFunctionParameterTypeList(SgType* type0 = NULL, SgType* type1 = NULL,
                                SgType* type2 = NULL, SgType* type3 = NULL,
                                SgType* type4 = NULL, SgType* type5 = NULL,
@@ -638,31 +638,31 @@ buildFunctionParameterTypeList(SgType* type0 = NULL, SgType* type1 = NULL,
 */
 
 //! Build a variable declaration, handle symbol table transparently
-SgVariableDeclaration* 
+ROSE_DLL_API SgVariableDeclaration* 
 buildVariableDeclaration(const SgName & name, SgType *type, SgInitializer *varInit=NULL, SgScopeStatement* scope=NULL);
 
-SgVariableDeclaration* 
+ROSE_DLL_API SgVariableDeclaration* 
 buildVariableDeclaration(const std::string & name, SgType *type, SgInitializer *varInit=NULL, SgScopeStatement* scope=NULL);
 
-SgVariableDeclaration* 
+ROSE_DLL_API SgVariableDeclaration* 
 buildVariableDeclaration(const char* name, SgType *type, SgInitializer *varInit=NULL, SgScopeStatement* scope=NULL);
 
 SgVariableDeclaration* 
 buildVariableDeclaration_nfi(const SgName & name, SgType *type, SgInitializer *varInit, SgScopeStatement* scope);
 
 //!Build a typedef declaration, such as: typedef int myint; 
-SgTypedefDeclaration* 
+ROSE_DLL_API SgTypedefDeclaration* 
 buildTypedefDeclaration(const std::string& name, SgType* base_type, SgScopeStatement* scope = NULL);
 
 SgTypedefDeclaration* 
 buildTypedefDeclaration_nfi(const std::string& name, SgType* base_type, SgScopeStatement* scope = NULL);
 
 //! Build an empty SgFunctionParameterList, possibly with some initialized names filled in
-SgFunctionParameterList * buildFunctionParameterList(SgInitializedName* in1 = NULL, SgInitializedName* in2 = NULL, SgInitializedName* in3 = NULL, SgInitializedName* in4 = NULL, SgInitializedName* in5 = NULL, SgInitializedName* in6 = NULL, SgInitializedName* in7 = NULL, SgInitializedName* in8 = NULL, SgInitializedName* in9 = NULL, SgInitializedName* in10 = NULL);
+ROSE_DLL_API SgFunctionParameterList * buildFunctionParameterList(SgInitializedName* in1 = NULL, SgInitializedName* in2 = NULL, SgInitializedName* in3 = NULL, SgInitializedName* in4 = NULL, SgInitializedName* in5 = NULL, SgInitializedName* in6 = NULL, SgInitializedName* in7 = NULL, SgInitializedName* in8 = NULL, SgInitializedName* in9 = NULL, SgInitializedName* in10 = NULL);
 SgFunctionParameterList * buildFunctionParameterList_nfi();
 
 //! Build an SgFunctionParameterList from SgFunctionParameterTypeList, like (int, float,...), used for parameter list of prototype functions when function type( including parameter type list) is known.
-SgFunctionParameterList*
+ROSE_DLL_API SgFunctionParameterList*
 buildFunctionParameterList(SgFunctionParameterTypeList * paraTypeList);
 
 SgFunctionParameterList*
@@ -681,17 +681,17 @@ actualFunction*
 buildNondefiningFunctionDeclaration_T (const SgName & name, SgType* return_type, SgFunctionParameterList * paralist, bool isMemberFunction, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL, unsigned int functionConstVolatileFlags = 0);
 
 //! Build a prototype for a function, handle function type, symbol etc transparently
-SgFunctionDeclaration *
+ROSE_DLL_API SgFunctionDeclaration *
 buildNondefiningFunctionDeclaration (const SgName & name, SgType* return_type, SgFunctionParameterList *parlist, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL);
 
 //! Build a prototype for an existing function declaration (defining or nondefining is fine) 
-SgFunctionDeclaration *
+ROSE_DLL_API SgFunctionDeclaration *
 buildNondefiningFunctionDeclaration (const SgFunctionDeclaration* funcdecl, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL);
 
 //! Build a prototype member function declaration
 // SgMemberFunctionDeclaration *
 // buildNondefiningMemberFunctionDeclaration (const SgName & name, SgType* return_type, SgFunctionParameterList *parlist, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL);
-SgMemberFunctionDeclaration *
+ROSE_DLL_API SgMemberFunctionDeclaration *
 buildNondefiningMemberFunctionDeclaration (const SgName & name, SgType* return_type, SgFunctionParameterList *parlist, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL, unsigned int functionConstVolatileFlags = 0);
 
 ////! Build a prototype member function declaration
@@ -699,21 +699,21 @@ buildNondefiningMemberFunctionDeclaration (const SgName & name, SgType* return_t
 //buildNondefiningMemberFunctionDeclaration (const SgName & name, SgMemberFunctionType* func_type, SgFunctionParameterList* paralist, SgScopeStatement* scope=NULL);
 
 //! Build a defining ( non-prototype) member function declaration
-SgMemberFunctionDeclaration *
+ROSE_DLL_API SgMemberFunctionDeclaration *
 buildDefiningMemberFunctionDeclaration (const SgName & name, SgType* return_type, SgFunctionParameterList *parlist, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL);
 
 //! Build a defining ( non-prototype) member function declaration from a SgMemberFunctionType
-SgMemberFunctionDeclaration *
+ROSE_DLL_API SgMemberFunctionDeclaration *
 buildDefiningMemberFunctionDeclaration (const SgName & name, SgMemberFunctionType* func_type, SgFunctionParameterList* paralist, SgScopeStatement* scope, SgExprListExp* decoratorList = NULL);
 
 //! Build a defining ( non-prototype) member function declaration from a SgMemberFunctionType
-SgMemberFunctionDeclaration *
+ROSE_DLL_API SgMemberFunctionDeclaration *
 buildDefiningMemberFunctionDeclaration (const SgName & name, SgMemberFunctionType* func_type, SgScopeStatement* scope, SgExprListExp* decoratorList = NULL);
 
 //! Build a prototype for an existing member function declaration (defining or nondefining is fine) 
 // SgMemberFunctionDeclaration *
 // buildNondefiningMemberFunctionDeclaration (const SgMemberFunctionDeclaration* funcdecl, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL);
-SgMemberFunctionDeclaration *
+ROSE_DLL_API SgMemberFunctionDeclaration *
 buildNondefiningMemberFunctionDeclaration (const SgMemberFunctionDeclaration* funcdecl, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL, unsigned int functionConstVolatileFlags = 0);
 
 //! A template function for function declaration builders
@@ -722,25 +722,25 @@ actualFunction *
 buildDefiningFunctionDeclaration_T (const SgName & name, SgType* return_type, SgFunctionParameterList * parlist, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL);
 
 //! Build a function declaration with a function body
-SgFunctionDeclaration *
+ROSE_DLL_API SgFunctionDeclaration *
 buildDefiningFunctionDeclaration (const SgName & name, SgType* return_type, SgFunctionParameterList * parlist, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL);
 
-SgFunctionDeclaration *
+ROSE_DLL_API SgFunctionDeclaration *
 buildDefiningFunctionDeclaration (const std::string & name, SgType* return_type, SgFunctionParameterList * parlist, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL);
 
-SgFunctionDeclaration *
+ROSE_DLL_API SgFunctionDeclaration *
 buildDefiningFunctionDeclaration (const char* name, SgType* return_type, SgFunctionParameterList * parlist, SgScopeStatement* scope=NULL, SgExprListExp* decoratorList = NULL);
 
 //! Build a Fortran subroutine or procedure
-SgProcedureHeaderStatement* 
+ROSE_DLL_API SgProcedureHeaderStatement* 
 buildProcedureHeaderStatement(const char* name, SgType* return_type, SgFunctionParameterList * parlist, SgProcedureHeaderStatement::subprogram_kind_enum, SgScopeStatement* scope=NULL);
 
 //! Build a regular function call statement
-SgExprStatement*
+ROSE_DLL_API SgExprStatement*
 buildFunctionCallStmt(const SgName& name, SgType* return_type, SgExprListExp* parameters=NULL, SgScopeStatement* scope=NULL);
 
 //! Build a function call statement using function expression and argument list only, like (*funcPtr)(args);
-SgExprStatement*
+ROSE_DLL_API SgExprStatement*
 buildFunctionCallStmt(SgExpression* function, SgExprListExp* parameters=NULL);
 
 
@@ -748,49 +748,49 @@ buildFunctionCallStmt(SgExpression* function, SgExprListExp* parameters=NULL);
 
 //! Note that the scope of a label statement is special. It is SgFunctionDefinition,
 //! not the closest scope statement such as SgBasicBlock. 
-SgLabelStatement * buildLabelStatement(const SgName& name, SgStatement * stmt = NULL, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgLabelStatement * buildLabelStatement(const SgName& name, SgStatement * stmt = NULL, SgScopeStatement* scope=NULL);
 SgLabelStatement * buildLabelStatement_nfi(const SgName& name, SgStatement * stmt, SgScopeStatement* scope);
 
 //! Build a goto statement
-SgGotoStatement * buildGotoStatement(SgLabelStatement *  label=NULL);
+ROSE_DLL_API SgGotoStatement * buildGotoStatement(SgLabelStatement *  label=NULL);
 SgGotoStatement * buildGotoStatement_nfi(SgLabelStatement *  label);
 
 //! Build a goto statement from a label symbol, supporting both C/C++ and Fortran cases
-SgGotoStatement * buildGotoStatement(SgLabelSymbol*  symbol);
+ROSE_DLL_API SgGotoStatement * buildGotoStatement(SgLabelSymbol*  symbol);
 
 //! Build a case option statement
-SgCaseOptionStmt * buildCaseOptionStmt( SgExpression * key = NULL,SgStatement *body = NULL);
+ROSE_DLL_API SgCaseOptionStmt * buildCaseOptionStmt( SgExpression * key = NULL,SgStatement *body = NULL);
 SgCaseOptionStmt * buildCaseOptionStmt_nfi( SgExpression * key,SgStatement *body);
 
 //! Build a default option statement
-SgDefaultOptionStmt * buildDefaultOptionStmt( SgStatement *body = NULL);
+ROSE_DLL_API SgDefaultOptionStmt * buildDefaultOptionStmt( SgStatement *body = NULL);
 SgDefaultOptionStmt * buildDefaultOptionStmt_nfi( SgStatement *body);
 
 //! Build a SgExprStatement, set File_Info automatically 
-SgExprStatement* buildExprStatement(SgExpression*  exp = NULL);
+ROSE_DLL_API SgExprStatement* buildExprStatement(SgExpression*  exp = NULL);
 SgExprStatement* buildExprStatement_nfi(SgExpression*  exp);
 
 //! Build a switch statement
-SgSwitchStatement* buildSwitchStatement(SgStatement *item_selector = NULL,SgStatement *body = NULL);
+ROSE_DLL_API SgSwitchStatement* buildSwitchStatement(SgStatement *item_selector = NULL,SgStatement *body = NULL);
 inline SgSwitchStatement* buildSwitchStatement(SgExpression *item_selector, SgStatement *body = NULL) {
   return buildSwitchStatement(buildExprStatement(item_selector), body);
 }
 SgSwitchStatement* buildSwitchStatement_nfi(SgStatement *item_selector,SgStatement *body);
 
 //! Build if statement
-SgIfStmt * buildIfStmt(SgStatement* conditional, SgStatement * true_body, SgStatement * false_body);
+ROSE_DLL_API SgIfStmt * buildIfStmt(SgStatement* conditional, SgStatement * true_body, SgStatement * false_body);
 inline SgIfStmt * buildIfStmt(SgExpression* conditional, SgStatement * true_body, SgStatement * false_body) {
   return buildIfStmt(buildExprStatement(conditional), true_body, false_body);
 }
 SgIfStmt * buildIfStmt_nfi(SgStatement* conditional, SgStatement * true_body, SgStatement * false_body);
 
 //! Build a for init statement
-SgForInitStatement * buildForInitStatement();
-SgForInitStatement * buildForInitStatement(const SgStatementPtrList & statements);
+ROSE_DLL_API SgForInitStatement * buildForInitStatement();
+ROSE_DLL_API SgForInitStatement * buildForInitStatement(const SgStatementPtrList & statements);
 SgForInitStatement * buildForInitStatement_nfi(SgStatementPtrList & statements);
 
 //!Build a for statement, assume none of the arguments is NULL
-SgForStatement * buildForStatement(SgStatement* initialize_stmt,  SgStatement * test, SgExpression * increment, SgStatement * loop_body, SgStatement * else_body = NULL);
+ROSE_DLL_API SgForStatement * buildForStatement(SgStatement* initialize_stmt,  SgStatement * test, SgExpression * increment, SgStatement * loop_body, SgStatement * else_body = NULL);
 SgForStatement * buildForStatement_nfi(SgStatement* initialize_stmt, SgStatement * test, SgExpression * increment, SgStatement * loop_body, SgStatement * else_body = NULL);
 SgForStatement * buildForStatement_nfi(SgForInitStatement * init_stmt, SgStatement * test, SgExpression * increment, SgStatement * loop_body, SgStatement * else_body = NULL);
 
@@ -799,120 +799,120 @@ SgUpcForAllStatement * buildUpcForAllStatement_nfi(SgStatement* initialize_stmt,
 SgUpcForAllStatement * buildUpcForAllStatement_nfi(SgForInitStatement * init_stmt, SgStatement * test, SgExpression * increment, SgExpression* affinity, SgStatement * loop_body);
 
 //! Build while statement
-SgWhileStmt * buildWhileStmt(SgStatement *  condition, SgStatement *body, SgStatement *else_body = NULL);
+ROSE_DLL_API SgWhileStmt * buildWhileStmt(SgStatement *  condition, SgStatement *body, SgStatement *else_body = NULL);
 inline SgWhileStmt * buildWhileStmt(SgExpression *  condition, SgStatement *body, SgStatement* else_body = NULL) {
   return buildWhileStmt(buildExprStatement(condition), body, else_body);
 }
 SgWhileStmt * buildWhileStmt_nfi(SgStatement *  condition, SgStatement *body, SgStatement *else_body = NULL);
 
 //! Build a with statement
-SgWithStatement* buildWithStatement(SgExpression* expr, SgStatement* body);
+ROSE_DLL_API SgWithStatement* buildWithStatement(SgExpression* expr, SgStatement* body);
 SgWithStatement* buildWithStatement_nfi(SgExpression* expr, SgStatement* body);
 
 //! Build do-while statement
-SgDoWhileStmt * buildDoWhileStmt(SgStatement *  body, SgStatement *condition);
+ROSE_DLL_API SgDoWhileStmt * buildDoWhileStmt(SgStatement *  body, SgStatement *condition);
 inline SgDoWhileStmt * buildDoWhileStmt(SgStatement* body, SgExpression *  condition) {
   return buildDoWhileStmt(body, buildExprStatement(condition));
 }
 SgDoWhileStmt * buildDoWhileStmt_nfi(SgStatement *  body, SgStatement *condition);
 
 //! Build pragma declaration, handle SgPragma and defining/nondefining pointers internally
-SgPragmaDeclaration * buildPragmaDeclaration(const std::string & name, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgPragmaDeclaration * buildPragmaDeclaration(const std::string & name, SgScopeStatement* scope=NULL);
 SgPragmaDeclaration * buildPragmaDeclaration_nfi(const std::string & name, SgScopeStatement* scope);
 
 //!Build SgPragma
-SgPragma* buildPragma(const std::string & name);
+ROSE_DLL_API SgPragma* buildPragma(const std::string & name);
 
 //! Build a SgBasicBlock, setting file info internally
-SgBasicBlock * buildBasicBlock(SgStatement * stmt1 = NULL, SgStatement* stmt2 = NULL, SgStatement* stmt3 = NULL, SgStatement* stmt4 = NULL, SgStatement* stmt5 = NULL, SgStatement* stmt6 = NULL, SgStatement* stmt7 = NULL, SgStatement* stmt8 = NULL, SgStatement* stmt9 = NULL, SgStatement* stmt10 = NULL);
-SgBasicBlock * buildBasicBlock_nfi();
+ROSE_DLL_API SgBasicBlock * buildBasicBlock(SgStatement * stmt1 = NULL, SgStatement* stmt2 = NULL, SgStatement* stmt3 = NULL, SgStatement* stmt4 = NULL, SgStatement* stmt5 = NULL, SgStatement* stmt6 = NULL, SgStatement* stmt7 = NULL, SgStatement* stmt8 = NULL, SgStatement* stmt9 = NULL, SgStatement* stmt10 = NULL);
+ROSE_DLL_API SgBasicBlock * buildBasicBlock_nfi();
 SgBasicBlock * buildBasicBlock_nfi(const std::vector<SgStatement*>&);
 
 //! Build an assignment statement from lefthand operand and right hand operand 
-SgExprStatement* 
+ROSE_DLL_API SgExprStatement* 
 buildAssignStatement(SgExpression* lhs,SgExpression* rhs);
 
 // DQ (8/16/2011): Generated a new version of this function to define consistant semantics.
 //! This version does not recursively reset the file info as a transformation.
-SgExprStatement* buildAssignStatement_ast_translate(SgExpression* lhs,SgExpression* rhs);
+ROSE_DLL_API SgExprStatement* buildAssignStatement_ast_translate(SgExpression* lhs,SgExpression* rhs);
 
 //! Build a break statement
-SgBreakStmt* buildBreakStmt();
+ROSE_DLL_API SgBreakStmt* buildBreakStmt();
 SgBreakStmt* buildBreakStmt_nfi();
 
 //! Build a continue statement
-SgContinueStmt* buildContinueStmt();
+ROSE_DLL_API SgContinueStmt* buildContinueStmt();
 SgContinueStmt* buildContinueStmt_nfi();
 
 //! Build a pass statement
-SgPassStatement* buildPassStatement();
+ROSE_DLL_API SgPassStatement* buildPassStatement();
 SgPassStatement* buildPassStatement_nfi();
 
 //! Build a Assert statement
-SgAssertStmt* buildAssertStmt(SgExpression* test);
-SgAssertStmt* buildAssertStmt(SgExpression *test, SgExpression *exceptionArgument);
+ROSE_DLL_API SgAssertStmt* buildAssertStmt(SgExpression* test);
+ROSE_DLL_API SgAssertStmt* buildAssertStmt(SgExpression *test, SgExpression *exceptionArgument);
 SgAssertStmt* buildAssertStmt_nfi(SgExpression* test);
 
 //! Build a yield statement
-SgYieldExpression* buildYieldExpression(SgExpression* value);
+ROSE_DLL_API SgYieldExpression* buildYieldExpression(SgExpression* value);
 SgYieldExpression* buildYieldExpression_nfi(SgExpression* value);
 
 //! Build a key-datum pair
-SgKeyDatumPair* buildKeyDatumPair    (SgExpression* key, SgExpression* datum);
+ROSE_DLL_API SgKeyDatumPair* buildKeyDatumPair    (SgExpression* key, SgExpression* datum);
 SgKeyDatumPair* buildKeyDatumPair_nfi(SgExpression* key, SgExpression* datum);
 
 //! Build a list of key-datum pairs
-SgDictionaryExp* buildDictionaryExp    (std::vector<SgKeyDatumPair*> pairs);
+ROSE_DLL_API SgDictionaryExp* buildDictionaryExp    (std::vector<SgKeyDatumPair*> pairs);
 SgDictionaryExp* buildDictionaryExp_nfi(std::vector<SgKeyDatumPair*> pairs);
 
 //! Build an Actual Argument Expression
-SgActualArgumentExpression* buildActualArgumentExpression(SgName arg_name, SgExpression* arg);
+ROSE_DLL_API SgActualArgumentExpression* buildActualArgumentExpression(SgName arg_name, SgExpression* arg);
 SgActualArgumentExpression* buildActualArgumentExpression_nfi(SgName arg_name, SgExpression* arg);
 
 //! Build a delete statement
-SgDeleteExp* buildDeleteExp(SgExpression *target, bool is_array = false, bool need_global_specifier = false, SgFunctionDeclaration *deleteOperatorDeclaration = NULL);
+ROSE_DLL_API SgDeleteExp* buildDeleteExp(SgExpression *target, bool is_array = false, bool need_global_specifier = false, SgFunctionDeclaration *deleteOperatorDeclaration = NULL);
 SgDeleteExp* buildDeleteExp_nfi(SgExpression *target, bool is_array = false, bool need_global_specifier = false, SgFunctionDeclaration *deleteOperatorDeclaration = NULL);
 
 //! Build a class definition scope statement
-SgClassDefinition* buildClassDefinition(SgClassDeclaration *d = NULL);
+ROSE_DLL_API SgClassDefinition* buildClassDefinition(SgClassDeclaration *d = NULL);
 
 //! Build a class definition scope statement
 SgClassDefinition* buildClassDefinition_nfi(SgClassDeclaration *d = NULL);
 
 //! Build a structure first nondefining declaration, without file info
-SgClassDeclaration* buildNondefiningClassDeclaration_nfi(const SgName& name, SgClassDeclaration::class_types kind, SgScopeStatement* scope);
+ROSE_DLL_API SgClassDeclaration* buildNondefiningClassDeclaration_nfi(const SgName& name, SgClassDeclaration::class_types kind, SgScopeStatement* scope);
 
 // DQ (11/7/2009): Added functions to build C++ class.
-SgClassDeclaration* buildNondefiningClassDeclaration ( SgName name, SgScopeStatement* scope );
-SgClassDeclaration* buildDefiningClassDeclaration    ( SgName name, SgScopeStatement* scope );
+ROSE_DLL_API SgClassDeclaration* buildNondefiningClassDeclaration ( SgName name, SgScopeStatement* scope );
+ROSE_DLL_API SgClassDeclaration* buildDefiningClassDeclaration    ( SgName name, SgScopeStatement* scope );
 
 // DQ (11/7/2009): Added function to build C++ class (builts both the definig and non-defining declarations).
-SgClassDeclaration* buildClassDeclaration    ( SgName name, SgScopeStatement* scope );
+ROSE_DLL_API SgClassDeclaration* buildClassDeclaration    ( SgName name, SgScopeStatement* scope );
 
 //! Build an enum first nondefining declaration, without file info
 SgEnumDeclaration* buildNondefiningEnumDeclaration_nfi(const SgName& name, SgScopeStatement* scope);
 
 //! Build a structure, It is also a declaration statement in SAGE III
-SgClassDeclaration * buildStructDeclaration(const SgName& name, SgScopeStatement* scope=NULL);
-SgClassDeclaration * buildStructDeclaration(const std::string& name, SgScopeStatement* scope=NULL);
-SgClassDeclaration * buildStructDeclaration(const char* name, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgClassDeclaration * buildStructDeclaration(const SgName& name, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgClassDeclaration * buildStructDeclaration(const std::string& name, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgClassDeclaration * buildStructDeclaration(const char* name, SgScopeStatement* scope=NULL);
 
 //! Build a StmtDeclarationStmt
-SgStmtDeclarationStatement* buildStmtDeclarationStatement(SgStatement* stmt);
+ROSE_DLL_API SgStmtDeclarationStatement* buildStmtDeclarationStatement(SgStatement* stmt);
 SgStmtDeclarationStatement* buildStmtDeclarationStatement_nfi(SgStatement* stmt);
 
 // tps (09/02/2009) : Added support for building namespaces
-SgNamespaceDeclarationStatement *  buildNamespaceDeclaration(const SgName& name, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgNamespaceDeclarationStatement *  buildNamespaceDeclaration(const SgName& name, SgScopeStatement* scope=NULL);
 SgNamespaceDeclarationStatement *  buildNamespaceDeclaration_nfi(const SgName& name, bool unnamednamespace, SgScopeStatement* scope );
-SgNamespaceDefinitionStatement * buildNamespaceDefinition(SgNamespaceDeclarationStatement* d=NULL);
+ROSE_DLL_API SgNamespaceDefinitionStatement * buildNamespaceDefinition(SgNamespaceDeclarationStatement* d=NULL);
 
 // driscoll6 (7/20/11) : Support n-ary operators for python
-SgNaryComparisonOp* buildNaryComparisonOp(SgExpression* lhs);
+ROSE_DLL_API SgNaryComparisonOp* buildNaryComparisonOp(SgExpression* lhs);
 SgNaryComparisonOp* buildNaryComparisonOp_nfi(SgExpression* lhs);
-SgNaryBooleanOp* buildNaryBooleanOp(SgExpression* lhs);
+ROSE_DLL_API SgNaryBooleanOp* buildNaryBooleanOp(SgExpression* lhs);
 SgNaryBooleanOp* buildNaryBooleanOp_nfi(SgExpression* lhs);
 
-SgStringConversion* buildStringConversion(SgExpression* exp);
+ROSE_DLL_API SgStringConversion* buildStringConversion(SgExpression* exp);
 SgStringConversion* buildStringConversion_nfi(SgExpression* exp);
 
 
@@ -920,43 +920,43 @@ SgStringConversion* buildStringConversion_nfi(SgExpression* exp);
 SgClassDeclaration * buildClassDeclaration_nfi(const SgName& name, SgClassDeclaration::class_types kind, SgScopeStatement* scope, SgClassDeclaration* nonDefiningDecl);
 
 //! Build an enum, It is also a declaration statement in SAGE III
-SgEnumDeclaration * buildEnumDeclaration(const SgName& name, SgScopeStatement* scope=NULL);
+ROSE_DLL_API SgEnumDeclaration * buildEnumDeclaration(const SgName& name, SgScopeStatement* scope=NULL);
 
 //! Build an enum, It is also a declaration statement in SAGE III
 SgEnumDeclaration * buildEnumDeclaration_nfi(const SgName& name, SgScopeStatement* scope=NULL);
 
 //! Build a return statement
-SgReturnStmt* buildReturnStmt(SgExpression* expression = NULL);
+ROSE_DLL_API SgReturnStmt* buildReturnStmt(SgExpression* expression = NULL);
 SgReturnStmt* buildReturnStmt_nfi(SgExpression* expression);
 
 //! Build a NULL statement
-SgNullStatement* buildNullStatement();
+ROSE_DLL_API SgNullStatement* buildNullStatement();
 SgNullStatement* buildNullStatement_nfi();
 
 //! Build Fortran attribute specification statement
-SgAttributeSpecificationStatement * buildAttributeSpecificationStatement(SgAttributeSpecificationStatement::attribute_spec_enum kind);
+ROSE_DLL_API SgAttributeSpecificationStatement * buildAttributeSpecificationStatement(SgAttributeSpecificationStatement::attribute_spec_enum kind);
 
 //! Build Fortran include line
-SgFortranIncludeLine* buildFortranIncludeLine(std::string filename);
+ROSE_DLL_API SgFortranIncludeLine* buildFortranIncludeLine(std::string filename);
 
 //! Build a Fortran common block, possibly with a name
-SgCommonBlockObject* buildCommonBlockObject(std::string name="", SgExprListExp* exp_list=NULL);
+ROSE_DLL_API SgCommonBlockObject* buildCommonBlockObject(std::string name="", SgExprListExp* exp_list=NULL);
 
 //! Build a Fortran Common statement
-SgCommonBlock* buildCommonBlock(SgCommonBlockObject* first_block=NULL);
+ROSE_DLL_API SgCommonBlock* buildCommonBlock(SgCommonBlockObject* first_block=NULL);
 
 // driscoll6 (6/9/2011): Adding support for try stmts.
 // ! Build a catch statement.
-SgCatchOptionStmt* buildCatchOptionStmt(SgVariableDeclaration* condition=NULL, SgStatement* body=NULL);
+ROSE_DLL_API SgCatchOptionStmt* buildCatchOptionStmt(SgVariableDeclaration* condition=NULL, SgStatement* body=NULL);
 
 // driscoll6 (6/9/2011): Adding support for try stmts.
 // ! Build a try statement.
-SgTryStmt* buildTryStmt(SgStatement* body,
-                        SgCatchOptionStmt* catch0=NULL,
-                        SgCatchOptionStmt* catch1=NULL,
-                        SgCatchOptionStmt* catch2=NULL,
-                        SgCatchOptionStmt* catch3=NULL,
-                        SgCatchOptionStmt* catch4=NULL);
+ROSE_DLL_API SgTryStmt* buildTryStmt(SgStatement* body,
+                                     SgCatchOptionStmt* catch0=NULL,
+                                     SgCatchOptionStmt* catch1=NULL,
+                                     SgCatchOptionStmt* catch2=NULL,
+                                     SgCatchOptionStmt* catch3=NULL,
+                                     SgCatchOptionStmt* catch4=NULL);
 
 // charles4 (9/16/2011): Adding support for try stmts.
 // ! Build a try statement.
@@ -964,49 +964,49 @@ SgTryStmt* buildTryStmt(SgStatement* body,
 
 // charles4 (9/16/2011): Adding support for try stmts.
 // ! Build a try statement.
-SgTryStmt* buildTryStmt(SgBasicBlock *try_body, SgBasicBlock *finally_body = NULL);
+ROSE_DLL_API SgTryStmt* buildTryStmt(SgBasicBlock *try_body, SgBasicBlock *finally_body = NULL);
 
 // charles4 (9/16/2011): Adding support for Catch Blocks.
 // ! Build an initial sequence of Catch blocks containing 0 or 1 element.
-SgCatchStatementSeq *buildCatchStatementSeq(SgCatchOptionStmt * = NULL);
+ROSE_DLL_API SgCatchStatementSeq *buildCatchStatementSeq(SgCatchOptionStmt * = NULL);
 
 // charles4 (8/25/2011): Adding support for Java Synchronized stmts.
 // ! Build a Java Synchronized statement.
-SgJavaSynchronizedStatement *buildJavaSynchronizedStatement(SgExpression *, SgBasicBlock *);
+ROSE_DLL_API SgJavaSynchronizedStatement *buildJavaSynchronizedStatement(SgExpression *, SgBasicBlock *);
 
 // charles4 (8/25/2011): Adding support for Java Throw stmts.
 // ! Build a Java Throw statement.
-SgJavaThrowStatement *buildJavaThrowStatement(SgThrowOp *);
+ROSE_DLL_API SgJavaThrowStatement *buildJavaThrowStatement(SgThrowOp *);
 
 // charles4 (8/25/2011): Adding support for Java Foreach stmts.
 // ! Build a Java Foreach statement.
 // SgJavaForEachStatement *buildJavaForEachStatement(SgInitializedName * = NULL, SgExpression * = NULL, SgStatement * = NULL);
-SgJavaForEachStatement *buildJavaForEachStatement(SgVariableDeclaration * = NULL, SgExpression * = NULL, SgStatement * = NULL);
+ROSE_DLL_API SgJavaForEachStatement *buildJavaForEachStatement(SgVariableDeclaration * = NULL, SgExpression * = NULL, SgStatement * = NULL);
 
 // charles4 (8/25/2011): Adding support for Java Label stmts.
 // ! Build a Java Label statement.
-SgJavaLabelStatement *buildJavaLabelStatement(const SgName &,  SgStatement * = NULL);
+ROSE_DLL_API SgJavaLabelStatement *buildJavaLabelStatement(const SgName &,  SgStatement * = NULL);
 
 // ! Build an exec statement
-SgExecStatement* buildExecStatement(SgExpression* executable, SgExpression* globals = NULL, SgExpression* locals = NULL);
+ROSE_DLL_API SgExecStatement* buildExecStatement(SgExpression* executable, SgExpression* globals = NULL, SgExpression* locals = NULL);
 SgExecStatement* buildExecStatement_nfi(SgExpression* executable, SgExpression* globals = NULL, SgExpression* locals = NULL);
 
 // ! Build a python print statement
-SgPythonPrintStmt* buildPythonPrintStmt(SgExpression* dest = NULL, SgExprListExp* values = NULL);
+ROSE_DLL_API SgPythonPrintStmt* buildPythonPrintStmt(SgExpression* dest = NULL, SgExprListExp* values = NULL);
 SgPythonPrintStmt* buildPythonPrintStmt_nfi(SgExpression* dest = NULL, SgExprListExp* values = NULL);
 
 // ! Build a python global statement
-SgPythonGlobalStmt* buildPythonGlobalStmt(SgInitializedNamePtrList& names);
+ROSE_DLL_API SgPythonGlobalStmt* buildPythonGlobalStmt(SgInitializedNamePtrList& names);
 SgPythonGlobalStmt* buildPythonGlobalStmt_nfi(SgInitializedNamePtrList& names);
 
 // DQ (4/30/2010): Added support for building asm statements.
 //! Build a NULL statement
-SgAsmStmt* buildAsmStatement(std::string s);
+ROSE_DLL_API SgAsmStmt* buildAsmStatement(std::string s);
 SgAsmStmt* buildAsmStatement_nfi(std::string s);
 
 // DQ (4/30/2010): Added support for building nop statement using asm statement
 // ! Building nop statement using asm statement
-SgAsmStmt* buildMultibyteNopStatement( int n );
+ROSE_DLL_API SgAsmStmt* buildMultibyteNopStatement( int n );
 
 
 //@}
@@ -1020,21 +1020,21 @@ SgAsmStmt* buildMultibyteNopStatement( int n );
 //! Build a SgFile node and attach it to SgProject 
 /*! The input file will be loaded if exists, or an empty one will be generated from scratch transparently. Output file name is used to specify the output file name of unparsing. The final SgFile will be inserted to project automatically. If not provided, a new SgProject will be generated internally. Using SgFile->get_project() to retrieve it in this case.
  */
-SgFile* buildFile(const std::string& inputFileName,const std::string& outputFileName, SgProject* project=NULL);
+ROSE_DLL_API SgFile* buildFile(const std::string& inputFileName,const std::string& outputFileName, SgProject* project=NULL);
 
 //! Build and attach a comment, comment style is inferred from the language type of the target node if not provided. It is indeed a wrapper of SageInterface::attachComment().
-PreprocessingInfo* buildComment(SgLocatedNode* target, const std::string & content,
+ROSE_DLL_API PreprocessingInfo* buildComment(SgLocatedNode* target, const std::string & content,
                PreprocessingInfo::RelativePositionType position=PreprocessingInfo::before,
                PreprocessingInfo::DirectiveType dtype= PreprocessingInfo::CpreprocessorUnknownDeclaration);
 
 //! Build and attach #define XX directives, pass "#define xxx xxx" as content.
-PreprocessingInfo* buildCpreprocessorDefineDeclaration(SgLocatedNode* target, 
+ROSE_DLL_API PreprocessingInfo* buildCpreprocessorDefineDeclaration(SgLocatedNode* target, 
                 const std::string & content,
                PreprocessingInfo::RelativePositionType position=PreprocessingInfo::before);
 
 #ifndef ROSE_USE_INTERNAL_FRONTEND_DEVELOPMENT
 //! Build an abstract handle from a SgNode
-AbstractHandle::abstract_handle * buildAbstractHandle(SgNode* n);
+ROSE_DLL_API AbstractHandle::abstract_handle * buildAbstractHandle(SgNode* n);
 #endif
 
 //@}

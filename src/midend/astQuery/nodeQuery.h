@@ -222,6 +222,7 @@ namespace NodeQuery
      AstQueryNamespace::QueryDepth defineQueryType =
      AstQueryNamespace::AllNodes);
 
+  ROSE_DLL_API
   NodeQuerySynthesizedAttributeType queryNodeList
     (NodeQuerySynthesizedAttributeType nodeList,
      TypeOfQueryTypeOneParameter elementReturnType);
@@ -241,6 +242,7 @@ namespace NodeQuery
      AstQueryNamespace::QueryDepth defineQueryType =
      AstQueryNamespace::AllNodes);
 
+  ROSE_DLL_API
   Rose_STL_Container< SgNode * > queryNodeList (Rose_STL_Container< SgNode * >nodeList, Rose_STL_Container< SgNode * >(*querySolverFunction) (SgNode *) );
 
   // get the SgNode's conforming to the test in querySolverFunction or
@@ -262,6 +264,7 @@ namespace NodeQuery
      AstQueryNamespace::QueryDepth defineQueryType =
      AstQueryNamespace::AllNodes);
 
+  ROSE_DLL_API
   NodeQuerySynthesizedAttributeType queryNodeList
     (NodeQuerySynthesizedAttributeType nodeList,
      SgNode * targetNode,
@@ -283,6 +286,7 @@ namespace NodeQuery
      AstQueryNamespace::QueryDepth defineQueryType =
      AstQueryNamespace::AllNodes);
 
+  ROSE_DLL_API
   NodeQuerySynthesizedAttributeType queryNodeList
     (NodeQuerySynthesizedAttributeType nodeList,
      SgNode * targetNode, TypeOfQueryTypeTwoParameters elementReturnType);
@@ -303,6 +307,7 @@ namespace NodeQuery
      VariantT targetVariant,
      AstQueryNamespace::QueryDepth defineQueryType = AstQueryNamespace::AllNodes);
 
+  ROSE_DLL_API
   NodeQuerySynthesizedAttributeType
   queryNodeList
     (NodeQuerySynthesizedAttributeType,
@@ -310,6 +315,8 @@ namespace NodeQuery
 
   // Liao, 8/27/2009, a more generic nodeList query, not just for nodes of type SgNode*
   template <typename T> 
+  ROSE_DLL_API
+  inline
   Rose_STL_Container <T* >
   queryNodeList ( Rose_STL_Container <T* > queryList, VariantVector targetVector)
   {
@@ -334,6 +341,8 @@ namespace NodeQuery
   }
   // Single VariantT 
   template <typename T> 
+  ROSE_DLL_API
+  inline
   Rose_STL_Container <T* >
   queryNodeList ( Rose_STL_Container <T* > queryList, VariantT targetVariant)
   {
@@ -370,6 +379,7 @@ namespace NodeQuery
      AstQueryNamespace::AllNodes);
 
   // DQ (3/25/2004): Added to support more general form of query based on variant value
+  ROSE_DLL_API
   NodeQuerySynthesizedAttributeType queryNodeList
     ( NodeQuerySynthesizedAttributeType,
       VariantVector);
@@ -386,6 +396,8 @@ namespace NodeQuery
    * in VariantVector.
    ********************************************************************************/
   template<typename NodeFunctional>
+  ROSE_DLL_API
+  inline
   NodeQuerySynthesizedAttributeType
   queryMemoryPool(NodeFunctional nodeFunc , VariantVector* targetVariantVector = NULL)
                 {
@@ -401,6 +413,7 @@ namespace NodeQuery
    * will on every node of the memory pool which has a corresponding variant in VariantVector
    * performa the action specified by the second argument and return a NodeQuerySynthesizedAttributeType.
    ********************************************************************************/
+  ROSE_DLL_API
   NodeQuerySynthesizedAttributeType
   queryMemoryPool
     (
@@ -415,6 +428,7 @@ namespace NodeQuery
  * will on every node of the memory pool which has a corresponding variant in VariantVector
  * performa the action specified by the second argument and return a NodeQuerySynthesizedAttributeType.
  ********************************************************************************/
+  ROSE_DLL_API
   NodeQuerySynthesizedAttributeType
   queryMemoryPool
     (
@@ -431,6 +445,7 @@ namespace NodeQuery
  * NodeQuerySynthesizedAttributeType.
  ********************************************************************************/
 
+  ROSE_DLL_API
   NodeQuerySynthesizedAttributeType
   queryMemoryPool
     (
@@ -448,6 +463,7 @@ namespace NodeQuery
  * NodeQuerySynthesizedAttributeType.
  ********************************************************************************/
 
+  ROSE_DLL_API
   NodeQuerySynthesizedAttributeType
   queryMemoryPool
     (
@@ -460,6 +476,7 @@ namespace NodeQuery
  *             queryMemoryPool(VariantVector& targetVariantVector);
  * will return every node in the AST with a corresponding variant in the VariantVector.
  ********************************************************************************/
+   ROSE_DLL_API
    DefaultNodeFunctional::result_type 
              queryMemoryPool(VariantVector& targetVariantVector);
 

@@ -298,8 +298,10 @@ set( CMAKE_MODULE_LINKER_FLAGS " ${CMAKE_MODULE_LINKER_FLAGS} /INCREMENTAL:NO" )
 set( CMAKE_CXX_LINK_FLAGS "${CMAKE_CXX_LINK_FLAGS} /INCREMENTAL:NO")
 set( CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} /INCREMENTAL:NO")
 else (WIN32)
-set( CMAKE_CXX_FLAGS " -fexceptions -DHAVE_CONFIG_H -g -fPIC -fvisibility=hidden" )
-set( CMAKE_C_FLAGS " -fexceptions -DHAVE_CONFIG_H -g -fPIC -fvisibility=hidden" )
+set( CMAKE_CXX_FLAGS " -fexceptions -DHAVE_CONFIG_H -fPIC" )
+set( CMAKE_C_FLAGS " -fexceptions -DHAVE_CONFIG_H -fPIC" )
+#set( CMAKE_CXX_FLAGS " -fexceptions -DHAVE_CONFIG_H -g -fPIC -fvisibility=hidden" )
+#set( CMAKE_C_FLAGS " -fexceptions -DHAVE_CONFIG_H -g -fPIC -fvisibility=hidden" )
 #set( CMAKE_CXX_FLAGS " -fexceptions -DHAVE_CONFIG_H -g -fPIC " )
 #set( CMAKE_C_FLAGS " -fexceptions -DHAVE_CONFIG_H -g -fPIC " )
 endif (WIN32)
@@ -355,11 +357,20 @@ include(MacroLibrary)
 # MYSQL_FOUND,MYSQL_INCLUDE_DIR,MYSQL_LIBRARIES, etc
 include(FindMySQL)
 
-#configuration options
+find_package(OpenSSL)
+
+# Language configuration options
+
 option(enable-c "Enable C/C++ language support in ROSE." ON)
 if (enable-c)
   add_definitions(-DROSE_BUILD_CXX_LANGUAGE_SUPPORT)
   add_definitions(-DROSE_BUILD_C_LANGUAGE_SUPPORT)
+endif()
+
+option(enable-cuda "Enable cuda support in ROSE." ON)
+if (enable-cuda)
+  find_package(CUDA REQUIRED)
+  add_definitions(-DROSE_BUILD_CUDA_LANGUAGE_SUPPORT)
 endif()
 
 option(enable-fortran "Enable Fortran support in ROSE." ON)
@@ -371,34 +382,266 @@ option(enable-java "Enable Java support in ROSE." ON)
 if (enable-java)
   message(Status "Looking for JAVA ...")
   include(FindJava)
+  find_program(GCJ gcj)
+  find_program(GCJH gcjh)
   find_package(JNI)
   add_definitions(-DROSE_BUILD_JAVA_LANGUAGE_SUPPORT)
+endif()
+
+option(enable-opencl "Enable OpenCL support in ROSE." ON)
+if (enable-opencl)
+  add_definitions(-DROSE_BUILD_OPENCL_LANGUAGE_SUPPORT)
+  find_path(with-opencl-inc NAMES cl.h
+    DOC "For OpenCL runtime library")
+  find_library(with-opencl-lib OpenCL DOC "OpenCL library for runtime examples")
 endif()
 
 option(enable-php "Enable PHP support in ROSE." ON)
 if (enable-php)
   add_definitions(-DROSE_BUILD_PHP_LANGUAGE_SUPPORT)
+  find_path(with-php php
+    DOC "Specify the prefix where PHP (and phc) is installed")
 endif()
 
 option(enable-python "Enable Python support in ROSE." OFF)
 if (enable-python)
   add_definitions(-DROSE_BUILD_PYTHON_LANGUAGE_SUPPORT)
+  find_package(PythonLibs REQUIRED)
+  option(with-python "Build code that requires a Python interpreter" ON)
+  if(with-python)
+    find_package(PythonInterp)
+  endif()
 endif()
+
+# Other configuration options
+
+option(disable-binary-analysis-tests
+  "Disable tests of ROSE binary analysis code" ON)
+
+option(disable-tests-directory
+  "Disable compilation and testing of the ROSE/tests directory" OFF)
+
+option(disable-tutorial-directory
+  "Disable compilation and testing of the ROSE/tutorial directory" OFF)
+
+option(disable-projects-directory
+  "Disable compilation and testing of the ROSE/projects directory" OFF)
+
+option(enable-advanced-warnings
+  "Support for an advanced uniform warning level for ROSE development" OFF)
+if (enable-advanced-warnings)
+  message(WARNING
+    "Using an advanced uniform warning level for ROSE development.")
+  add_definitions(-DROSE_USE_UNIFORM_ADVANCED_WARNINGS_SUPPORT)
+endif()
+
+option(enable-assembly-semantics
+  "Enable semantics-based analysis of assembly code" OFF)
 
 option(enable-binary-analysis "Enable binary analysis support in ROSE." ON)
 if (enable-binary-analysis)
   add_definitions(-DROSE_BUILD_BINARY_ANALYSIS_SUPPORT)
 endif()
 
-option(enable-cuda "Enable cuda support in ROSE." ON)
-if (enable-cuda)
-  add_definitions(-DROSE_BUILD_CUDA_LANGUAGE_SUPPORT)
+option(enable-candl "Support for ScopLib" OFF)
+if(enable-candl)
+  find_path(with-candl "include/candl.h"
+    DOC "Path to a valid Candl installation")
 endif()
 
-option(enable-opencl "Enable OpenCL support in ROSE." ON)
-if (enable-opencl)
-  add_definitions(-DROSE_BUILD_OPENCL_LANGUAGE_SUPPORT)
+option(enable-cloog "Support for Cloog" OFF)
+if(enable-cloog)
+  find_path(with-cloog "include/cloog.h"
+    DOC "Path to a valid Cloog installation")
 endif()
+
+option(enable-compass2 "build the Compass2 static analysis tool" OFF)
+
+option(enable-edg-cuda "Build EDG 4.0 with CUDA support" OFF)
+
+option(enable-edg-opencl "Build EDG 4.0 with OpenCL support" OFF)
+
+option(enable-edg_union_struct_debugging
+  "Should EDG Union/Struct debugging support be used?" OFF)
+if(enable-edg_union_struct_debugging)
+  set(USE_ROSE_EDG_DEBUGGING_SUPPORT 1)
+endif()
+
+option(enable-FLTK "Enable FLTK")
+if(enable-FLTK)
+  find_package(FLTK REQUIRED)
+endif()
+
+option(enable-gnu-extensions
+  "Enable internal support in ROSE for GNU language extensions" OFF)
+if(enable-gnu-extensions)
+  add_definitions(-DROSE_SUPPORT_GNU_EXTENSIONS="TRUE")
+endif()
+
+option(enable-internalFrontendDevelopment
+  "Enable development mode to reduce files required to support work on
+  language frontends" OFF)
+if (enable-internalFrontendDevelopment)
+  add_definitions(-DROSE_USE_INTERNAL_FRONTEND_DEVELOPMENT)
+endif()
+
+option(enable-microsoft-extensions
+  "Enable internal support in ROSE for GNU language extensions" OFF)
+if(enable-microsoft-extensions)
+  add_definitions(-DROSE_SUPPORT_MICROSOFT_EXTENSIONS="TRUE")
+endif()
+
+set(enable-ofp-version "0.8.3" CACHE STRING "version number for OFP")
+
+option(enable-ppl "Support for Parma Polyhedral Library" OFF)
+if(enable-ppl)
+  find_path(with-ppl "include/ppl.h"
+    DOC "Path to Parma Polyhedral Library installation")
+  find_library(libppl ppl)
+endif()
+
+option(enable-purify-api "Enable purify API in code" OFF)
+if(enable-purify-api)
+  set(USE_PURIFY_API 1)
+endif()
+
+option(enable-purify-linker "Augment the linker with purify." OFF)
+if(enable-purify-linker)
+  set(USE_PURIFY 1)
+  set(USE_PURIFY_LINKER 1)
+endif()
+
+option(enable-rosehpct "enable build of the ROSE-HPCT module" ON)
+
+option(enable-rose-openGL "enable openGL" OFF)
+if(enable-rose-openGL)
+  find_package(OpenGL)
+  find_package(GLUT)
+endif()
+
+option(enable-scoplib "Support for ScopLib" OFF)
+if(enable-scoplib)
+  find_path(with-scoplib "include/scolib.h"
+    DOC "Path to a valid ScopLib installation")
+endif()
+
+option(enable-yices "Use the Yices Satisfiability Modulo Theories (SMT)")
+if(enable-yices)
+  find_path(with-yices bin/yices DOC
+    "The prefix used to install Yices.
+     An executable named /bin/yices should be under the specified prefix.")
+endif()
+
+set(with-alternate_backend_Cxx_compiler "" CACHE STRING
+  "Specify an alternative C++ back-end compiler")
+if(with-alternate_backend_Cxx_compiler)
+  if(EXISTS ${with-alternate_backend_Cxx_compiler})
+    set(BACKEND_CXX_COMPILER ${with-alternate_backend_Cxx_compiler})
+  else()
+    message(WARNING
+      "${with-alternate_backend_Cxx_compiler} does not exist.
+       Specify a full, absolute path to the compiler.")
+  endif()
+endif()
+
+set(with-alternate_backend_C_compiler "" CACHE STRING
+  "Specify an alternative C back-end compiler")
+if(with-alternate_backend_C_compiler)
+  if(EXISTS ${with-alternate_backend_C_compiler})
+    set(BACKEND_C_COMPILER ${with-alternate_backend_C_compiler})
+    message(STATUS "just set backend C compiler to ${BACKEND_C_COMPILER}")
+  else()
+    message(WARNING
+      "${with-alternate_backend_C_compiler} does not exist.
+       Specify a full, absolute path to the compiler.")
+  endif()
+endif()
+
+set(with-alternate_backend_fortran_compiler "" CACHE STRING
+  "Specify an alternative fortran back-end compiler")
+if(with-alternate_backend_fortran_compiler)
+  if(EXISTS ${with-alternate_backend_fortran_compiler})
+    set(BACKEND_FORTRAN_COMPILER ${with-alternate_backend_fortran_compiler})
+  else()
+    message(WARNING
+      "${with-alternate_backend_fortran_compiler} does not exist.
+       Specify a full, absolute path to the compiler.")
+  endif()
+endif()
+
+set(with-alternate_backend_java_compiler "" CACHE STRING
+  "Specify an alternative java back-end compiler")
+if(with-alternate_backend_java_compiler)
+  if(EXISTS ${with-alternate_backend_java_compiler})
+  set(BACKEND_JAVA_COMPILER ${with-alternate_backend_java_compiler})
+  else()
+    message(WARNING
+      "${with-alternate_backend_java_compiler} does not exist.
+       Specify a full, absolute path to the compiler.")
+  endif()
+endif()
+
+find_path(with-backstroke-ross ROSS
+  DOC "Specify the path where ROSS is installed")
+
+find_path(with-backstroke-speedes SPEEDES
+  DOC "Specify the path where SPEEDES is installed")
+
+find_library(with-dwarf dwarf
+  DOC "Specify the path where libdwarf is installed")
+
+find_library(with-gomp_omp_runtime_library gomp_omp
+  DOC "Specify the prefix where GOMP Runtime System is installed")
+
+find_path(with-GraphViz_include graphviz.h
+  DOC "Specify the prefix where GraphViz include files are installed")
+
+find_path(with-GraphViz_libs GraphViz_libs
+  DOC "Specify the prefix where GraphViz libraries are installed")
+
+find_path(with-haskell runghc
+  DOC "Path to bin directory containing ghc and runghc.")
+
+find_path(with-ida "ida2sql.py"
+  DOC "Specify the prefix where IDA Pro is installed")
+
+find_path(with-insure insure++
+  DOC "Specify the prefix where insure++ is installed")
+
+find_path(with-IntelPin include/IntelPinSupport.h
+  DOC "Specify the prefix where Intel Pin Package is installed")
+
+find_path(with-ltdl-include ltdl.h
+  DOC "use the ltdl headers installed in DIR")
+
+find_library(with-ltdl-lib ltdl DOC "Path to ltdl library")
+
+find_path(with-llvm "llvm"
+  DOC "Specify the prefix where LLVM (and opt) is installed")
+
+find_path(with-maple "include/maple.h"
+  DOC "Specify the prefix where Maple is installed")
+
+find_path(with-omni_omp_runtime_support include/omni_omp.h
+  DOC "Specify the prefix where Omni OpenMP Runtime System is installed")
+
+find_path(with-purify bin/purify
+  DOC "Specify the prefix where purify is installed")
+if(with-purify)
+  set(USE_PURIFY 1)
+endif()
+
+find_path(with-QRose QRose DOC "prefix of QRose installation")
+
+option(with-roseQt "Build with roseQt" OFF)
+
+find_path(with-rted rted DOC "Configure option to have RTED enabled.")
+
+find_path(with-smt-solver smt-solver
+  DOC "Specify the path to an SMT-LIB compatible SMT solver.
+       Used only for testing.")
+
+find_path(with-wine "bin/wine" DOC "Specify the prefix where Wine is installed")
 
 # tps (01/04/2010) : added verbose output 
 # ------------------------- Begin Generic CMake Variable Logging ------------------
@@ -694,6 +937,7 @@ endif (HAVE_DLFCN_H)
      ${ROSE_TOP_SRC_DIR}/src/midend/programAnalysis/dominanceAnalysis 
      ${ROSE_TOP_SRC_DIR}/src/midend/programAnalysis/graphAnalysis 
      ${ROSE_TOP_SRC_DIR}/src/midend/programAnalysis/pointerAnal 
+     ${ROSE_TOP_SRC_DIR}/src/midend/programAnalysis/staticSingleAssignment
      ${ROSE_TOP_SRC_DIR}/src/midend/programAnalysis/staticInterproceduralSlicing 
      ${ROSE_TOP_SRC_DIR}/src/midend/programAnalysis/valuePropagation 
      ${ROSE_TOP_SRC_DIR}/src/midend/programTransformation/partialRedundancyElimination 
@@ -723,7 +967,46 @@ ENDIF()
 include_directories(${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES} )
 #include_directories( ${ROSE_INCLUDES} )
 
-message(Status "Enabling QT ...")
+
+if(with-roseQt)
+  find_package(Qt4 REQUIRED)
+  include(${QT_USE_FILE})
+  #message(Status "Enabling QT ...")
+  list(APPEND ROSE_INCLUDES
+    ${ROSE_TOP_SRC_DIR}/src/3rdPartyLibraries/qrose/Components/Common
+    ${ROSE_TOP_SRC_DIR}/src/3rdPartyLibraries/qrose/Components/QueryBox
+    ${ROSE_TOP_SRC_DIR}/src/3rdPartyLibraries/qrose/Components/SourceBox
+    ${ROSE_TOP_SRC_DIR}/src/3rdPartyLibraries/qrose/Components/TreeBox
+  )
+  set(qtWidgets_INCLUDE_DIRS
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/AsmInstructionBar
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/AsmView
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/AstBrowserWidget
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/AstGraphWidget
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/AstProcessing
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/BeautifiedAst
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/FlopCounter
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/InstructionCountAnnotator
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/KiviatView
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/MetricsConfig
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/MetricFilter
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/MetricsKiviat
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/NodeInfoWidget
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/ProjectManager
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/PropertyTreeWidget
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/QCodeEditWidget
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/QCodeEditWidget/QCodeEdit
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/QCodeEditWidget/QCodeEdit/widgets
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/QtGradientEditor
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/RoseCodeEdit
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/RoseFileSelector
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/SrcBinView
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/TaskSystem
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/TreeModel
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/util
+    ${ROSE_SOURCE_DIR}/src/roseExtensions/qtWidgets/WidgetCreator
+  )
+endif()
 set(QT_INCLUDES ${ROSE_INCLUDES} ${Boost_INCLUDE_DIRS} )
 
 # Set default output paths for libraries and directories.
@@ -744,7 +1027,20 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 add_subdirectory(config)
 add_subdirectory(src)
-add_subdirectory(tests)
+add_subdirectory(demo)
+add_subdirectory(exampleTranslators)
+
+if(NOT disable-tests-directory)
+  add_subdirectory(tests)
+endif()
+
+if(NOT disable-tutorial-directory)
+  add_subdirectory(tutorial)
+endif()
+
+if(NOT disable-projects-directory)
+  add_subdirectory(projects)
+endif()
 
 enable_testing()
 

@@ -1,8 +1,9 @@
+include_directories(${QT_QTXML_INCLUDE_DIR})
 
-include_directories(${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES} )
-
-
-########### next target ###############
+set(SOURCEBOX_MOC_SOURCES
+  markerwidget.h qeditor.h levelwidget.h linenumberwidget.h q3richtext_px.h
+  QRSourceBox.h)
+QT4_WRAP_CPP(SOURCEBOX_MOC_CPP ${SOURCEBOX_MOC_SOURCES})
 
 set(SOURCEBOX_SOURCES
   cindent.C markerwidget.C  q3richtextx.C QRUnparser.C cpp_colorizer.C

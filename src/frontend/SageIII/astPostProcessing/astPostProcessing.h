@@ -67,6 +67,6 @@ void postProcessingSupport (SgNode* node);
        4) ...
 
  */
-void AstPostProcessing(SgNode* node);
+ROSE_DLL_API void AstPostProcessing(SgNode* node);
 
 #endif
