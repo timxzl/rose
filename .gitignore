@@ -9,6 +9,10 @@
 *.swp
 *.dump2
 *.o
+
+# Emacs Code Browser (EDB) files
+semantic.cache
+
 # /
 Makefile.in
 /aclocal.m4
