@@ -216,7 +216,8 @@ namespace Outliner
         const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
         ASTtools::VarSymSet_t& pdSyms, // variables must use pointer types (pointer dereferencing: pdf). The rest variables use pass-by-value
         SgScopeStatement* func_scope, // the scope of the outlined function, could be in another file
-        bool is_nanos_loop = false, // indicates if we are generating the struct for a loop ( only usefull if Nanos RTL )
+        char nanos_ws = '0', // indicates if we are generating the struct for a worksharing ( only usefull if Nanos RTL )
+                             // '0'-> no ws,  '1'-> omp for, '2'-> omp sections
         const ASTtools::VarSymSet_t& nanos_red_syms = ASTtools::VarSymSet_t( ) ); // variables that are a reduction symbol while using Nanos RTL
 
 
@@ -304,20 +305,32 @@ namespace Outliner
                               std::set<SgVariableDeclaration *>& unpacking_stmts );
     
     /*!
-     * Function inspired in 'generateFunction' that returns a new outlined function specific to be executed 
-     * with a Nanos++ reduction containing the code of 's'
+     * Function inspired in 'generateFunction' that returns a new outlined function containing 's',
+     * which code contains a reduction, specific to be executed with a Nanos++
      * It is slightly different since the code performing the reduction is already wraped in a function
      */
     SgFunctionDeclaration *
     generateReductionFunction( SgBasicBlock* s,
                                const std::string& func_name_str,
-                               const ASTtools::VarSymSet_t& syms,
-                               const ASTtools::VarSymSet_t& pdSyms,
                                const ASTtools::VarSymSet_t& reduction_syms,
                                SgClassDeclaration* struct_decl,
                                SgScopeStatement* scope, 
-                               std::set<SgVariableDeclaration *> unpacking_stmts, 
-                               bool add_index_parameter );
+                               std::set<SgVariableDeclaration *>& unpacking_stmts );
+    
+    /*!
+     * Function that generates a wraping outlined function to execute reduction using Nanos
+     * This method creates variables needed for Nanos reductions execution
+     */
+    SgFunctionDeclaration * 
+    generateReductionWrapperFunction( SgFunctionDeclaration * func,
+                                      SgOmpClauseBodyStatement * target,
+                                      const std::string& func_name_str,
+                                      const ASTtools::VarSymSet_t& syms,
+                                      const ASTtools::VarSymSet_t& pdSyms,
+                                      const ASTtools::VarSymSet_t& reduction_syms,
+                                      SgClassDeclaration* struct_decl,
+                                      SgScopeStatement* g_scope, 
+                                      std::set<SgVariableDeclaration *>& unpacking_stmts );
 #endif
 
     /*!

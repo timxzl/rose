@@ -69,7 +69,9 @@ extern void XOMP_sections_end(void);
 /* Called after the current thread is told that all sections are executed. It does not synchronizes all threads. */
 extern void XOMP_sections_end_nowait(void);
 // Method for sections when Nanos RTL configured
-extern void XOMP_sections_for_NANOS( void ( * ) ( void *, int i ), void *, int, bool );
+extern void XOMP_sections_for_NANOS( void ( * ) ( void *, nanos_ws_desc_t * ), void *,
+                                     long data_size, long ( * get_data_align )( void ), void * empty_data, void ( * init_func ) ( void *, void * ),
+                                     int, bool );
 
 extern void XOMP_task (void (*) (void *), void *, void (*) (void *, void *),
                        long, long, bool, unsigned);
@@ -145,8 +147,10 @@ extern void XOMP_atomic_end (void);
 
 extern void XOMP_atomic_for_NANOS (int, int, void *, void *);
 
-extern void XOMP_reduction_for_NANOS( int, void ( ** )( void *, void *, int ), void ( ** )( void **, void ** ), void ( * )( void * ),
-                                      void *, void ***, void **, long *, int, const char *, int );
+extern void XOMP_reduction_for_NANOS( int, void ( ** )( void *, void *, int ),
+                                      void ( * )( void *, /*void**, */nanos_ws_desc_t * ), void *, void ( ** )( int, void *, void * ),
+                                      void ( ** )( void *, void **, int, int ),
+                                      void **, void **, long *, int, nanos_ws_desc_t *, const char *, int );
 extern int XOMP_get_nanos_thread_num( void );
 extern int XOMP_get_nanos_num_threads( void );
 

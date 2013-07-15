@@ -168,9 +168,8 @@ namespace OmpSupport
   
     void generate_nanos_reduction( SgFunctionDeclaration * func,
                                    SgOmpClauseBodyStatement * target, SgClassDeclaration*& struct_decl, std::string func_name,
-                                   std::set<SgVariableSymbol*>& syms, std::set<SgVariableSymbol*>& pdSyms, 
-                                   std::set<SgVariableDeclaration *> unpacking_stmts, 
-                                   bool add_index_parameter );
+                                   std::set<SgVariableSymbol*> syms, std::set<SgVariableSymbol*> pdSyms, 
+                                   std::set<SgVariableDeclaration *> unpacking_stmts );
     
   //! Translate OpenMP variables associated with an OpenMP pragma, such as private, firstprivate, lastprivate, reduction, etc. bb1 is the translation generated code block in which the variable handling statements will be inserted. Original loop upper bound is needed for implementing lastprivate (check if it is the last iteration). withinAcceleratorModel means if we only translate private() variables, used to support accelerator model
   void transOmpVariables(SgStatement * ompStmt, SgBasicBlock* bb1, SgExpression* orig_loop_upper = NULL, bool withinAcceleratorModel= false);

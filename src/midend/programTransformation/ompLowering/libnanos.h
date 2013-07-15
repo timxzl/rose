@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 #include "nanos.h"
+#include "nanos-int.h"
 #include "nanos_omp.h"
 
 #include <stdarg.h>
@@ -29,12 +30,16 @@ void NANOS_task( void ( * ) ( void * ),                                         
 void NANOS_loop( void ( * ) ( void * ), void *, long, long ( * )( void ),
                  void *, void ( * ) ( void *, void * ), int );
 
-void NANOS_sections( void (*) (void *, int), void *, int, bool );
+void NANOS_sections( void ( * ) ( void *, nanos_ws_desc_t * ), void *,
+                     long, long ( * ) ( void ), void *, void ( * ) ( void *, void * ),
+                     int, bool );
 
 int NANOS_get_thread_num( void );
 int NANOS_get_num_threads( void );
-void NANOS_reduction( int, void ( ** )( void *, void *, int ), void ( ** )( void **, void ** ), void ( * )( void * ), 
-                      void *, void ***, void **, long *, int, const char *, int );
+void NANOS_reduction( int, void ( ** )( void *, void *, int ),
+                      void ( * )( void *, /*void**, */nanos_ws_desc_t * ), void *, void ( ** )( int, void *, void * ),
+                      void ( ** )( void *, void **, int, int ),
+                      void **, void **, long *, int, nanos_ws_desc_t *, const char *, int );
 
 void NANOS_taskwait( void );
 void NANOS_barrier( void );

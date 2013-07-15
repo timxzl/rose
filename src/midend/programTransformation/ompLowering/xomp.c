@@ -400,9 +400,11 @@ void XOMP_sections_end_nowait(void)
 
 #else
 
-void XOMP_sections_for_NANOS( void ( * func ) ( void * section_data, int i ), void * data, int n_sections, bool wait )
+void XOMP_sections_for_NANOS( void ( * func ) ( void * section_data, nanos_ws_desc_t * wsd ), void * data,
+                              long data_size, long ( * get_data_align )( void ), void * empty_data, void ( * init_func ) ( void *, void * ),
+                              int n_sections, bool wait )
 {
-  NANOS_sections( func, data, n_sections, wait );
+  NANOS_sections( func, data, data_size, get_data_align, empty_data, init_func, n_sections, wait );
 }
 
 #endif
@@ -1859,14 +1861,15 @@ void XOMP_atomic_for_NANOS(int op, int type, void * variable, void * operand)
 }
 
 void XOMP_reduction_for_NANOS( int n_reductions, void ( ** all_threads_reduction )( void * out, void * in, int num_scalars ),
-                               void ( ** init_thread_reduction_array )( void **, void ** ),
-                               void ( * single_thread_reduction )( void * ), void * single_thread_data,
-                               void *** global_th_data, void ** global_data, long * global_data_size, int num_scalars,
-                               const char * filename, int fileline )
+                               void ( * single_thread_reduction )( void * section_data, /*void** globals, */nanos_ws_desc_t * wsd ), void * single_thread_data,
+                               void ( ** copy_back )( int team_size, void * original, void * privates ),
+                               void ( ** set_privates )( void * nanos_private, void ** global_data, int reduction_id, int thread ),
+                               void ** global_th_data, void ** global_data, long * global_data_size, int num_scalars,
+                               nanos_ws_desc_t * wsd, const char * filename, int fileline )
 {
-    NANOS_reduction( n_reductions, all_threads_reduction, init_thread_reduction_array, 
-                     single_thread_reduction, single_thread_data, 
-                     global_th_data, global_data, global_data_size, num_scalars, filename, fileline );
+    NANOS_reduction( n_reductions, all_threads_reduction,
+                     single_thread_reduction, single_thread_data, copy_back, set_privates,
+                     global_th_data, global_data, global_data_size, num_scalars, wsd, filename, fileline );
 }
 
 int XOMP_get_nanos_thread_num( void )

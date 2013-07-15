@@ -4,9 +4,6 @@
 // for using asprintf
 #define _GNU_SOURCE
 
-#include <omp.h>
-// needed for asprintf call, otherwise we get a compilation warning
-#define _GNU_SOURCE         
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -82,15 +79,16 @@ void NANOS_parallel( void ( * func ) ( void * ), void * data, unsigned numThread
     nanos_wd_dyn_props_t dyn_props;
     dyn_props.tie_to = ( void * ) 0;
     dyn_props.priority = 0;
+    dyn_props.flags.is_final = 0;
 
     // Create the working team
     if( numThreads == 0 )
-        numThreads = nanos_omp_get_max_threads( );
+        numThreads = nanos_omp_get_num_threads_next_parallel( 0 );
     void * nanos_team = ( void * ) 0;
     const unsigned int nthreads_vla = numThreads;
     void * team_threads[nthreads_vla];
     err = nanos_create_team( &nanos_team, ( void * ) 0, &numThreads,
-                              (nanos_constraint_t *) 0, /*reuse current*/ 1, team_threads );
+                             (nanos_constraint_t *) 0, /*reuse current*/ 1, team_threads );
     if( err != NANOS_OK )
         nanos_handle_error( err );
     
@@ -201,7 +199,8 @@ void NANOS_task( void ( * func ) ( void * ), void *data,
     nanos_wd_dyn_props_t dyn_props;
     dyn_props.tie_to = 0;
     dyn_props.priority = 0;
-    
+    dyn_props.flags.is_final = 0;
+
     // Create the WD
     nanos_wd_t wd = (nanos_wd_t) 0;
     err = nanos_create_wd_compact( &wd, &nanos_wd_const_data.base, &dyn_props, 
@@ -280,13 +279,13 @@ void NANOS_loop( void ( * func ) ( void * ), void * data, long data_size, long (
     struct nanos_const_wd_definition nanos_wd_const_data = { 
         { { 1,          // mandatory creation
             1,          // tied
-            0, 0, 0, 0, 0, 0 },                     // properties 
-        ( *get_data_align )( ),                   // data alignment
-          num_copies, num_devices, num_dimensions,                            
-          loop_name                               // description
+            0, 0, 0, 0, 0, 0 },                      // properties 
+        ( *get_data_align )( ),                      // data alignment
+          num_copies, num_devices, num_dimensions,
+          loop_name                                  // description
         }, 
-        { { &nanos_smp_factory,                   // device description
-            &_smp_args }                          // outlined function
+        { { &nanos_smp_factory,                      // device description
+            &_smp_args }                             // outlined function
         } 
     };
     void * slicer = nanos_find_slicer( nanos_get_slicer_name( policy ) );
@@ -323,48 +322,9 @@ void NANOS_loop( void ( * func ) ( void * ), void * data, long data_size, long (
 
 static int sections_id = 0;
 
-struct sections_data_t
-{
-    void ( * func ) ( void *, int );
-    nanos_ws_desc_t * wsd;
-    void * section_data;
-    bool wait;
-};
-
-static void NANOS_outlined_section( struct sections_data_t * data )
-{
-    nanos_err_t err;
-    
-    // Assign the WD that will execute the section
-    err = nanos_omp_set_implicit( nanos_current_wd( ) );
-    if( err != NANOS_OK )
-        nanos_handle_error( err );
-
-    // Iterate over the sections
-    nanos_ws_item_loop_t nanos_item_loop;
-    err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
-    if( err != NANOS_OK )
-        nanos_handle_error( err );
-    while( nanos_item_loop.execute )
-    {
-        int i;
-        for( i = nanos_item_loop.lower; i <= nanos_item_loop.upper; ++i )
-        {
-            ( * data->func )( data->section_data, i );
-        }
-        err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
-    }
-        
-    // Wait in case it is necessary
-    if( data->wait )
-    {
-        err = nanos_omp_barrier( );
-        if( err != NANOS_OK )
-            nanos_handle_error( err );
-    }
-}
-
-void NANOS_sections( void ( * func ) ( void * section_data, int i ), void * data, int n_sections, bool wait )
+void NANOS_sections( void ( * func ) ( void * section_data, nanos_ws_desc_t * wsd ), void * data,
+                     long data_size, long ( * get_data_align )( void ), void * empty_data, void ( * init_func ) ( void *, void * ),
+                     int n_sections, bool wait )
 {
     nanos_err_t err;
     
@@ -406,7 +366,8 @@ void NANOS_sections( void ( * func ) ( void * section_data, int i ), void * data
             nanos_wd_dyn_props_t props;
             props.tie_to = ( void * ) 0;
             props.priority = 0;
-      
+            props.flags.is_final = 0;
+            
             // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
             int num_copies = 0;
             // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
@@ -417,15 +378,15 @@ void NANOS_sections( void ( * func ) ( void * section_data, int i ), void * data
             int num_devices = 1;
     
             // Create the slicer
-            nanos_smp_args_t _smp_args = { (void(*)(void *)) &NANOS_outlined_section };
+            nanos_smp_args_t _smp_args = { func };
             char * sections_name; 
             asprintf( &sections_name, "sections_%d", sections_id++ );
             struct nanos_const_wd_definition nanos_wd_const_data = { 
                 { { 1,          // mandatory creation
                     1,          // tied
                     0, 0, 0, 0, 0, 0 },                         // properties 
-                    __alignof__(struct sections_data_t),        // data alignment
-                    num_copies, num_devices, num_dimensions,                            
+                    ( *get_data_align )( ),                     // data alignment
+                    num_copies, num_devices, num_dimensions,
                     sections_name                               // description
                 }, 
                 { { &nanos_smp_factory,                         // device description
@@ -438,18 +399,15 @@ void NANOS_sections( void ( * func ) ( void * section_data, int i ), void * data
             
             struct sections_data_t* empty_data = ( struct sections_data_t * ) 0;
             err = nanos_create_sliced_wd( &wd, nanos_wd_const_data.base.num_devices, nanos_wd_const_data.devices, 
-                                           sizeof( struct  sections_data_t ), nanos_wd_const_data.base.data_alignment, ( void ** ) &empty_data, 
-                                           ( void ** ) 0, slicer, &nanos_wd_const_data.base.props, &props, 
-                                           num_copies, ( nanos_copy_data_t ** ) 0, 
-                                           num_dimensions, ( nanos_region_dimension_internal_t ** ) 0 );
+                                          data_size, nanos_wd_const_data.base.data_alignment, ( void ** ) &empty_data, 
+                                          ( void ** ) 0, slicer, &nanos_wd_const_data.base.props, &props, 
+                                          num_copies, ( nanos_copy_data_t ** ) 0, 
+                                          num_dimensions, ( nanos_region_dimension_internal_t ** ) 0 );
             if( err != NANOS_OK )
                 nanos_handle_error( err );
             
             // Initialize outlined data
-            ( * empty_data ).func = func;
-            ( * empty_data ).wsd = wsd;
-            ( * empty_data ).section_data = data;
-            ( * empty_data ).wait = wait;
+            ( *init_func )( empty_data, data );
             
             // Submit the work to the runtime system
             err = nanos_submit( wd, num_data_accesses, ( nanos_data_access_t * ) 0, ( nanos_team_t ) 0 );
@@ -462,8 +420,15 @@ void NANOS_sections( void ( * func ) ( void * section_data, int i ), void * data
         }
     }
     
-    struct sections_data_t empty_data = { func, wsd, data, wait };
-    ( * NANOS_outlined_section )( &empty_data );
+    ( * func )( data, wsd );
+    
+    // Wait in case it is necessary
+    if( wait )
+    {
+        err = nanos_omp_barrier( );
+        if( err != NANOS_OK )
+            nanos_handle_error( err );
+    }
 }
 
 // ************************************************************************************ //
@@ -481,41 +446,48 @@ int NANOS_get_num_threads( void )
 
 void NANOS_reduction( int n_reductions,
                       void ( ** all_threads_reduction )( void * out, void * in, int num_scalars ),
-                      void ( ** init_thread_reduction_array )( void **, void ** ),
-                      void ( * single_thread_reduction )( void * ), void * single_thread_data,
-                      void *** global_th_data, void ** global_data, long * global_data_size, int num_scalars,
-                      const char * filename, int fileline )
+                      void ( * single_thread_reduction )( void * data, /*void** globals, */nanos_ws_desc_t * wsd ), void * single_thread_data,
+                      void ( ** copy_back )( int team_size, void * original, void * privates ),
+                      void ( ** set_privates )( void * nanos_private, void ** global_data, int reduction_id, int thread ),
+                      void ** global_th_data, void ** global_data, long * global_data_size, int num_scalars,
+                      nanos_ws_desc_t * wsd, const char * filename, int fileline )
 {
     nanos_err_t err;
+    
+    err = nanos_omp_set_implicit( nanos_current_wd( ) );
+    if( err != NANOS_OK )
+        nanos_handle_error( err );
     
     bool red_single_guard;
     err = nanos_enter_sync_init( &red_single_guard );
     if( err != NANOS_OK )
         nanos_handle_error( err );
+    
+    nanos_reduction_t* result[n_reductions];
+
+    int nanos_n_threads = nanos_omp_get_num_threads( );
+//     void * _global_[ nanos_n_threads ];
+
     if( red_single_guard )
     {
-        int nanos_n_threads = nanos_omp_get_num_threads( );
-        
         int i;
         for( i = 0; i < n_reductions; i++ )
         {
-            nanos_reduction_t * result;
-            
             err = nanos_malloc( ( void ** ) &result, sizeof( nanos_reduction_t ), filename, fileline );
             if( err != NANOS_OK )
                 nanos_handle_error( err );
-            ( *result ).original = global_data[i];
-            err = nanos_malloc( &( * result ).privates, global_data_size[i] * nanos_n_threads, filename, fileline );
+            ( * ( result[i] ) ).original = global_data[i];
+            err = nanos_malloc( &( * ( result[i] ) ).privates, global_data_size[i] * nanos_n_threads, filename, fileline );
             if( err != NANOS_OK )
                 nanos_handle_error( err );
-            ( *result ).descriptor = ( *result ).privates;
-            ( *result).vop = 0;
-            ( * ( init_thread_reduction_array[i] ) )( global_th_data[i], &( *result ).privates );
-            ( *result ).bop = ( void ( * )( void *, void *, int ) ) all_threads_reduction[i];
-            ( *result ).element_size = global_data_size[i];
-            ( *result ).num_scalars = num_scalars;
-            ( *result ).cleanup = nanos_free0;
-            err = nanos_register_reduction( result );
+            ( * ( result[i] ) ).descriptor = ( * ( result[i] ) ).privates;       // Fortran only
+//             _global_[i] = (int *)( * ( result[i] ) ).privates;
+            ( * ( result[i] ) ).vop = copy_back[i];
+            ( * ( result[i] ) ).bop = all_threads_reduction[i];
+            ( * ( result[i] ) ).element_size = global_data_size[i];
+            ( * ( result[i] ) ).num_scalars = num_scalars;
+            ( * ( result[i] ) ).cleanup = nanos_free0;
+            err = nanos_register_reduction( result[i] );
             if( err != NANOS_OK )
                 nanos_handle_error( err );
         }
@@ -533,16 +505,24 @@ void NANOS_reduction( int n_reductions,
         int i;
         for( i = 0; i < n_reductions; i++ )
         {
-            nanos_reduction_t * result;
-            
-            err = nanos_reduction_get( &result, global_data[i] );
+            err = nanos_reduction_get( & ( result[i] ), global_data[i] );
             if( err != NANOS_OK )
                 nanos_handle_error( err );
-            ( * ( init_thread_reduction_array[0] ) )( global_th_data[i], &( *result ).privates );
+//             _global_[i] = (int *)( * ( result[i] ) ).privates;
         }
     }
     
-    ( * single_thread_reduction )( single_thread_data );
+    // Execute the function containing the reduction
+    ( * single_thread_reduction )( single_thread_data, /*_global_, */wsd );
+
+    // Point the 'privates' member to the actual private value computed in the reduction code
+    // FIXME copy back data cannot be made at the end because 
+    // the privates member is used before this copy back is performed
+    int i;
+    for( i = 0; i < n_reductions; i++ )
+    {
+        ( * ( set_privates[i] ) )( ( * ( result[i] ) ).privates, global_th_data, i, omp_get_thread_num( ) );
+    }
 }
 
 // *************************** END Nanos Reduction methods **************************** //

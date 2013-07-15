@@ -95,8 +95,8 @@ endif
 # They will be compiled and executed when a RTL library path is set
 
 if WITH_NANOS_OPENMP_LIB
-# Tests failing with Nanos are temporaily removed: firstprivate.c, nestedpar.c, ompfor4.c, parallel-reduction.c,
-#   parallel-reduction2.c, parallelsections.c, reduction-classic.c, section.c
+# Tests failing with Nanos are temporaily removed: nestedpar1.c ompfor4.c (Nanos bug in slicer implementation), parallel-reduction.c,
+#   parallel-reduction2.c, parallelsections.c, reduction-classic.c
 C_TESTCODES_REQUIRED_TO_RUN = \
 	3loops.c \
 	array_init.c \
@@ -107,6 +107,7 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	empty.c \
 	falsesharing.c \
 	firstlastprivate.c \
+	firstprivate.c \
 	flush.c \
 	get_max_threads.c \
 	hello-1.c \
@@ -118,6 +119,7 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	loop1.c \
 	masterSingle.c \
 	multiple_return.c \
+	nestedpar.c \
 	ordered.c \
 	ordered2.c \
 	omp1.c \
@@ -137,6 +139,7 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	private.c \
 	privatej.c \
 	rice1.c \
+	section.c \
 	section1.c \
 	set_num_threads.c \
 	single.c \
@@ -241,7 +244,6 @@ CXX_TESTCODES_REQUIRED_TO_RUN = \
 	objectFirstPrivate.cpp \
 	orphanedAtomic.cpp \
 	preprocessingInfo2.cpp \
-	task_link.cpp \
 	task_link2.cpp \
 	task_tree.cpp
 else

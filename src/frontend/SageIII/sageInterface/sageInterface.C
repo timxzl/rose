@@ -8370,7 +8370,7 @@ void SageInterface::appendStatement(SgStatement *stmt, SgScopeStatement* scope)
 
   void SageInterface::appendStatementList(const std::vector<SgStatement*>& stmts, SgScopeStatement* scope) {
     for (size_t i = 0; i < stmts.size(); ++i) {
-      appendStatement(stmts[i], scope);
+      appendStatement(stmts[i], scope);   
     }
   }
 //!SageInterface::prependStatement()

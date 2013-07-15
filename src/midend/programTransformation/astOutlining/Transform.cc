@@ -48,7 +48,7 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
                                const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
                                ASTtools::VarSymSet_t& symsUsingAddress, // variables whose addresses are stored into the struct 
                                SgScopeStatement* func_scope, // the scope of the outlined function, could be different from s's global scope
-                               bool is_nanos_loop,
+                               char nanos_ws,
                                const ASTtools::VarSymSet_t& nanos_red_syms ) 
 {
   SgClassDeclaration* result = NULL;
@@ -85,10 +85,14 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
   // Sara Royuela: it is important that this member is the first in the struct
   // It is expected to be there in method 'generateLoopFunction'
-  if( is_nanos_loop )
+  if( ( nanos_ws == '1' ) || ( nanos_ws == '2' ) )
   {
     string member_name = "wsd";
-    SgType* member_type = buildOpaqueType( "nanos_loop_info_t", getGlobalScope( s ) );
+    SgType* member_type;
+    if( nanos_ws == '1' )
+        member_type = buildOpaqueType( "nanos_loop_info_t", getGlobalScope( s ) );
+    else
+        member_type = buildOpaqueType( "nanos_ws_info_loop_t", getGlobalScope( s ) );
     SgVariableDeclaration * member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
     appendStatement( member_decl, def_scope );
   }
@@ -104,10 +108,10 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
     string member_name= i_name->get_name ().str ();
     SgType* member_type = i_name->get_type() ;
     // use pointer type or its original type?
-    SgType * non_typef_type = member_type->stripType( SgType::STRIP_TYPEDEF_TYPE );
+    SgType * non_typef_type = member_type->stripType( SgType::STRIP_TYPEDEF_TYPE ); 
     if (symsUsingAddress.find(i_symbol) != symsUsingAddress.end())
     {
-      member_name = member_name+"_p";
+      member_name = member_name+"_p"; 
       // member_type = buildPointerType(member_type);
       // Liao, 10/26/2009
       // We use void* instead of type* to ease the handling of C++ class pointers wrapped into the data structure
@@ -137,20 +141,20 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
       {   // Scalars, Pointers, Structures
         member_type = buildPointerType( buildVoidType( ) );
       }
-    
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-      if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
-      {
-        member_name = "g_th_" + member_name;
-        member_type = buildPointerType( member_type );
-      }
-#endif
-
     }
     else if( ( isSgArrayType( non_typef_type ) ) && ( isSgFunctionDefinition( i_symbol->get_scope( ) ) ) )
     {   // First dimension is passed by pointer for all array symbols that are parameters
         member_type = buildPointerType( isSgArrayType( non_typef_type )->get_base_type( ) );
     }
+    
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+    // Force name and type of Nanos reduction symbols
+    if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
+    {
+        member_name = "g_th_" + member_name;
+        member_type = buildPointerType( buildArrayType( non_typef_type, buildIntVal( 256 ) ) );
+    }
+#endif
     
     SgVariableDeclaration *member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
     appendStatement( member_decl, def_scope );
@@ -686,23 +690,33 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
       string member_name= i_name->get_name ().str ();
 //     cout<<"Debug: Outliner::generatePackingStatements() symbol to be packed:"<<member_name<<endl;
       
-      bool is_nanos_reduction = false;
+      bool is_nanos_reduction_sym = false;
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
       if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
       {
           member_name = "g_th_" + member_name + "_p";
-          rhs = buildCastExp( buildAddressOfOp( buildVarRefExp( "g_th_" + i_name->get_name( ), cur_scope ) ),
-                              buildPointerType( buildPointerType( buildVoidType( ) ) ) );
-          is_nanos_reduction = true; 
+          rhs = buildAddressOfOp( buildVarRefExp( "g_th_" + i_name->get_name( ), cur_scope ) ); 
+          is_nanos_reduction_sym = true;
       }
 #endif
-      if( !is_nanos_reduction )
+      if( !is_nanos_reduction_sym )
       {
           rhs = buildVarRefExp(i_symbol);
           if (pdsyms.find(i_symbol) != pdsyms.end()) // pointer type
           {
               member_name = member_name+"_p";
               // member_type = buildPointerType(member_type);
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+              if( !nanos_red_syms.empty( ) )
+              {   // Nanos reduction process outlines two times the same code:
+                  //    -1. Outline of the directive that contains the reduction
+                  //    -2. Outline a wraper to perform the reduction and re-outline the previous function
+                  // Because of that, members of the structure parameter to the outlined function 
+                  // that are not the reduction symbols but still shared, are converted to pointer two times.
+                  // So we dereference the parameter to keep the correct type.
+                  rhs = buildPointerDerefExp( rhs );
+              }
+#endif
               rhs = buildAddressOfOp(rhs); 
           }
       }
@@ -737,7 +751,6 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
     }
     
     SageInterface::insertStatementBefore(target, assignment);
-
   }
   
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
@@ -751,7 +764,7 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
         SgDeclarationStatementPtrList loop_info_members = loop_info_def->get_members( );
         
         SgVariableDeclaration * member_lower = isSgVariableDeclaration( loop_info_members[0] );
-        SgVariableDeclaration * member_upper = isSgVariableDeclaration( loop_info_members[1] );   
+        SgVariableDeclaration * member_upper = isSgVariableDeclaration( loop_info_members[1] );
         SgVariableDeclaration * member_step = isSgVariableDeclaration( loop_info_members[2] );
         SgVariableDeclaration * member_chunk = isSgVariableDeclaration( loop_info_members[3] );
         

@@ -3799,6 +3799,13 @@ SgPointerDerefExp::get_type() const
                returnType = someType;
                break;
              }
+
+       // Sara Royuela, 07/11/2013
+          case V_SgTypeDouble:
+             {
+               returnType = someType;
+               break;
+             }
 #endif
 
 #if 0
