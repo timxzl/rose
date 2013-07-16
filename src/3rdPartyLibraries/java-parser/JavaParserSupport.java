@@ -74,8 +74,8 @@ class JavaParserSupport {
     public HashMap<TypeDeclaration, ArrayList<TypeDeclaration>> LocalOrAnonymousTypesOf = new HashMap<TypeDeclaration, ArrayList<TypeDeclaration>>();
     class LocalOrAnonymousType {
         public String package_name,
-        typename,
-        simplename;
+                      typename,
+                      simplename;
         public Class cls;
         private boolean isAnonymous;
 
@@ -196,30 +196,30 @@ class JavaParserSupport {
 // TODO: REMOVE THIS !!!
 /*    
     public Class findClass(String package_name, String type_name) {
-    HashMap<String, Class> table = symbolTable.get(package_name);
-    int i = type_name.indexOf('.');
-    String next_name = (i == -1 ? type_name : type_name.substring(0, i));
-    Class cls = (table == null ? null : table.get(next_name));
+        HashMap<String, Class> table = symbolTable.get(package_name);
+        int i = type_name.indexOf('.');
+        String next_name = (i == -1 ? type_name : type_name.substring(0, i));
+        Class cls = (table == null ? null : table.get(next_name));
 
-    while (i > -1) {
-    assert (cls != null);
-    type_name = type_name.substring(i + 1);
-    i = type_name.indexOf('.');
-    next_name = (i == -1 ? type_name : type_name.substring(0, i));
-    Class members[] = cls.getDeclaredClasses();
-    assert(members != null);
-    int k;
-    for (k = 0; k < members.length; k++) {
-    if (members[k].getSimpleName().equals(next_name)) {
-    cls = members[k];
-    break;
-}
-}
-    assert(k < members.length);
-}
+        while (i > -1) {
+            assert (cls != null);
+            type_name = type_name.substring(i + 1);
+            i = type_name.indexOf('.');
+            next_name = (i == -1 ? type_name : type_name.substring(0, i));
+            Class members[] = cls.getDeclaredClasses();
+            assert(members != null);
+            int k;
+            for (k = 0; k < members.length; k++) {
+                if (members[k].getSimpleName().equals(next_name)) {
+                    cls = members[k];
+                    break;
+                }
+            }
+            assert(k < members.length);
+        }
 
-    return cls;
-}
+        return cls;
+    }
 */
     
     public Class findPrimitiveClass(BaseTypeBinding binding) {
@@ -307,81 +307,81 @@ class JavaParserSupport {
 // TODO: Remove this
 /*
     private boolean typeMatch(Type in_type, TypeBinding argument) { 
-    if (in_type instanceof TypeVariable){
-    TypeVariable<?> type = (TypeVariable<?>) in_type;
-    if (type.getName().equals(argument.debugName())) {
-    return true;
-}
-}
-    else if (in_type instanceof Class){
-    Class type_arg = (Class) in_type;
-    if (argument instanceof ArrayBinding) {
-    if (! type_arg.isArray()) {
-    return false;
-}
+        if (in_type instanceof TypeVariable){
+            TypeVariable<?> type = (TypeVariable<?>) in_type;
+            if (type.getName().equals(argument.debugName())) {
+                return true;
+            }
+        }
+        else if (in_type instanceof Class){
+            Class type_arg = (Class) in_type;
+            if (argument instanceof ArrayBinding) {
+                if (! type_arg.isArray()) {
+                    return false;
+                }
                 
-    Class base_type = type_arg;
-    int num_dimensions = 0;
-    do { // get the leaf type of the array parameter and count how many dimensions it has.
-    num_dimensions++;
-    base_type = base_type.getComponentType();
-} while (base_type.isArray());
-    ArrayBinding array_binding = (ArrayBinding) argument;
-    return (num_dimensions ==  array_binding.dimensions() && typeMatch(base_type, array_binding.leafComponentType()));
-}
-    else {
-    if (type_arg == findClass(argument)) {
-    return true;
-}
-}
-}
-    else if (in_type instanceof GenericArrayType){
-    GenericArrayType generic_type = (GenericArrayType) in_type;
-    if (! argument.isArrayType()) {
-    return false;
-}
-    ArrayBinding array_binding = (ArrayBinding) argument;
-    return typeMatch(generic_type.getGenericComponentType(), array_binding.leafComponentType());
-}
-    else if (in_type instanceof ParameterizedType){
-    ParameterizedType param_type = (ParameterizedType) in_type;
-    if (! (argument instanceof ParameterizedTypeBinding)) {
-    return false;
-}
-    ParameterizedTypeBinding param_type_binding = (ParameterizedTypeBinding) argument;
+                Class base_type = type_arg;
+                int num_dimensions = 0;
+                do { // get the leaf type of the array parameter and count how many dimensions it has.
+                    num_dimensions++;
+                    base_type = base_type.getComponentType();
+                } while (base_type.isArray());
+                ArrayBinding array_binding = (ArrayBinding) argument;
+                return (num_dimensions ==  array_binding.dimensions() && typeMatch(base_type, array_binding.leafComponentType()));
+            }
+            else {
+                if (type_arg == findClass(argument)) {
+                    return true;
+                }
+            }
+        }
+        else if (in_type instanceof GenericArrayType){
+            GenericArrayType generic_type = (GenericArrayType) in_type;
+            if (! argument.isArrayType()) {
+                return false;
+            }
+            ArrayBinding array_binding = (ArrayBinding) argument;
+            return typeMatch(generic_type.getGenericComponentType(), array_binding.leafComponentType());
+        }
+        else if (in_type instanceof ParameterizedType){
+            ParameterizedType param_type = (ParameterizedType) in_type;
+            if (! (argument instanceof ParameterizedTypeBinding)) {
+                return false;
+            }
+            ParameterizedTypeBinding param_type_binding = (ParameterizedTypeBinding) argument;
 //System.out.println("(2) Don't know what to do with parameter type " + param_type.getRawType().getClass().getCanonicalName());
 //System.out.println("(2) The argument is " + param_type_binding.leafComponentType().debugName() + " (" + param_type_binding.leafComponentType().getClass().getCanonicalName() + ")");
-    return typeMatch(param_type.getRawType(), param_type_binding.leafComponentType());
-}
-    else {
-    System.out.println("(3) Don't know what to do with parameter type " + in_type.getClass().getCanonicalName() + " and argument " + argument.getClass().getCanonicalName());
-    System.exit(1);
-}
+            return typeMatch(param_type.getRawType(), param_type_binding.leafComponentType());
+        }
+        else {
+            System.out.println("(3) Don't know what to do with parameter type " + in_type.getClass().getCanonicalName() + " and argument " + argument.getClass().getCanonicalName());
+            System.exit(1);
+        }
 
-    return false;
-}
+        return false;
+    }
 */
 
 
 // TODO: REMOVE THIS !!!
 /*
-    private String getTypeName(Type in_type) { 
+private String getTypeName(Type in_type) { 
     if (in_type instanceof TypeVariable){
-    TypeVariable<?> type = (TypeVariable<?>) in_type;
-    return type.getName();
-}
+        TypeVariable<?> type = (TypeVariable<?>) in_type;
+        return type.getName();
+    }
     else if (in_type instanceof Class){
-    Class class_arg = (Class) in_type;
-    return class_arg.getName();
-}
+        Class class_arg = (Class) in_type;
+        return class_arg.getName();
+    }
     else if (in_type instanceof GenericArrayType){
-    GenericArrayType generic_type = (GenericArrayType) in_type;
-    return getTypeName(generic_type.getGenericComponentType());
-}
+        GenericArrayType generic_type = (GenericArrayType) in_type;
+        return getTypeName(generic_type.getGenericComponentType());
+    }
     else if (in_type instanceof ParameterizedType){
-    ParameterizedType param_type = (ParameterizedType) in_type;
-    return getTypeName(param_type.getRawType());
-}
+        ParameterizedType param_type = (ParameterizedType) in_type;
+        return getTypeName(param_type.getRawType());
+    }
 
     return in_type.getClass().getCanonicalName() + "*";
 }
@@ -391,69 +391,69 @@ class JavaParserSupport {
 //TODO: REMOVE THIS !!!
 /*
     Method getRawMethod(ParameterizedMethodBinding parameterized_method_binding) {
-    TypeBinding type_binding = parameterized_method_binding.declaringClass;
-    TypeBinding arguments[] = parameterized_method_binding.original().parameters;
+        TypeBinding type_binding = parameterized_method_binding.declaringClass;
+        TypeBinding arguments[] = parameterized_method_binding.original().parameters;
 // TODO: REMOVE THIS !!!        
 //        String package_name = getPackageName(type_binding),
 //               type_name = getTypeName(type_binding);
 //        Class<?> cls = findClass(package_name, type_name);
         
-    Class cls = findClass(type_binding);
+        Class cls = findClass(type_binding);
 //if (cls == null){
 //System.out.println("(2) Could not find type " + type_binding.debugName() + " with binding type " + type_binding.getClass().getCanonicalName());
 //System.exit(1);
 //}
-    assert(cls != null);
-    String method_name = new String(parameterized_method_binding.selector);
-    Method methods[] = cls.getDeclaredMethods();
-    for (int i = 0; i < methods.length; i++) {
-    Method method = methods[i];
-    Type[] types = method.getGenericParameterTypes();
-    assert(types != null);
-    if (types.length == arguments.length && method_name.equals(method.getName())) {
-    int j = 0;
-    for (; j < types.length; j++) {
-    if (! typeMatch(types[j], arguments[j]))
-    break;
-}
-    if (j == types.length) {
-    return method;
-}
-}
-}
+        assert(cls != null);
+        String method_name = new String(parameterized_method_binding.selector);
+        Method methods[] = cls.getDeclaredMethods();
+        for (int i = 0; i < methods.length; i++) {
+            Method method = methods[i];
+            Type[] types = method.getGenericParameterTypes();
+            assert(types != null);
+            if (types.length == arguments.length && method_name.equals(method.getName())) {
+                int j = 0;
+                for (; j < types.length; j++) {
+                    if (! typeMatch(types[j], arguments[j]))
+                        break;
+                }
+                if (j == types.length) {
+                    return method;
+                }
+            }
+        }
 
-    return null;
-}
+        return null;
+    }
 
 
     Constructor getRawConstructor(ParameterizedMethodBinding parameterized_constructor_binding) {
-    TypeBinding type_binding = parameterized_constructor_binding.declaringClass;
-    TypeBinding arguments[] = parameterized_constructor_binding.original().parameters;
+        TypeBinding type_binding = parameterized_constructor_binding.declaringClass;
+        TypeBinding arguments[] = parameterized_constructor_binding.original().parameters;
 // TODO: REMOVE THIS!        
 //        String package_name = getPackageName(type_binding),
 //               type_name = getTypeName(type_binding);
 //        Class<?> cls = findClass(package_name, type_name);
-    Class cls = findClass(type_binding);
-    assert(cls != null);
-    Constructor constructors[] = cls.getDeclaredConstructors();
-    for (int i = 0; i < constructors.length; i++) {
-    Constructor constructor = constructors[i];
-    Type[] types = constructor.getGenericParameterTypes();
-    assert(types != null);
-    if (types.length == arguments.length) {
-    int j = 0;
-    for (; j < types.length; j++) {
-    if (! typeMatch(types[j], arguments[j]))
-    break;
-}
-    if (j == types.length) {
-    return constructor;
-}
-}
-}
+        Class cls = findClass(type_binding);
+        assert(cls != null);
+        Constructor constructors[] = cls.getDeclaredConstructors();
+        for (int i = 0; i < constructors.length; i++) {
+            Constructor constructor = constructors[i];
+            Type[] types = constructor.getGenericParameterTypes();
+            assert(types != null);
+            if (types.length == arguments.length) {
+                int j = 0;
+                for (; j < types.length; j++) {
+                    if (! typeMatch(types[j], arguments[j]))
+                        break;
+                }
+                if (j == types.length) {
+                    return constructor;
+                }
+            }
+        }
                 
-    return null;
-}
+        return null;
+    }
  */
 
 
@@ -495,7 +495,7 @@ class JavaParserSupport {
         catch (VerifyError e) {
             e.printStackTrace();
             System.out.println("Verification error detected with language level " + languageLevel + " while looking for method " +
-                    new String(method_binding.readableName()) + " declared in " + method_binding.declaringClass.debugName());
+                               new String(method_binding.readableName()) + " declared in " + method_binding.declaringClass.debugName());
             System.exit(1);
         }
 
@@ -509,8 +509,8 @@ class JavaParserSupport {
     
 // TODO: Remove this!
 /*
-    Method getRawMethod(MethodBinding method_binding) {
-    try{
+Method getRawMethod(MethodBinding method_binding) {
+try{
     TypeBinding type_binding = method_binding.declaringClass;
     TypeBinding arguments[] = method_binding.parameters;
     Class cls = findClass(type_binding);
@@ -524,49 +524,49 @@ class JavaParserSupport {
 // TODO: Remove this!        
 //System.out.println("Looking for method " + new String(method_binding.readableName()) + " declared in " + method_binding.declaringClass.debugName() + " containing " + methods.length + " methopds.");
     for (int i = 0; i < methods.length; i++) {
-    Method method = methods[i];
-    Type[] types = method.getGenericParameterTypes();
-    assert(types != null);
-    if (types.length == arguments.length && method_name.equals(method.getName())) {
+        Method method = methods[i];
+        Type[] types = method.getGenericParameterTypes();
+        assert(types != null);
+        if (types.length == arguments.length && method_name.equals(method.getName())) {
 // TODO: Remove this!
 /*
-    System.out.println("    Looking at method " + new String(method_binding.readableName()) + "(");
-    for (int j = 0; j < types.length; j++) {
-    System.out.println(types[i].getClass().getCanonicalName());
-    if (j + 1 < types.length)
-    System.out.println(", ");
+System.out.println("    Looking at method " + new String(method_binding.readableName()) + "(");
+for (int j = 0; j < types.length; j++) {
+System.out.println(types[i].getClass().getCanonicalName());
+if (j + 1 < types.length)
+System.out.println(", ");
 }
-    System.out.println(")");
+System.out.println(")");
 */
 /*
-    int j = 0;
-    for (; j < types.length; j++) {
-    if (! typeMatch(types[j], arguments[j]))
-    break;
+            int j = 0;
+            for (; j < types.length; j++) {
+                if (! typeMatch(types[j], arguments[j]))
+                    break;
+            }
+            if (j == types.length) {
+                return method;
+            }
+        }
+    }
 }
-    if (j == types.length) {
-    return method;
-}
-}
-}
-}
-    catch(NoClassDefFoundError e){
+catch(NoClassDefFoundError e){
     if (e.getLocalizedMessage().startsWith("com/sun/")) {
-    //
+        //
         // See http://stackoverflow.com/questions/8869912/what-library-i-need-so-i-can-acces-this-com-sun-image-codec-jpeg-in-java
-    //
-    System.out.println();
-    System.out.println("*** No support yet for classes that depend on the resctricted class " + e.getLocalizedMessage());
-    //
+        //
+        System.out.println();
+        System.out.println("*** No support yet for classes that depend on the resctricted class " + e.getLocalizedMessage());
+        //
         // There are also lots of isses with apache-james-***
-    //
+        //
         // See http://stackoverflow.com/questions/10391271/itext-bouncycastle-classnotfound-org-bouncycastle-asn1-derencodable-and-org-boun
-    //
-}
+        //
+    }
     else {
-    System.out.println("Could not find method " + new String(method_binding.readableName()) + " declared in " + method_binding.declaringClass.debugName());
-    e.printStackTrace();
-}
+        System.out.println("Could not find method " + new String(method_binding.readableName()) + " declared in " + method_binding.declaringClass.debugName());
+        e.printStackTrace();
+    }
     System.exit(1);
 }
 
@@ -613,7 +613,7 @@ class JavaParserSupport {
         catch (VerifyError e) {
             e.printStackTrace();
             System.out.println("Verification error detected with language level " + languageLevel + " while looking for constructor " +
-                    new String(constructor_binding.readableName()) + " declared in " + constructor_binding.declaringClass.debugName());
+                               new String(constructor_binding.readableName()) + " declared in " + constructor_binding.declaringClass.debugName());
             System.exit(1);
         }
 
@@ -628,27 +628,27 @@ class JavaParserSupport {
     
 // TODO: Remove this!
 /*
-    Constructor getRawConstructor(MethodBinding constructor_binding) {
+Constructor getRawConstructor(MethodBinding constructor_binding) {
     TypeBinding type_binding = constructor_binding.declaringClass;
     TypeBinding arguments[] = constructor_binding.parameters;
     Class cls = findClass(type_binding);
     assert(cls != null);
     Constructor constructors[] = cls.getDeclaredConstructors();
     for (int i = 0; i < constructors.length; i++) {
-    Constructor constructor = constructors[i];
-    Type[] types = constructor.getGenericParameterTypes();
-    assert(types != null);
-    if (types.length == arguments.length) {
-    int j = 0;
-    for (; j < types.length; j++) {
-    if (! typeMatch(types[j], arguments[j]))
-    break;
-}
-    if (j == types.length) {
-    return constructor;
-}
-}
-}
+        Constructor constructor = constructors[i];
+        Type[] types = constructor.getGenericParameterTypes();
+        assert(types != null);
+        if (types.length == arguments.length) {
+            int j = 0;
+            for (; j < types.length; j++) {
+                if (! typeMatch(types[j], arguments[j]))
+                    break;
+            }
+            if (j == types.length) {
+                return constructor;
+            }
+        }
+    }
             
     return null;
 }
@@ -686,18 +686,18 @@ class JavaParserSupport {
 
 
     /**
-            * Quicksort the content of this array in the range low..high.
-            *
-            * NOTE that the reason why I wrote this function instead of invoking Collection.sort(...)
-            * on it is because Collection.sort() invokes Array.sort() which returns a sorted list of
-            * clones of the array elements instead of the originals in sorted order.  Since we have
-            * several maps that are defined on these nodes, we need to sort them directly and not
-            * their clones!!!
-            *
-            * Low - low index of range to sort.
-            * high - high index of range to sort.
-    */
-            private static void quicksort(ASTNode array[], int low, int high) {
+     * Quicksort the content of this array in the range low..high.
+     *
+     * NOTE that the reason why I wrote this function instead of invoking Collection.sort(...)
+     * on it is because Collection.sort() invokes Array.sort() which returns a sorted list of
+     * clones of the array elements instead of the originals in sorted order.  Since we have
+     * several maps that are defined on these nodes, we need to sort them directly and not
+     * their clones!!!
+     *
+     * Low - low index of range to sort.
+     * high - high index of range to sort.
+     */
+    private static void quicksort(ASTNode array[], int low, int high) {
         if (low >= high)
             return;
 
@@ -714,12 +714,12 @@ class JavaParserSupport {
 
         quicksort(array, low, i - 1);
         quicksort(array, i + 1, high);
-            }
+    }
 
     /**
-            * 
-    */
-            void identifyUserDefinedTypes(Class cls, TypeDeclaration node) {
+     * 
+     */
+    void identifyUserDefinedTypes(Class cls, TypeDeclaration node) {
         userTypeTable.put(cls, node);   // keep track of user-defined TypeDeclarations
 
         //
@@ -763,24 +763,24 @@ class JavaParserSupport {
             }
             assert(k < inner.length);
         }
-            }
+    }
     
     /**
-            * 
-            * 
-    */
-            void identifyUserDefinedTypes(String package_name, TypeDeclaration node) {
+     * 
+     * 
+     */
+    void identifyUserDefinedTypes(String package_name, TypeDeclaration node) {
         String typename = package_name + (package_name.length() > 0 ? "." : "") + new String(node.name);
 
         try {
             Class cls = loadClass(typename);
             if (cls == null) throw new ClassNotFoundException(typename);
             String canonical_name = cls.getCanonicalName(),
-            class_name = cls.getName(),
-            simple_name = cls.getSimpleName(),
-            class_package = (simple_name.length() < canonical_name.length()
-                    ? canonical_name.substring(0, canonical_name.length() - simple_name.length() -1)
-                : "");
+                   class_name = cls.getName(),
+                   simple_name = cls.getSimpleName(),
+                   class_package = (simple_name.length() < canonical_name.length()
+                                          ? canonical_name.substring(0, canonical_name.length() - simple_name.length() -1)
+                                          : "");
 
             assert(cls.getEnclosingClass() == null); // not an inner class
 
@@ -793,13 +793,13 @@ class JavaParserSupport {
 
             System.exit(1);
         }
-            }
+    }
 
     /**
-            * @param unit
-            * 
-    */
-            public void preprocess(CompilationUnitDeclaration unit) {
+     * @param unit
+     * 
+     */
+    public void preprocess(CompilationUnitDeclaration unit) {
         this.unit = unit;
         this.unitPackageName = (unit.currentPackage == null ? "" : new String(CharOperation.concatWith(unit.currentPackage.tokens, '.')));
         this.posFactory = new JavaSourcePositionInformationFactory(unit);
@@ -865,10 +865,10 @@ class JavaParserSupport {
             if (local_types != null) {
                 for (int i = 0; i < local_types.length; i++) {
                     if (local_types[i] != null) {
-                        /**/
-                                SourceTypeBinding enclosing_type_binding = (SourceTypeBinding)  (local_types[i].enclosingMethod != null
-                                ? local_types[i].enclosingMethod.declaringClass
-                            : local_types[i].enclosingType);
+/**/
+                        SourceTypeBinding enclosing_type_binding = (SourceTypeBinding)  (local_types[i].enclosingMethod != null
+                                                                                                       ? local_types[i].enclosingMethod.declaringClass
+                                                                                                       : local_types[i].enclosingType);
                         TypeDeclaration enclosing_declaration = enclosing_type_binding.scope.referenceContext,
                         declaration = local_types[i].scope.referenceContext;
                         String // pool_name = new String(local_types[i].constantPoolName()),
@@ -876,38 +876,38 @@ class JavaParserSupport {
 
                         if (verboseLevel > 0) {
                             System.out.println();
-                        System.out.println("    unique key           " + ": " + new String(local_types[i].computeUniqueKey()));
-                        if (local_types[i].constantPoolName() != null)
+                            System.out.println("    unique key           " + ": " + new String(local_types[i].computeUniqueKey()));
+                            if (local_types[i].constantPoolName() != null)
                                 System.out.println("    constant pool name   " + ": " + new String(local_types[i].constantPoolName()));
-                        System.out.println("    genericTypeSignature " + ": " + new String(local_types[i].genericTypeSignature()));
-                        System.out.println("    readable name        " + ": " + new String(local_types[i].readableName())); 
-                        System.out.println("    short readable name  " + ": " + new String(local_types[i].readableName())); 
-                        System.out.println("    signature            " + ": " + new String(local_types[i].signature())); 
-                        System.out.println("    source name          " + ": " + new String(local_types[i].sourceName())); 
-                        System.out.println("    debug name           " + ": " + local_types[i].debugName()); 
-                        System.out.println("    declaration          " + ": " + new String(declaration.name));
-                    }
+                            System.out.println("    genericTypeSignature " + ": " + new String(local_types[i].genericTypeSignature()));
+                            System.out.println("    readable name        " + ": " + new String(local_types[i].readableName())); 
+                            System.out.println("    short readable name  " + ": " + new String(local_types[i].readableName())); 
+                            System.out.println("    signature            " + ": " + new String(local_types[i].signature())); 
+                            System.out.println("    source name          " + ": " + new String(local_types[i].sourceName())); 
+                            System.out.println("    debug name           " + ": " + local_types[i].debugName()); 
+                            System.out.println("    declaration          " + ": " + new String(declaration.name));
+                        }
 
                         if (local_types[i].constantPoolName() != null) {
                             String pool_name = new String(local_types[i].constantPoolName());
-                        int index = pool_name.lastIndexOf('/');
-                        String package_name = (index == -1 ? "" : pool_name.substring(0, index).replace('/', '.')),
-                        typename = pool_name.substring(index + 1),
-                        simplename = (local_types[i].isAnonymousType()
-                                ? source_name.substring(4, source_name.indexOf('('))
-                            : source_name);
-                        Class cls = loadClass(pool_name.replace('/', '.'));
-                        if (verboseLevel > 0) {
-                            System.out.println("    Local or Anonymous Type " + i + " nested in type " + 
-                                new String(local_types[i].enclosingType.readableName()) + ": " +
-                                (local_types[i].isAnonymousType() ? " (Anonymous)" : " (Local)"));
-                        System.out.println("    prefix               " + ": " + package_name);
-                        System.out.println("    typename             " + ": " + typename);
-                        System.out.println("    Class Name           " + ": " + (cls == null ? "What!?" : cls.getCanonicalName()));
-                    }
-                    }
-                        /**/
-                                processLocalOrAnonymousType(local_types[i]);
+                            int index = pool_name.lastIndexOf('/');
+                            String package_name = (index == -1 ? "" : pool_name.substring(0, index).replace('/', '.')),
+                                   typename = pool_name.substring(index + 1),
+                                   simplename = (local_types[i].isAnonymousType()
+                                                      ? source_name.substring(4, source_name.indexOf('('))
+                                                      : source_name);
+                            Class cls = loadClass(pool_name.replace('/', '.'));
+                            if (verboseLevel > 0) {
+                                System.out.println("    Local or Anonymous Type " + i + " nested in type " + 
+                                                   new String(local_types[i].enclosingType.readableName()) + ": " +
+                                                   (local_types[i].isAnonymousType() ? " (Anonymous)" : " (Local)"));
+                                System.out.println("    prefix               " + ": " + package_name);
+                                System.out.println("    typename             " + ": " + typename);
+                                System.out.println("    Class Name           " + ": " + (cls == null ? "What!?" : cls.getCanonicalName()));
+                            }
+                        }
+/**/
+                        processLocalOrAnonymousType(local_types[i]);
                     }
 // TODO: Remove this !!!
 // else System.out.println("A blank Local type was encountered at index " + i);
@@ -923,129 +923,129 @@ class JavaParserSupport {
                 }
             }
         }    
-            }
+    }
 
-            public void importType(ImportReference node, Class cls) {
-                preprocessClass(cls);
-                String canonical_name = cls.getCanonicalName(),
-                type_name = cls.getSimpleName(),
-                package_name = (type_name.length() < canonical_name.length()
-                        ? canonical_name.substring(0, canonical_name.length() - type_name.length() - 1)
-                    : "");
-                JavaParser.cactionInsertImportedType(package_name, type_name, createJavaToken(node));
-            }
+	public void importType(ImportReference node, Class cls) {
+		preprocessClass(cls);
+		String canonical_name = cls.getCanonicalName(),
+		       type_name = cls.getSimpleName(),
+		       package_name = (type_name.length() < canonical_name.length()
+		                           ? canonical_name.substring(0, canonical_name.length() - type_name.length() - 1)
+		                           : "");
+		JavaParser.cactionInsertImportedType(package_name, type_name, createJavaToken(node));
+	}
 
     /**
-            * 
-            * @param local_type
-    */
-            public void processLocalOrAnonymousType(LocalTypeBinding local_type) {
+     * 
+     * @param local_type
+     */
+    public void processLocalOrAnonymousType(LocalTypeBinding local_type) {
 // System.out.println("Looking at binding for type " + local_type.debugName());
-        SourceTypeBinding enclosing_type_binding = (SourceTypeBinding)
-                (local_type.enclosingMethod != null
-                ? local_type.enclosingMethod.declaringClass
-                    : local_type.enclosingType);
-        TypeDeclaration enclosing_declaration = enclosing_type_binding.scope.referenceContext,
-        declaration = local_type.scope.referenceContext;
+          SourceTypeBinding enclosing_type_binding = (SourceTypeBinding)
+                                                     (local_type.enclosingMethod != null
+                                                           ? local_type.enclosingMethod.declaringClass
+                                                           : local_type.enclosingType);
+          TypeDeclaration enclosing_declaration = enclosing_type_binding.scope.referenceContext,
+                          declaration = local_type.scope.referenceContext;
 // TODO: Remove this !
-        //
+//
 // THIS CASE OCCURS WHEN a local type is nested in an unreachable block:
-        //
+//
 //      boolean DEBUG = false;
-        //
+//
 //      if (DEBUG) { .... new Object() { ... }  ... }
-        //
-        if (local_type.constantPoolName() == null) {
-            System.out.println("Type " + local_type.debugName() + " has null constantPoolName");
-            System.out.println("The ReferenceBinding constantPoolName of " + local_type.debugName() + " is: " + new String(CharOperation.concatWith(local_type.compoundName, '/')));
+//
+if (local_type.constantPoolName() == null) {
+System.out.println("Type " + local_type.debugName() + " has null constantPoolName");
+System.out.println("The ReferenceBinding constantPoolName of " + local_type.debugName() + " is: " + new String(CharOperation.concatWith(local_type.compoundName, '/')));
 
 
-            System.out.println("Local or Anonymous Type nested in type " + 
-                    new String(local_type.enclosingType.readableName()) + ": " +
-                    (local_type.isAnonymousType() ? " (Anonymous)" : " (Local)")); 
-            System.out.println("    unique key           " + ": " + new String(local_type.computeUniqueKey()));
-            if (local_type.genericTypeSignature() != null)
-                System.out.println("    genericTypeSignature " + ": " + new String(local_type.genericTypeSignature()));
-            if (local_type.readableName() != null)
-                System.out.println("    readable name        " + ": " + new String(local_type.readableName()));
-            if (local_type.shortReadableName() != null)
-                System.out.println("    short readable name  " + ": " + new String(local_type.shortReadableName()));
-            if (local_type.signature() != null)
-                System.out.println("    signature            " + ": " + new String(local_type.signature()));
-            if (local_type.sourceName() != null)
-                System.out.println("    source name          " + ": " + new String(local_type.sourceName()));
-            System.out.println("    debug name           " + ": " + local_type.debugName()); 
-            System.out.println("    declaration          " + ": " + new String(declaration.name));
-        }
+System.out.println("Local or Anonymous Type nested in type " + 
+            new String(local_type.enclosingType.readableName()) + ": " +
+            (local_type.isAnonymousType() ? " (Anonymous)" : " (Local)")); 
+System.out.println("    unique key           " + ": " + new String(local_type.computeUniqueKey()));
+if (local_type.genericTypeSignature() != null)
+System.out.println("    genericTypeSignature " + ": " + new String(local_type.genericTypeSignature()));
+if (local_type.readableName() != null)
+System.out.println("    readable name        " + ": " + new String(local_type.readableName()));
+if (local_type.shortReadableName() != null)
+System.out.println("    short readable name  " + ": " + new String(local_type.shortReadableName()));
+if (local_type.signature() != null)
+System.out.println("    signature            " + ": " + new String(local_type.signature()));
+if (local_type.sourceName() != null)
+System.out.println("    source name          " + ": " + new String(local_type.sourceName()));
+System.out.println("    debug name           " + ": " + local_type.debugName()); 
+System.out.println("    declaration          " + ": " + new String(declaration.name));
+}
 
-        String pool_name = new String(local_type.constantPoolName()),
-        source_name = new String(local_type.sourceName());
-        int index = pool_name.lastIndexOf('/');
-        String package_name = (index == -1 ? "" : pool_name.substring(0, index).replace('/', '.')),
-        typename = pool_name.substring(index + 1),
-        simplename = (local_type.isAnonymousType()
-                ? source_name.substring(4, source_name.indexOf('('))
-                    : source_name);
-        Class cls = loadClass(pool_name.replace('/', '.'));
+          String pool_name = new String(local_type.constantPoolName()),
+                 source_name = new String(local_type.sourceName());
+          int index = pool_name.lastIndexOf('/');
+          String package_name = (index == -1 ? "" : pool_name.substring(0, index).replace('/', '.')),
+                 typename = pool_name.substring(index + 1),
+                 simplename = (local_type.isAnonymousType()
+                                         ? source_name.substring(4, source_name.indexOf('('))
+                                         : source_name);
+          Class cls = loadClass(pool_name.replace('/', '.'));
 
-        localOrAnonymousType.put(declaration, new LocalOrAnonymousType(package_name,
-                                 typename,
-                                 simplename,
-                                 cls,
-                                 local_type.isAnonymousType()));
-        identifyUserDefinedTypes(cls, declaration);
-        assert(declaration.binding == local_type);
-        if (LocalOrAnonymousTypesOf.get(enclosing_declaration) == null) {
-            LocalOrAnonymousTypesOf.put(enclosing_declaration, new ArrayList<TypeDeclaration>());
-        }
-        LocalOrAnonymousTypesOf.get(enclosing_declaration).add(declaration);
+          localOrAnonymousType.put(declaration, new LocalOrAnonymousType(package_name,
+                                                                         typename,
+                                                                         simplename,
+                                                                         cls,
+                                                                         local_type.isAnonymousType()));
+          identifyUserDefinedTypes(cls, declaration);
+          assert(declaration.binding == local_type);
+          if (LocalOrAnonymousTypesOf.get(enclosing_declaration) == null) {
+              LocalOrAnonymousTypesOf.put(enclosing_declaration, new ArrayList<TypeDeclaration>());
+          }
+          LocalOrAnonymousTypesOf.get(enclosing_declaration).add(declaration);
 // TODO: Remove this !!!
 /*
-        System.out.println("Local or Anonymous Type " + i + " nested in type " + 
-        new String(local_type.enclosingType.readableName()) + ": " +
-        (local_type.isAnonymousType() ? " (Anonymous)" : " (Local)")); 
-        System.out.println("    unique key           " + ": " + new String(local_type.computeUniqueKey()));
-        System.out.println("    constant pool name   " + ": " + new String(local_type.constantPoolName()));
-        System.out.println("    genericTypeSignature " + ": " + new String(local_type.genericTypeSignature()));
-        System.out.println("    readable name        " + ": " + new String(local_type.readableName())); 
-        System.out.println("    short readable name  " + ": " + new String(local_type.readableName())); 
-        System.out.println("    signature            " + ": " + new String(local_type.signature())); 
-        System.out.println("    source name          " + ": " + new String(local_type.sourceName())); 
-        System.out.println("    debug name           " + ": " + local_type.debugName()); 
-        System.out.println("    declaration          " + ": " + new String(declaration.name)); 
+System.out.println("Local or Anonymous Type " + i + " nested in type " + 
+                   new String(local_type.enclosingType.readableName()) + ": " +
+                   (local_type.isAnonymousType() ? " (Anonymous)" : " (Local)")); 
+System.out.println("    unique key           " + ": " + new String(local_type.computeUniqueKey()));
+System.out.println("    constant pool name   " + ": " + new String(local_type.constantPoolName()));
+System.out.println("    genericTypeSignature " + ": " + new String(local_type.genericTypeSignature()));
+System.out.println("    readable name        " + ": " + new String(local_type.readableName())); 
+System.out.println("    short readable name  " + ": " + new String(local_type.readableName())); 
+System.out.println("    signature            " + ": " + new String(local_type.signature())); 
+System.out.println("    source name          " + ": " + new String(local_type.sourceName())); 
+System.out.println("    debug name           " + ": " + local_type.debugName()); 
+System.out.println("    declaration          " + ": " + new String(declaration.name)); 
 
-        System.out.println("    prefix               " + ": " + package_name);
-        System.out.println("    typename             " + ": " + typename);
-        System.out.println("    Class Name           " + ": " + (cls == null ? "What!?" : cls.getCanonicalName()));
+System.out.println("    prefix               " + ": " + package_name);
+System.out.println("    typename             " + ": " + typename);
+System.out.println("    Class Name           " + ": " + (cls == null ? "What!?" : cls.getCanonicalName()));
 */
-            }
+    }
     
 
-            public void processConstructorDeclarationHeader(ConstructorDeclaration constructor, JavaToken jToken) {
-                assert(! constructor.isDefaultConstructor());
+    public void processConstructorDeclarationHeader(ConstructorDeclaration constructor, JavaToken jToken) {
+        assert(! constructor.isDefaultConstructor());
     
-                String name = new String(constructor.selector);
-                boolean is_native = constructor.isNative();
-                boolean is_private = (constructor.binding != null) && (! constructor.binding.isPrivate());
-                JavaParser.cactionConstructorDeclarationHeader(name,
-                        is_native,
-                        is_private,
-                        constructor.typeParameters == null ? 0 : constructor.typeParameters.length, 
-                        constructor.arguments == null ? 0 : constructor.arguments.length,
-                        constructor.thrownExceptions == null ? 0 : constructor.thrownExceptions.length,
-                        jToken
-                                                              );
+        String name = new String(constructor.selector);
+        boolean is_native = constructor.isNative();
+        boolean is_private = (constructor.binding != null) && (! constructor.binding.isPrivate());
+        JavaParser.cactionConstructorDeclarationHeader(name,
+                                                       is_native,
+                                                       is_private,
+                                                       constructor.typeParameters == null ? 0 : constructor.typeParameters.length, 
+                                                       constructor.arguments == null ? 0 : constructor.arguments.length,
+                                                       constructor.thrownExceptions == null ? 0 : constructor.thrownExceptions.length,
+                                                       jToken
+                                                      );
          
          
-            }
+    }
 
 
     /**
-            * 
-            * @param method
-            * @param jToken
-    */
-            public void processMethodDeclarationHeader(MethodDeclaration method, JavaToken jToken) {
+     * 
+     * @param method
+     * @param jToken
+     */
+    public void processMethodDeclarationHeader(MethodDeclaration method, JavaToken jToken) {
         String name = new String(method.selector);
 
         // Setup the function modifiers
@@ -1067,29 +1067,29 @@ class JavaParserSupport {
         boolean is_transient    = false;
         
         JavaParser.cactionMethodDeclarationHeader(name,
-                is_abstract,
-                is_native,
-                is_static,
-                is_final,
-                is_synchronized,
-                is_public,
-                is_protected,
-                is_private,
-                is_strictfp, 
-                method.typeParameters == null ? 0 : method.typeParameters.length,
-                method.arguments == null ? 0 : method.arguments.length,
-                method.thrownExceptions == null ? 0 : method.thrownExceptions.length,
-                jToken
+                                                  is_abstract,
+                                                  is_native,
+                                                  is_static,
+                                                  is_final,
+                                                  is_synchronized,
+                                                  is_public,
+                                                  is_protected,
+                                                  is_private,
+                                                  is_strictfp, 
+                                                  method.typeParameters == null ? 0 : method.typeParameters.length,
+                                                  method.arguments == null ? 0 : method.arguments.length,
+                                                  method.thrownExceptions == null ? 0 : method.thrownExceptions.length,
+                                                  jToken
                                                  );
-            }
+    }
 
 
     /**
-            * 
-            * @param node
-            * @param jToken
-    */
-            void processQualifiedNameReference(QualifiedNameReference node) {
+     * 
+     * @param node
+     * @param jToken
+     */
+    void processQualifiedNameReference(QualifiedNameReference node) {
         JavaToken jToken = createJavaToken(node);
 
         int type_prefix_length = node.indexOfFirstFieldBinding - 1;
@@ -1152,31 +1152,31 @@ class JavaParserSupport {
             }
             String name = new String(strbuf);
         }
-            }
+    }
 
 
      /**
-             * 
-             * @param binding
-             * @return
+     * 
+     * @param binding
+     * @return
      */
-             public String getPackageName(TypeBinding binding) {
-         if (binding instanceof LocalTypeBinding) {
-             TypeDeclaration node = ((LocalTypeBinding) binding).scope.referenceContext;
-             assert(node != null);
-             LocalOrAnonymousType special_type = localOrAnonymousType.get(node);
-             return special_type.package_name;
-         }
+    public String getPackageName(TypeBinding binding) {
+        if (binding instanceof LocalTypeBinding) {
+            TypeDeclaration node = ((LocalTypeBinding) binding).scope.referenceContext;
+            assert(node != null);
+            LocalOrAnonymousType special_type = localOrAnonymousType.get(node);
+            return special_type.package_name;
+        }
 
-         return new String(binding.qualifiedPackageName());
-             }
+        return new String(binding.qualifiedPackageName());
+    }
     
     /**
-            * 
-            * @param binding
-            * @return
-    */
-            public String getTypeName(TypeBinding binding) {
+     * 
+     * @param binding
+     * @return
+     */
+    public String getTypeName(TypeBinding binding) {
         String type_name;
 
         if (binding instanceof ParameterizedTypeBinding) {
@@ -1193,84 +1193,84 @@ class JavaParserSupport {
         else {
             type_name = new String(binding.qualifiedSourceName());
 
-            if (binding.isArrayType()) { // Remove the suffix:  DIMS X "[]"
-                type_name = type_name.substring(0, type_name.length() - (binding.dimensions() * 2));
-            }
+             if (binding.isArrayType()) { // Remove the suffix:  DIMS X "[]"
+                 type_name = type_name.substring(0, type_name.length() - (binding.dimensions() * 2));
+             }
         }
 
         return type_name;
-            }
+    }
 
     /**
-            * 
-            * @param binding
-            * @return
-    */
-            public String getFullyQualifiedTypeName(TypeBinding binding) {
+     * 
+     * @param binding
+     * @return
+     */
+    public String getFullyQualifiedTypeName(TypeBinding binding) {
         String package_name = getPackageName(binding),
-        type_name = getTypeName(binding),
-        full_name = (package_name.length() == 0 ? type_name : package_name + "." + type_name);
+               type_name = getTypeName(binding),
+               full_name = (package_name.length() == 0 ? type_name : package_name + "." + type_name);
         for (int i = 0; i < binding.dimensions(); i++) {
             full_name += "[]";
         }
         return full_name;
-            }
+    }
 
-            //
+    //
     // If we have an an inner class, get its outermost enclosing parent.
-            //
-            public String getMainPackageName(Class base_class) {
-                while (base_class.getDeclaringClass() != null) {
-                    base_class = base_class.getDeclaringClass();
-                }
-                assert(! base_class.isSynthetic());        
-                String canonical_name = base_class.getCanonicalName(),
-                class_name = base_class.getName(),
-                simple_name = base_class.getSimpleName(),
-                package_name = (simple_name.length() < canonical_name.length()
-                        ? canonical_name.substring(0, canonical_name.length() - simple_name.length() -1)
-                    : "");
-                return package_name;
-            }
+    //
+    public String getMainPackageName(Class base_class) {
+        while (base_class.getDeclaringClass() != null) {
+            base_class = base_class.getDeclaringClass();
+        }
+        assert(! base_class.isSynthetic());        
+        String canonical_name = base_class.getCanonicalName(),
+               class_name = base_class.getName(),
+               simple_name = base_class.getSimpleName(),
+               package_name = (simple_name.length() < canonical_name.length()
+                                     ? canonical_name.substring(0, canonical_name.length() - simple_name.length() -1)
+                                     : "");
+        return package_name;
+    }
  
-            public Class preprocessClass(TypeBinding binding) {
-                if (binding.isArrayType()) {
-                    ArrayBinding array_binding = (ArrayBinding) binding;
-                    binding = array_binding.leafComponentType;
-                }
+    public Class preprocessClass(TypeBinding binding) {
+        if (binding.isArrayType()) {
+            ArrayBinding array_binding = (ArrayBinding) binding;
+            binding = array_binding.leafComponentType;
+        }
     
-                while (binding.enclosingType() != null) {
-                    binding = binding.enclosingType();
-                }
+        while (binding.enclosingType() != null) {
+            binding = binding.enclosingType();
+        }
 
-                Class cls = null;
-                if (! (binding instanceof TypeVariableBinding || binding.isBaseType())) {
-                    cls = preprocessClass(getFullyQualifiedTypeName(binding));
-                }
+        Class cls = null;
+        if (! (binding instanceof TypeVariableBinding || binding.isBaseType())) {
+            cls = preprocessClass(getFullyQualifiedTypeName(binding));
+        }
 
-                return cls;
+        return cls;
+    }
+
+    private Class preprocessClass(String typename) {
+        Class cls = loadClass(typename);
+        if (cls == null) {
+            try {
+                throw new ClassNotFoundException("*** Fatal Error: Could not load class " + typename);
+            } catch (ClassNotFoundException e) {
+                e.printStackTrace();
+                System.exit(1);
             }
+        }
+        preprocessClass(cls);
 
-            private Class preprocessClass(String typename) {
-                Class cls = loadClass(typename);
-                if (cls == null) {
-                    try {
-                        throw new ClassNotFoundException("*** Fatal Error: Could not load class " + typename);
-                    } catch (ClassNotFoundException e) {
-                        e.printStackTrace();
-                        System.exit(1);
-                    }
-                }
-                preprocessClass(cls);
-
-                return cls;
-            }
+        return cls;
+    }
     
     /**
-            * 
-            * @param cls
-    */
-            public void preprocessClass(Class cls) {
+     * 
+     * @param cls
+     */
+    public void preprocessClass(Class cls) {
         if (cls.isAnonymousClass() || cls.isLocalClass()) {
             return; // Anonymous and local classes are processed when they are encountered during the visit.
         }
@@ -1296,10 +1296,10 @@ class JavaParserSupport {
         if (! base_class.isPrimitive()) {
             String // canonical_name = base_class.getCanonicalName(),
                    // class_name = base_class.getName(),
-                    simple_name = base_class.getSimpleName(),
-            package_name = getMainPackageName(base_class); 
+                   simple_name = base_class.getSimpleName(),
+                   package_name = getMainPackageName(base_class); 
 
-            if (! typeExists(package_name, simple_name)) {
+           if (! typeExists(package_name, simple_name)) {
                 insertType(package_name, simple_name);
                 //
                 // TODO:  For now, we make an exception with user-specified classes and do not insert them
@@ -1311,38 +1311,38 @@ class JavaParserSupport {
                 TypeDeclaration node = userTypeTable.get(cls);
                 assert(node == null); // TODO: simplify next statement if this is true!
                 JavaToken location = (node != null
-                        ? createJavaToken(node)
-                    : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
+                                            ? createJavaToken(node)
+                                            : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
                 JavaParser.cactionPushPackage(package_name, location);
                 insertClasses(base_class);
                 traverseClass(base_class);
                 JavaParser.cactionPopPackage();
-            }
+           }
         }
-            }
+    }
 
 
     /**
-            * 
-            * @param cls
-            * 
-            * Note that it is very important that a given class and all its inner classes be inserted
-            * in the translator prior to traversing the classes to process the members of a given class.
-            * This is necessary because Java allows forward references.  For example, a field or method
-            * may refer to an inner class which has not yet been processed as its type.
-            * 
-    */
-            public void insertClasses(Class cls) {
+     * 
+     * @param cls
+     * 
+     * Note that it is very important that a given class and all its inner classes be inserted
+     * in the translator prior to traversing the classes to process the members of a given class.
+     * This is necessary because Java allows forward references.  For example, a field or method
+     * may refer to an inner class which has not yet been processed as its type.
+     * 
+     */
+    public void insertClasses(Class cls) {
         TypeDeclaration node = userTypeTable.get(cls);
         LocalOrAnonymousType special_type = (node != null ? localOrAnonymousType.get(node) : null);
 
         JavaToken location = (node != null
-                ? createJavaToken(node)
-                    : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
+                                    ? createJavaToken(node)
+                                    : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
 
         String class_name = (special_type != null 
-                ? (special_type.isAnonymous() ? special_type.typename : special_type.simplename)
-                    : cls.getSimpleName());
+                                           ? (special_type.isAnonymous() ? special_type.typename : special_type.simplename)
+                                           : cls.getSimpleName());
 
         JavaParser.cactionInsertClassStart(class_name, location);
         Class innerClasslist[] = cls.getDeclaredClasses();
@@ -1351,56 +1351,56 @@ class JavaParserSupport {
             insertClasses(inner_class);
         }
         JavaParser.cactionInsertClassEnd(class_name, location);
-            }
+    }
 
-            boolean hasConflicts(String simple_name) {
-                Class found = (this.unitPackageName.length() == 0 ? null : loadClass(this.unitPackageName + "." + simple_name));
+    boolean hasConflicts(String simple_name) {
+        Class found = (this.unitPackageName.length() == 0 ? null : loadClass(this.unitPackageName + "." + simple_name));
 
-                for (int i = 0, max = unit.scope.imports.length; i < max; i++) {
-                    ImportBinding import_binding = unit.scope.imports[i];
-                    Class cls = this.importClass.get(import_binding.reference);
-                    if (cls != null) { // an imported type ?
-                        if (cls.getSimpleName().equals(simple_name)) {
-                            if (found != null) { // a second hit?
-                                return true;
-                            }
-                            found = cls;
-                        }
+        for (int i = 0, max = unit.scope.imports.length; i < max; i++) {
+            ImportBinding import_binding = unit.scope.imports[i];
+            Class cls = this.importClass.get(import_binding.reference);
+            if (cls != null) { // an imported type ?
+                if (cls.getSimpleName().equals(simple_name)) {
+                    if (found != null) { // a second hit?
+                        return true;
                     }
-                    if (import_binding.onDemand) { // an imported package or type on-demand?
-                        String class_name = new String(CharOperation.concatWith(import_binding.compoundName, '.')) + "." + simple_name;
-                        cls = loadClass(class_name);
-                        if (cls != null) { // a hit? 
-                            if (found != null) { // a second hit?
-                                return true;
-                            }
-                            found = cls;
-                        }
-                    }
+                    found = cls;
                 }
-
-                return false;
             }
+            if (import_binding.onDemand) { // an imported package or type on-demand?
+                String class_name = new String(CharOperation.concatWith(import_binding.compoundName, '.')) + "." + simple_name;
+                cls = loadClass(class_name);
+                if (cls != null) { // a hit? 
+                    if (found != null) { // a second hit?
+                        return true;
+                    }
+                    found = cls;
+                }
+            }
+        }
+
+        return false;
+    }
 
     /**
-            * 
-            * @param cls
-    */
-            public void traverseClass(Class cls) {
+     * 
+     * @param cls
+     */
+    public void traverseClass(Class cls) {
         assert(cls != null);
 // TODO: Remove this !!!
 /*
-        System.out.println("Traversing class " + cls.getCanonicalName());        
-        System.out.println();
-        System.out.println("Processing class " + cls.getCanonicalName() + " with type parameters:");        
-        TypeVariable<Class<?>>[] type_parameters = cls.getTypeParameters();
-        if (type_parameters != null){
-        for (int i = 0; i < type_parameters.length; i++) {
+System.out.println("Traversing class " + cls.getCanonicalName());        
+System.out.println();
+System.out.println("Processing class " + cls.getCanonicalName() + " with type parameters:");        
+TypeVariable<Class<?>>[] type_parameters = cls.getTypeParameters();
+if (type_parameters != null){
+    for (int i = 0; i < type_parameters.length; i++) {
         TypeVariable<Class<?>> type_parameter = type_parameters[i];
         System.out.println("    " + type_parameter.getName());
-            }
-            }
-        else System.out.println("NO type parameters!!!");
+    }
+}
+else System.out.println("NO type parameters!!!");
 */
         TypeDeclaration node = userTypeTable.get(cls); // is this a user-defined type?
         ASTNode node_list[] = (node != null ? orderedClassMembers.get(node) : new ASTNode[0]);
@@ -1409,21 +1409,21 @@ class JavaParserSupport {
         LocalOrAnonymousType special_type = (node != null ? localOrAnonymousType.get(node) : null);
 
         JavaToken location = (node != null
-                ? createJavaToken(node)
-                    : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
+                                    ? createJavaToken(node)
+                                    : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
 
         String class_name = (special_type != null 
-                ? (special_type.isAnonymous() ? special_type.typename : special_type.simplename)
-                    : cls.getSimpleName());
+                                    ? (special_type.isAnonymous() ? special_type.typename : special_type.simplename)
+                                    : cls.getSimpleName());
 
         JavaParser.cactionBuildClassSupportStart(class_name,
-                (special_type == null ? "" : special_type.simplename),
-                node != null, // a user-defined class?
-                hasConflicts(cls.getSimpleName()),
-                cls.isInterface(),
-                cls.isEnum(),
-                special_type != null && special_type.isAnonymous(), // Anonymous class?
-                location);
+                                                 (special_type == null ? "" : special_type.simplename),
+                                                 node != null, // a user-defined class?
+                                                 hasConflicts(cls.getSimpleName()),
+                                                 cls.isInterface(),
+                                                 cls.isEnum(),
+                                                 special_type != null && special_type.isAnonymous(), // Anonymous class?
+                                                 location);
 
         if (special_type == null && cls.getCanonicalName().equals("java.lang.Object")) { // If we are processing Object, signal this to the translator.
             JavaParser.cactionSetupObject();
@@ -1527,15 +1527,15 @@ class JavaParserSupport {
 // System.out.println(">");
 // }
 
-        //
+         //
          // If this is a generic type, process its type parameters.  Note that it's important to process the type
          // parameters of this "master" type (if any) prior to processing its super class and interfaces as these may
          // themselves be parameterized types that use parameters originally associated with this "master" type.
-        //
-        for (int i = 0; i < parameters.length; i++) {
-            TypeVariable<?> parameter = parameters[i];
-            JavaParser.cactionBuildTypeParameterSupport(parameter.getName(), location);
-        }
+         //
+         for (int i = 0; i < parameters.length; i++) {
+             TypeVariable<?> parameter = parameters[i];
+             JavaParser.cactionBuildTypeParameterSupport(parameter.getName(), location);
+         }
 
         // process the super class
         if (super_class != null) {
@@ -1652,40 +1652,40 @@ class JavaParserSupport {
                 }
 // TODO: Remove this !!!            
 /*
-                System.out.println();
-                System.out.print("    Processing constructor " + ct.getName() + "(");
-                Type[] types = ct.getGenericParameterTypes();
-                if (types != null && types.length > 0) {
-                assert(pvec.length == types.length);
-                System.out.print("(" + pvec[0].getCanonicalName() + ") ");
-                if (types[0] == null)
-                System.out.print("*");
-                else if (types[0] instanceof TypeVariable<?>)
-                System.out.print(((TypeVariable<?>) types[0]).getName());
-                else if (types[0] instanceof Class)
-                System.out.print("+" + ((Class) types[0]).getName());
-                else System.out.print("-" + types[0].getClass().getCanonicalName());
+System.out.println();
+System.out.print("    Processing constructor " + ct.getName() + "(");
+Type[] types = ct.getGenericParameterTypes();
+if (types != null && types.length > 0) {
+    assert(pvec.length == types.length);
+    System.out.print("(" + pvec[0].getCanonicalName() + ") ");
+    if (types[0] == null)
+         System.out.print("*");
+    else if (types[0] instanceof TypeVariable<?>)
+         System.out.print(((TypeVariable<?>) types[0]).getName());
+    else if (types[0] instanceof Class)
+         System.out.print("+" + ((Class) types[0]).getName());
+    else System.out.print("-" + types[0].getClass().getCanonicalName());
 
-                for (int j = 1; j < types.length; j++) {
-                System.out.print(", ");
+    for (int j = 1; j < types.length; j++) {
+        System.out.print(", ");
 //        System.out.print(types[j] == null ? "*" : (types[j] instanceof TypeVariable ? ((TypeVariable<?>) types[j]).getName() : types[j].getClass().getCanonicalName()));
-                System.out.print(", (" + pvec[j].getCanonicalName() + ") ");
-                if (types[j] == null)
-                System.out.print("*");
-                else if (types[j] instanceof TypeVariable){
-                TypeVariable<?> type = (TypeVariable<?>) types[j];
-                System.out.print("(" + type.getClass().getCanonicalName() + ") " + type.getName());
-            }
-                else if (types[j] instanceof Class){
-                System.out.print("+" + ((Class) types[j]).getName());
-            }
-                else {
-                System.out.print("-" + types[j].getClass().getCanonicalName());
-            }
-            }
-            }
-                else System.out.print("...");
-                System.out.println(") in class " + cls.getCanonicalName());
+        System.out.print(", (" + pvec[j].getCanonicalName() + ") ");
+        if (types[j] == null)
+            System.out.print("*");
+        else if (types[j] instanceof TypeVariable){
+            TypeVariable<?> type = (TypeVariable<?>) types[j];
+            System.out.print("(" + type.getClass().getCanonicalName() + ") " + type.getName());
+        }
+        else if (types[j] instanceof Class){
+            System.out.print("+" + ((Class) types[j]).getName());
+        }
+        else {
+            System.out.print("-" + types[j].getClass().getCanonicalName());
+        }
+    }
+}
+else System.out.print("...");
+System.out.println(") in class " + cls.getCanonicalName());
 */
             }
 
@@ -1755,27 +1755,27 @@ class JavaParserSupport {
                     if (method instanceof AnnotationMethodDeclaration || 
                         method.isClinit() ||
                         (method.isConstructor() && ((ConstructorDeclaration) method).isDefaultConstructor() && special_type != null && special_type.isAnonymous()))
-                        continue;
+                            continue;
 
                     Argument args[] = method.arguments;
 
 // TODO: Remove this!
-                    //
+                        //
                         // TODO: Remove this when the feature is implemented
-                    //
+                        //
 //                        if (method.typeParameters() != null) {
 /*                    
-                    if (method.typeParameters().length > 0) {
-                    TypeParameter gt[] = method.typeParameters();
-                    System.out.println();
-                    System.out.println("Function " + new String(method.selector) + " in type " + cls.getCanonicalName() + " has " + gt.length + " generic types: ");
-                    for (int i = 0; i < gt.length; i++) {
-                    if (gt[i] instanceof TypeParameter)
-                    System.out.println(new String(((TypeParameter) gt[i]).name));
-                    else System.out.println(gt[i].getClass().getCanonicalName());
-                }
-                    System.out.println();
-                }
+if (method.typeParameters().length > 0) {
+TypeParameter gt[] = method.typeParameters();
+System.out.println();
+System.out.println("Function " + new String(method.selector) + " in type " + cls.getCanonicalName() + " has " + gt.length + " generic types: ");
+for (int i = 0; i < gt.length; i++) {
+if (gt[i] instanceof TypeParameter)
+System.out.println(new String(((TypeParameter) gt[i]).name));
+else System.out.println(gt[i].getClass().getCanonicalName());
+}
+System.out.println();
+}
 */
                     
 //                        System.out.println();
@@ -1789,8 +1789,8 @@ class JavaParserSupport {
 
                     String method_name = new String(method.selector);
                     JavaParser.cactionBuildMethodSupportStart(method_name,
-                            k, // method index 
-                            method_location);
+                                                              k, // method index 
+                                                              method_location);
 
                     if (method.typeParameters() != null) {
                         TypeParameter type_parameters[] = method.typeParameters();
@@ -1818,9 +1818,9 @@ class JavaParserSupport {
                             generateAndPushType(arg.type.resolvedType, arg_location);
                             String argument_name = new String(arg.name);
                             JavaParser.cactionBuildArgumentSupport(argument_name,
-                                    arg.isVarArgs(),
-                                    arg.binding.isFinal(),
-                                    arg_location);
+                                                                   arg.isVarArgs(),
+                                                                   arg.binding.isFinal(),
+                                                                   arg_location);
                         }
                     }
 
@@ -1828,15 +1828,15 @@ class JavaParserSupport {
                     // TODO: process Throws list ... not relevant for now because the translator does not handle them yet.
                     //
                     JavaParser.cactionBuildMethodSupportEnd(method_name,
-                            k, // method index 
-                            method.isConstructor(),
-                            method.isAbstract(),
-                            method.isNative(),
-                            method.typeParameters() == null ? 0 : method.typeParameters().length,
-                            args == null ? 0 : args.length,
-                            true, /* user-defined-method */
-                            args_location != null ? args_location : method_location,
-                            method_location);
+                                                            k, // method index 
+                                                            method.isConstructor(),
+                                                            method.isAbstract(),
+                                                            method.isNative(),
+                                                            method.typeParameters() == null ? 0 : method.typeParameters().length,
+                                                            args == null ? 0 : args.length,
+                                                            true, /* user-defined-method */
+                                                            args_location != null ? args_location : method_location,
+                                                            method_location);
                 }
                 else assert(false);
             }
@@ -1867,7 +1867,7 @@ class JavaParserSupport {
             for (int i = 0; i < ctor_list.length; i++) {
                 Constructor ct = ctor_list[i];
                 if (ct.isSynthetic()) // skip synthetic constructors
-                    continue;
+                     continue;
 
                 //
                 // TODO: Do something !!!
@@ -1883,42 +1883,42 @@ class JavaParserSupport {
                 JavaParser.cactionTypeReference("", "void", location);
 
                 JavaParser.cactionBuildMethodSupportStart(class_name, /* ct.getName() */
-                        (int) -1, // No method index 
-                        location);
+                                                          (int) -1, // No method index 
+                                                          location);
 
 // TODO: Remove this!
 /*
-                if (ct.getGenericParameterTypes() != null && ct.getGenericParameterTypes().length > 0) {
-                Type gt[] = ct.getGenericParameterTypes();
-                System.out.println();
-                System.out.println("Constructor of type " + cls.getCanonicalName() + " has generic " + gt.length + " types: ");
-                for (int k = 0; k < gt.length; k++) {
-                System.out.println(gt[k].getClass().getCanonicalName());
-            }
-                System.out.println();
-            }
+if (ct.getGenericParameterTypes() != null && ct.getGenericParameterTypes().length > 0) {
+Type gt[] = ct.getGenericParameterTypes();
+System.out.println();
+System.out.println("Constructor of type " + cls.getCanonicalName() + " has generic " + gt.length + " types: ");
+for (int k = 0; k < gt.length; k++) {
+System.out.println(gt[k].getClass().getCanonicalName());
+}
+System.out.println();
+}
 */
                 for (int j = 0; j < pvec.length; j++) {
                     generateAndPushType(pvec[j]);
                     JavaParser.cactionBuildArgumentSupport(ct.getName() + j,
-                            false, /* mark as not having var args */ 
-                            true, /* mark as final */ 
-                            location);
+                                                           false, /* mark as not having var args */ 
+                                                           true, /* mark as final */ 
+                                                           location);
                 }
 
                 //
                 // TODO: process Throws list ... not relevant for now because the translator does not handle them yet.
                 //
                 JavaParser.cactionBuildMethodSupportEnd(class_name, /* ct.getName() */
-                        (int) -1, // No method index 
-                        true, /* a constructor */
-                        Modifier.isAbstract(ct.getModifiers()),
-                        Modifier.isNative(ct.getModifiers()),
-                        0, // ignore generic type parameters for now
-                        pvec == null ? 0 : pvec.length,
-                        false, /* class-defined-method */
-                        location,
-                        location);
+                                                        (int) -1, // No method index 
+                                                        true, /* a constructor */
+                                                        Modifier.isAbstract(ct.getModifiers()),
+                                                        Modifier.isNative(ct.getModifiers()),
+                                                        0, // ignore generic type parameters for now
+                                                        pvec == null ? 0 : pvec.length,
+                                                        false, /* class-defined-method */
+                                                        location,
+                                                        location);
             }
 
             for (int i = 0; i < method_list.length; i++) {
@@ -1935,9 +1935,9 @@ class JavaParserSupport {
                 //    System.exit(1);
                 // }
                 try {
-                    JavaParser.cactionBuildMethodSupportStart(m.getName().replace('$', '_'),
-                            (int) -1, // No method index
-                            location);
+                JavaParser.cactionBuildMethodSupportStart(m.getName().replace('$', '_'),
+                                                          (int) -1, // No method index
+                                                          location);
                 }
                 catch (Throwable e) {
                     e.printStackTrace();
@@ -1946,15 +1946,15 @@ class JavaParserSupport {
 
 // TODO: Remove this!
 /*
-                if (m.getTypeParameters() != null) {
-                TypeVariable<Method> gt[] = m.getTypeParameters();
-                System.out.println();
-                System.out.println("Method " + m.getName() + " in type " + cls.getCanonicalName() + " has " + gt.length + " generic types: ");
-                for (int k = 0; k < gt.length; k++) {
-                System.out.println("    " + gt[k].getName());
-            }
-                System.out.println();
-            }
+if (m.getTypeParameters() != null) {
+TypeVariable<Method> gt[] = m.getTypeParameters();
+System.out.println();
+System.out.println("Method " + m.getName() + " in type " + cls.getCanonicalName() + " has " + gt.length + " generic types: ");
+for (int k = 0; k < gt.length; k++) {
+System.out.println("    " + gt[k].getName());
+}
+System.out.println();
+}
 */
                 generateAndPushType(m.getReturnType());
 
@@ -1962,9 +1962,9 @@ class JavaParserSupport {
                 for (int j = 0; j < pvec.length; j++) {
                     generateAndPushType(pvec[j]);
                     JavaParser.cactionBuildArgumentSupport(m.getName() + j,
-                            false, /* mark as not having var args */
-                            true,  /* mark as final */ 
-                            location);
+                                                           false, /* mark as not having var args */
+                                                           true,  /* mark as final */ 
+                                                           location);
                 }
 
                 //
@@ -1985,62 +1985,62 @@ class JavaParserSupport {
 
         // This wraps up the details of processing all of the child classes (such as forming SgAliasSymbols for them in the global scope).
         JavaParser.cactionBuildClassSupportEnd(class_name, location);
-            }
+    }
 
 
-            public void generateAndPushType(Class cls) {
-                //
+    public void generateAndPushType(Class cls) {
+        //
         // This function is used to push a type that came from a class.
-                //
-                if (verboseLevel > 0)
-                    System.out.println("Inside of generateAndPushType(Class) for class = " + cls);
+        //
+        if (verboseLevel > 0)
+            System.out.println("Inside of generateAndPushType(Class) for class = " + cls);
 
-                TypeDeclaration node = userTypeTable.get(cls);
-                JavaToken location = (node != null
-                        ? createJavaToken(node)
-                    : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
+        TypeDeclaration node = userTypeTable.get(cls);
+        JavaToken location = (node != null
+                                    ? createJavaToken(node)
+                                    : this.defaultLocation); // new JavaToken("Dummy JavaToken (see createJavaToken)", new JavaSourcePositionInformation(0)));
  
-                int num_dimensions = 0;
-                while (cls.isArray()) {
-                    num_dimensions++;
-                    cls = cls.getComponentType();
-                }
+        int num_dimensions = 0;
+        while (cls.isArray()) {
+            num_dimensions++;
+            cls = cls.getComponentType();
+        }
 
-                if (num_dimensions > 0) {
+        if (num_dimensions > 0) {
 // TODO: Remove this !!!
 //            String canonical_name = cls.getCanonicalName(),
 //                   package_name = getMainPackageName(cls),
 //                   type_name = canonical_name.substring(package_name.length() == 0 ? 0 : package_name.length() + 1);
-                    generateAndPushType(cls);
-                    JavaParser.cactionArrayTypeReference(num_dimensions, location);
-                }
-                else if (cls.isPrimitive()) {
-                    String type_name = cls.getName();
-                    JavaParser.cactionTypeReference("", type_name, location);
-                }
-                else {
-                    String className = cls.getName();
+            generateAndPushType(cls);
+            JavaParser.cactionArrayTypeReference(num_dimensions, location);
+        }
+        else if (cls.isPrimitive()) {
+            String type_name = cls.getName();
+            JavaParser.cactionTypeReference("", type_name, location);
+        }
+        else {
+            String className = cls.getName();
 
-                    String canonical_name = cls.getCanonicalName(),
-                    package_name = getMainPackageName(cls),
-                    type_name = canonical_name.substring(package_name.length() == 0 ? 0 : package_name.length() + 1);
-                    JavaParser.cactionTypeReference(package_name, type_name, location);
-                }
+            String canonical_name = cls.getCanonicalName(),
+                   package_name = getMainPackageName(cls),
+                   type_name = canonical_name.substring(package_name.length() == 0 ? 0 : package_name.length() + 1);
+            JavaParser.cactionTypeReference(package_name, type_name, location);
+        }
 
-                if (verboseLevel > 0)
-                    System.out.println("Leaving generateAndPushType(Class) (case of proper class)");
-            }
+        if (verboseLevel > 0)
+            System.out.println("Leaving generateAndPushType(Class) (case of proper class)");
+    }
 
 
     /**
-            * 
-            * @param type_binding
-    */
-            public void generateAndPushType(TypeBinding type_binding, JavaToken location) {
+     * 
+     * @param type_binding
+     */
+    public void generateAndPushType(TypeBinding type_binding, JavaToken location) {
         if (type_binding.isParameterizedTypeWithActualArguments()) { // isBoundParameterizedType() || type_binding.isUnboundWildcard() || type_binding.isWildcard()) {
             ParameterizedTypeBinding param_type_binding = (ParameterizedTypeBinding) type_binding;
             String package_name = getPackageName(param_type_binding),
-            type_name = getTypeName(param_type_binding);
+                   type_name = getTypeName(param_type_binding);
             if (param_type_binding.arguments != null) {
                 for (int i = 0; i < param_type_binding.arguments.length; i++) {
                     assert(param_type_binding.arguments[i] != null);
@@ -2051,10 +2051,10 @@ class JavaParserSupport {
                 }
 
                 JavaParser.cactionParameterizedTypeReferenceEnd(package_name,
-                        type_name,
-                        param_type_binding.arguments.length,
-                        0,
-                        location);
+                                                                type_name,
+                                                                param_type_binding.arguments.length,
+                                                                0,
+                                                                location);
             }
             else {
                 JavaParser.cactionTypeReference(package_name, type_name, location);
@@ -2065,7 +2065,7 @@ class JavaParserSupport {
             TypeBinding base_type_binding = arrayType.leafComponentType;
 
             String package_name = getPackageName(base_type_binding),
-            type_name = getTypeName(base_type_binding);
+                   type_name = getTypeName(base_type_binding);
             assert(! (base_type_binding instanceof ArrayBinding));
 
             if (base_type_binding.isParameterizedTypeWithActualArguments()) {
@@ -2079,10 +2079,10 @@ class JavaParserSupport {
                     }
 
                     JavaParser.cactionParameterizedTypeReferenceEnd(package_name,
-                            type_name,
-                            param_type_binding.arguments.length,
-                            arrayType.dimensions(),
-                            location);
+                                                                    type_name,
+                                                                    param_type_binding.arguments.length,
+                                                                    arrayType.dimensions(),
+                                                                    location);
                 }
                 else {
                     generateAndPushType(base_type_binding, location);
@@ -2114,7 +2114,7 @@ class JavaParserSupport {
                 if (binding instanceof TypeBinding) {
                     TypeBinding enclosing_binding = (TypeBinding) binding;
                     String package_name = getPackageName(enclosing_binding),
-                    type_name = getTypeName(enclosing_binding);
+                           type_name = getTypeName(enclosing_binding);
 // TODO: Remove this !                
 // System.out.println("package name = " + package_name + ";  type name = " + type_name + " ;  type parameter name = " + type_parameter_name + " ; declaring element's binding type = " + binding.getClass().getCanonicalName());
                     JavaParser.cactionTypeParameterReference(package_name, type_name, (int) -1 /* no method index */, type_parameter_name, location);
@@ -2125,7 +2125,7 @@ class JavaParserSupport {
                     if (method_declaration != null) {
                         TypeBinding enclosing_type_binding = method_binding.declaringClass;
                         String package_name = getPackageName(enclosing_type_binding),
-                        type_name = getTypeName(enclosing_type_binding);
+                               type_name = getTypeName(enclosing_type_binding);
 // TODO: Remove this !
 // System.out.println("Looking for type " + type_parameter_name + " in method " + new String(method_declaration.selector) + " in type " + enclosing_type_binding.debugName());                        
                         int method_index = classMemberTable.get(method_declaration);
@@ -2151,53 +2151,53 @@ class JavaParserSupport {
                  type_binding instanceof ParameterizedTypeBinding ||
                  type_binding instanceof RawTypeBinding) {
             String package_name = getPackageName(type_binding),
-            type_name = getTypeName(type_binding);
+                   type_name = getTypeName(type_binding);
             JavaParser.cactionTypeReference(package_name, type_name, location);
-                 }
-                 else if (type_binding instanceof WildcardBinding) {
-                     WildcardBinding wildcard_binding = (WildcardBinding) type_binding;
+        }
+        else if (type_binding instanceof WildcardBinding) {
+            WildcardBinding wildcard_binding = (WildcardBinding) type_binding;
             
-                     JavaParser.cactionWildcard(location);
+            JavaParser.cactionWildcard(location);
             
-                     if (! wildcard_binding.isUnboundWildcard()) { // there is a bound!
-                         preprocessClass(wildcard_binding.bound);
-                         generateAndPushType(wildcard_binding.bound, location);
-                     }
-
-                     JavaParser.cactionWildcardEnd(wildcard_binding.boundKind == Wildcard.UNBOUND, wildcard_binding.boundKind == Wildcard.EXTENDS,  wildcard_binding.boundKind == Wildcard.SUPER, location);
-                 }
-                 else {
-                     System.out.println();
-                     System.out.println("*** No support yet for " + type_binding.getClass().getCanonicalName() + ": " + type_binding.debugName());
-                     System.exit(1);
-                 }
+            if (! wildcard_binding.isUnboundWildcard()) { // there is a bound!
+                preprocessClass(wildcard_binding.bound);
+                generateAndPushType(wildcard_binding.bound, location);
             }
+
+            JavaParser.cactionWildcardEnd(wildcard_binding.boundKind == Wildcard.UNBOUND, wildcard_binding.boundKind == Wildcard.EXTENDS,  wildcard_binding.boundKind == Wildcard.SUPER, location);
+        }
+        else {
+            System.out.println();
+            System.out.println("*** No support yet for " + type_binding.getClass().getCanonicalName() + ": " + type_binding.debugName());
+            System.exit(1);
+        }
+    }
 
 // -------------------------------------------------------------------------------------------
     
-            public void translate(CompilationUnitDeclaration unit, String language_level) {
+    public void translate(CompilationUnitDeclaration unit, String language_level) {
         // Debugging support...
-                if (verboseLevel > 0)
-                    System.out.println("Start parsing");
+        if (verboseLevel > 0)
+            System.out.println("Start parsing");
 
-                try {
-                    this.posFactory = new JavaSourcePositionInformationFactory(unit);
-                    this.languageLevel = language_level;
+        try {
+            this.posFactory = new JavaSourcePositionInformationFactory(unit);
+            this.languageLevel = language_level;
 
-                    ecjASTVisitor ecjVisitor = new ecjASTVisitor(unit, this);
-                    unit.traverse(ecjVisitor, unit.scope);
-                }
-                catch (Throwable e) {
-                    e.printStackTrace();
-                    System.out.println("Caught error in JavaParser (Parser failed)");
-                    System.err.println(e);
+            ecjASTVisitor ecjVisitor = new ecjASTVisitor(unit, this);
+            unit.traverse(ecjVisitor, unit.scope);
+        }
+        catch (Throwable e) {
+            e.printStackTrace();
+            System.out.println("Caught error in JavaParser (Parser failed)");
+            System.err.println(e);
 
             // Make sure we exit as quickly as possible to simplify debugging.
-                    System.exit(1);
-                }
+            System.exit(1);
+        }
 
         // Debugging support...
-                if (verboseLevel > 0)
-                    System.out.println("Done parsing");
-            }
+        if (verboseLevel > 0)
+            System.out.println("Done parsing");
+    }
 }
