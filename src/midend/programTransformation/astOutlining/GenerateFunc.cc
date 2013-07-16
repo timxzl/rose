@@ -1379,8 +1379,24 @@ Outliner::generateFunction ( SgBasicBlock* s,  // block to be outlined
   return func;
 }
 
-//! Create a function named 'func_name_str', with a parameter list from 'syms' that will be executed by a Nanos slicer
-//! Inspired in generateFunction method
+//! Create a function named 'func_name_str' containing an OpenMP loop to be executed with Nanos
+// (Inspired in generateFunction method)
+// For an input 's' such as:
+//    int i;
+//    for (i = 0; i <= 9; i += 1) {
+//        a[i] = (i * 2);
+//    }
+// The outlined function body 'func_body' will be:
+//    int i;
+//    int nanos_lower = ( (nanos_loop_info_t ) ((struct OUT__1__6388___data *)__out_argv) )->wsd.lower;
+//    int nanos_upper = ( (nanos_loop_info_t ) ((struct OUT__1__6388___data *)__out_argv) )->wsd.upper;
+//    int nanos_step = ( (nanos_loop_info_t ) ((struct OUT__1__6388___data *)__out_argv) )->wsd.step;
+//    if( nanos_step > 0 )
+//        for (i = nanos_lower; i <= nanos_upper; i += nanos_step)
+//            a_0[i] = i * 2;
+//    else
+//        for (i = nanos_lower; i >= nanos_upper; i += nanos_step)
+//            a_0[i] = i * 2;
 SgFunctionDeclaration *
     Outliner::generateLoopFunction ( SgBasicBlock* s,
                                      const string& func_name_str,
@@ -1395,26 +1411,21 @@ SgFunctionDeclaration *
     ROSE_ASSERT( isSgGlobal( scope ) );
     
     //step 1. Create function skeleton, 'func'.
+    //---------------------------------------------------------------------------------------
     SgName func_name( func_name_str );
     SgFunctionParameterList* parameterList = buildFunctionParameterList( );
     SgFunctionDeclaration* func = createFuncSkeleton( func_name, buildVoidType( ), parameterList, scope );
     ROSE_ASSERT( func );
     
-    // Liao, 4/15/2009 , enforce C-bindings  for C++ outlined code
-    // enable C code to call this outlined function
-    // Only apply to C++ , pure C has trouble in recognizing extern "C"
-    // Another way is to attach the function with preprocessing info:
-    // #if __cplusplus 
-    // extern "C"
-    // #endif
-    // We don't choose it since the language linkage information is not explicit in AST
     if( SageInterface::is_Cxx_language( ) || is_mixed_C_and_Cxx_language( ) )
     { // Make function 'extern "C"'
         func->get_declarationModifier( ).get_storageModifier( ).setExtern( );
         func->set_linkage( "C" );
     }
 
-    //step 2. Create the function body
+    //step 2. Create the function body PART 1
+    //---------------------------------------------------------------------------------------
+    // Here we only copy the all the statements in 's' to the function body
     SgBasicBlock* func_body = func->get_definition( )->get_body( );
     ROSE_ASSERT( func_body != NULL );
     ROSE_ASSERT( func_body->get_statements( ).empty( ) == true );
@@ -1424,11 +1435,7 @@ SgFunctionDeclaration *
         ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
     
     //step 3: variable handling, including: 
-    // -----------------------------------------
-    //   create parameters of the outlined functions
-    //   add statements to unwrap the parameters
-    //   add repacking statements if necessary
-    //   replace variables to access to parameters, directly or indirectly
+    //---------------------------------------------------------------------------------------
     unpacking_stmts = variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
     ROSE_ASSERT( func != NULL );
     func->set_type( buildFunctionType( func->get_type()->get_return_type( ), 
@@ -1437,30 +1444,13 @@ SgFunctionDeclaration *
     ROSE_ASSERT( func_body->get_parent( ) == func->get_definition( ) );
     ROSE_ASSERT( scope->lookup_function_symbol( func->get_name( ) ) );
     
-    //step 4. Introduce in the function code the statements for Nanos calls
+    //step 4. Create the function body PART 2
+    //---------------------------------------------------------------------------------------
+    // Here we introduce in the function code the statements for Nanos calls
     // We split the construction of the function body because 
     // we need variable handling to be done before building the nanos calls
     // and we need the original code to be placed in the function code 
     // before the handling is made because it can cause replacement
-    // For an input 's' such as:
-    //    int i;
-    //    for (i = 0; i <= 9; i += 1) {
-    //        a[i] = (i * 2);
-    //    }
-    // The outlined function body 'func_body' will be:
-    //    int i;
-    //    int nanos_lower = ( (nanos_loop_info_t ) ((struct OUT__1__6388___data *)__out_argv) )->wsd.lower;
-    //    int nanos_upper = ( (nanos_loop_info_t ) ((struct OUT__1__6388___data *)__out_argv) )->wsd.upper;
-    //        for (i = nanos_lower; i <= nanos_upper; i += 1) {
-    //            a_0[i] = i * 2;
-    //        }
-    //    }
-    // --------------------------------------------------------------------
-  
-    // Get the WSD member from the __out_argv parameter
-    SgInitializedNamePtrList& argsList = func->get_parameterList( )->get_args( );
-    ROSE_ASSERT( argsList.size() == 1 );      // The only argument must be __out_argv
-    
     SgClassSymbol * loop_info_sym = SageInterface::lookupClassSymbolInParentScopes( "nanos_loop_info_t", scope );
     SgVariableDeclaration * member_lower, * member_upper, * member_step;
     if( loop_info_sym == NULL )
@@ -1473,11 +1463,9 @@ SgFunctionDeclaration *
         member_lower = buildVariableDeclaration( "lower", buildIntType( ), NULL, loop_info_def );
         member_upper = buildVariableDeclaration( "upper", buildIntType( ), NULL, loop_info_def );
         member_step = buildVariableDeclaration( "step", buildIntType( ), NULL, loop_info_def );
-        SgVariableDeclaration * member_chunk = buildVariableDeclaration( "chunk", buildIntType( ), NULL, loop_info_def );
         loop_info_def->append_member( member_lower );
         loop_info_def->append_member( member_upper );
         loop_info_def->append_member( member_step );
-        loop_info_def->append_member( member_chunk );
         loop_info_decl->set_definition( loop_info_def );
         
         loop_info_sym = isSgClassSymbol( loop_info_decl->search_for_symbol_from_symbol_table( ) );
@@ -1496,33 +1484,35 @@ SgFunctionDeclaration *
         member_step = isSgVariableDeclaration( loop_info_members[2] );
     }
     
-            // ( (nanos_loop_info_t ) ((struct OUT__1__6388___data *)__out_argv) )
+    // Get the WSD member from the __out_argv parameter
+    // (nanos_loop_info_t ) ( ( (struct OUT__1__6388___data *)__out_argv )->wsd )
+    SgInitializedNamePtrList& argsList = func->get_parameterList( )->get_args( );
+    ROSE_ASSERT( argsList.size() == 1 );      // The only argument must be __out_argv
     SgDeclarationStatementPtrList st_members = struct_decl->get_definition( )->get_members( );
     SgVariableDeclaration * wsd_member = isSgVariableDeclaration( *( st_members.begin( ) ) );
     SgInitializedName * wsd_name = wsd_member->get_decl_item( "wsd" );
     SgInitializedName * n = *argsList.begin( );
     SgExpression * param_expr = buildVarRefExp( n, func_body );
     SgExpression * wsd_expr = buildVarRefExp( wsd_name, func_body );
-    SgExpression* wsd = buildCastExp( buildArrowExp( buildCastExp( param_expr, 
-                                                                   buildPointerType( struct_decl->get_type( ) ) ),
-                                                     wsd_expr ),
-                                      buildOpaqueType( "nanos_loop_info_t", func_body ) );
     // We don't cast to 'loop_info_sym->get_type( )' 
     // because 'nanos_loop_info_t' is a typedef in 'nanos-int.h', so we don't need to name 'struct'
+    SgExpression * wsd = buildCastExp( buildArrowExp( buildCastExp( param_expr, buildPointerType( struct_decl->get_type( ) ) ),
+                                                      wsd_expr ),
+                                       buildOpaqueType( "nanos_loop_info_t", func_body ) );
 
-    // Create variables containing lower and upper bounds of the nanos loop using WSD and replace the loop boundaries
+    // Create variables containing the lower and upper bounds and the step of the nanos loop using WSD and replace the loop boundaries
     //     int nanos_lower = ((nanos_loop_info_t )(((struct OUT__2__6660___data *)__out_argv) -> wsd)).lower;
     //     int nanos_upper = ((nanos_loop_info_t )(((struct OUT__2__6660___data *)__out_argv) -> wsd)).upper;
     //     int nanos_step = ((nanos_loop_info_t )(((struct OUT__2__6660___data *)__out_argv) -> wsd)).step
-    SgExpression* wsd_lower = buildDotExp( wsd, buildVarRefExp( member_lower->get_decl_item( "lower" ), func_body ) );
-    SgExpression* wsd_upper = buildDotExp( wsd, buildVarRefExp( member_upper->get_decl_item( "upper" ), func_body ) );
-    SgExpression* wsd_step = buildDotExp( wsd, buildVarRefExp( member_step->get_decl_item( "step" ), func_body ) );   
-    SgInitializer* lower_init = buildAssignInitializer( wsd_lower, buildIntType( ) );
-    SgVariableDeclaration* lower = buildVariableDeclaration( "nanos_lower", buildIntType( ), lower_init, func_body );
-    SgInitializer* upper_init = buildAssignInitializer( wsd_upper, buildIntType( ) );
-    SgVariableDeclaration* upper = buildVariableDeclaration( "nanos_upper", buildIntType( ), upper_init, func_body );
-    SgInitializer* step_init = buildAssignInitializer( wsd_step, buildIntType( ) );
-    SgVariableDeclaration* step = buildVariableDeclaration( "nanos_step", buildIntType( ), step_init, func_body );
+    SgExpression * wsd_lower = buildDotExp( wsd, buildVarRefExp( member_lower->get_decl_item( "lower" ), func_body ) );
+    SgExpression * wsd_upper = buildDotExp( wsd, buildVarRefExp( member_upper->get_decl_item( "upper" ), func_body ) );
+    SgExpression * wsd_step = buildDotExp( wsd, buildVarRefExp( member_step->get_decl_item( "step" ), func_body ) );   
+    SgInitializer * lower_init = buildAssignInitializer( wsd_lower, buildIntType( ) );
+    SgVariableDeclaration * lower = buildVariableDeclaration( "nanos_lower", buildIntType( ), lower_init, func_body );
+    SgInitializer * upper_init = buildAssignInitializer( wsd_upper, buildIntType( ) );
+    SgVariableDeclaration * upper = buildVariableDeclaration( "nanos_upper", buildIntType( ), upper_init, func_body );
+    SgInitializer * step_init = buildAssignInitializer( wsd_step, buildIntType( ) );
+    SgVariableDeclaration * step = buildVariableDeclaration( "nanos_step", buildIntType( ), step_init, func_body );
     Rose_STL_Container<SgNode *> loop_list = NodeQuery::querySubTree( func_body, V_SgForStatement );
     ROSE_ASSERT( !loop_list.empty( ) ); 
     SgForStatement * original_loop = isSgForStatement( *( loop_list.begin( ) ) );
@@ -1530,7 +1520,7 @@ SgFunctionDeclaration *
     insertStatementBefore( original_loop, upper );
     insertStatementBefore( original_loop, step );
     
-    // Change the boundaries of the loop depending on the direction of the stride
+    // Create the two possible loops depending on the sign of the step
     // Input:
     //     for( int i = LB; i < UB; i += stride ) { ... }
     // Output:
@@ -1576,15 +1566,47 @@ SgFunctionDeclaration *
     return func;
 }
 
+//! Create a function named 'func_name_str' containing an OpenMP sections to be executed with Nanos
+// (Inspired in generateFunction method)
+// For an input 's' such as:
+//    #pragma omp sections
+//        #pragma omp section
+//            i = 1;
+//        #pragma omp section
+//            i = 2
+// The outlined function body 'func_body' will be:
+//    // typedef struct {
+//    //     int   lower;      // loop item lower bound
+//    //     int   upper;      // loop item upper bound
+//    //     bool  execute;    // is a valid loop item?
+//    //     bool  last;       // is the last loop item?
+//    // } nanos_ws_item_loop_t;
+//    nanos_ws_item_loop_t nanos_item_loop;
+//    nanos_err_t nanos_err = nanos_worksharing_next_item(wsd,((void **)(&nanos_item_loop)));
+//    if (nanos_err != 0) 
+//        nanos_handle_error(nanos_err);
+//    while(nanos_item_loop.execute) {
+//        int nanos_item_iter;
+//        for (nanos_item_iter = nanos_item_loop.lower; nanos_item_iter <= nanos_item_loop.upper; nanos_item_iter++) 
+//            switch(nanos_item_iter) {
+//                case 0:
+//                    _p_i = 1;
+//                    break;
+//                case 1:
+//                    _p_i = 2;
+//                    break; 
+//            }
+//        nanos_worksharing_next_item(wsd,((void **)(&nanos_item_loop)));
+//    }
 SgFunctionDeclaration * 
-        Outliner::generateSectionsFunction( SgBasicBlock* s,
-                                            const std::string& func_name_str,
-                                            const ASTtools::VarSymSet_t& syms,
-                                            const ASTtools::VarSymSet_t& pdSyms,
-                                            const std::set<SgInitializedName *>& restoreVars,       // last private variables that must be restored
-                                            SgClassDeclaration* struct_decl,
-                                            SgScopeStatement* scope, 
-                                            std::set<SgVariableDeclaration *>& unpacking_stmts )
+    Outliner::generateSectionsFunction( SgBasicBlock* s,
+                                        const std::string& func_name_str,
+                                        const ASTtools::VarSymSet_t& syms,
+                                        const ASTtools::VarSymSet_t& pdSyms,
+                                        const std::set<SgInitializedName *>& restoreVars,       // last private variables that must be restored
+                                        SgClassDeclaration* struct_decl,
+                                        SgScopeStatement* scope, 
+                                        std::set<SgVariableDeclaration *>& unpacking_stmts )
 {
     ROSE_ASSERT( s && scope );
     ROSE_ASSERT( isSgGlobal( scope ) );
@@ -1604,7 +1626,8 @@ SgFunctionDeclaration *
     //---------------------------------------------------------------------------------------
     SgBasicBlock * func_body = func->get_definition( )->get_body( );
     ROSE_ASSERT( func_body != NULL );
-    // copy all statements until we find the sections block: local declarations
+    
+    // copy all statements from 's' until we find the sections block: local declarations
     SgStatementPtrList & stmt_list = s->get_statements( );
     SgStatementPtrList::iterator it = stmt_list.begin( );
     while( !isSgOmpSectionStatement( *it ) )
@@ -1619,7 +1642,8 @@ SgFunctionDeclaration *
     //     err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
     //     if( err != 0 /*NANOS_OK*/ )
     //         nanos_handle_error( err );
-    SgVariableDeclaration* nanos_item_loop = buildVariableDeclaration( "nanos_item_loop", buildOpaqueType( "nanos_ws_item_loop_t", func_body )/*loop_item_decl->get_type( )*/, NULL, func_body );
+    SgType * nanos_item_loop_type = buildOpaqueType( "nanos_ws_item_loop_t", func_body );   // We do not create the type because we dont want it to cast to 'struct'
+    SgVariableDeclaration* nanos_item_loop = buildVariableDeclaration( "nanos_item_loop", nanos_item_loop_type, NULL, func_body );
     SgExprListExp * nanos_next_item_params = buildExprListExp( buildOpaqueVarRefExp( "wsd", func_body ),
                                                                buildCastExp( buildAddressOfOp( buildVarRefExp( nanos_item_loop ) ),
                                                                              buildPointerType( buildPointerType( buildVoidType( ) ) ) ) );
@@ -1636,12 +1660,6 @@ SgFunctionDeclaration *
     appendStatement( nanos_next_item_check_result, func_body );
     
     // Nanos worksharing iteraton
-    //    // typedef struct {
-    //    //     int   lower;      // loop item lower bound
-    //    //     int   upper;      // loop item upper bound
-    //    //     bool  execute;    // is a valid loop item?
-    //    //     bool  last;       // is the last loop item?
-    //    // } nanos_ws_item_loop_t;    
     //    while( nanos_item_loop.execute ) {
     //        int i;
     //        for( i = nanos_item_loop.lower; i <= nanos_item_loop.upper; ++i ) {
@@ -1663,7 +1681,7 @@ SgFunctionDeclaration *
                                                                      buildDotExp( buildVarRefExp( nanos_item_loop ), 
                                                                                   buildOpaqueVarRefExp( "upper", while_body ) ) ) );
     SgExpression * for_incr = buildPlusPlusOp( buildVarRefExp( for_loop_it ), SgUnaryOp::postfix );
-            // sections switch case 
+    
     SgSwitchStatement * switch_stmt = buildSwitchStatement(  buildVarRefExp( for_loop_it ), buildBasicBlock( ) );
     Rose_STL_Container<SgNode *> section_list = NodeQuery::querySubTree( s, V_SgOmpSectionStatement );
     int section_count = section_list.size( );
@@ -1671,7 +1689,7 @@ SgFunctionDeclaration *
     {
         SgBasicBlock * case_block = buildBasicBlock( isSgOmpSectionStatement( section_list[i] )->get_body( ) );
         
-        // The lexically last section must contain the copy backs
+        // The lexically last section must contain the copy back statements ( lastprivate variables )
         if( i == section_count - 1 )
         {
             for( std::set<SgInitializedName *>::iterator it = restoreVars.begin( ); it != restoreVars.end( ); ++it )
@@ -1691,7 +1709,7 @@ SgFunctionDeclaration *
         
         switch_stmt->append_case( option_stmt );
     }
-            // for loop wrapping
+    
     SgForStatement * for_loop = buildForStatement( for_init, for_test, for_incr, switch_stmt );
     SgStatement * next_item_call = buildFunctionCallStmt( "nanos_worksharing_next_item", nanos_err_type, nanos_next_item_params, func_body );
     while_body->append_statement( for_loop_it );
@@ -1704,10 +1722,13 @@ SgFunctionDeclaration *
         ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
     
     //step 3: variable handling: create parameters, packing and unpacking statements and replace variables
+    //---------------------------------------------------------------------------------------
     unpacking_stmts = variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
     
-    // Member 'wsd' is only needed when the reduction is made on a sections construct
-    // But we add it always to match the header
+    //step 4: parameters checking
+    //---------------------------------------------------------------------------------------
+    // Member 'wsd' is only needed when there is a reduction performed sections construct
+    // But we add it always to match the header of the Nanos sections method
     SgFunctionParameterList * params = func->get_parameterList( );
     SgInitializedName * wsd_member = buildInitializedName( "wsd", buildPointerType( buildOpaqueType( "nanos_ws_desc_t", func_body ) ) );
     SageInterface::appendArg( params, wsd_member );
@@ -1735,6 +1756,57 @@ static bool unpacked_symbol_is_reduction_symbol( std::string unpack_sym_name, co
     return res;
 }
 
+//! Create a function named 'func_name_str' containing an OpenMP reduction to be executed with Nanos
+// 's' is the body of a function that contains an already outlined OpenMP construct 
+// (parallel, loop or sections, depending on where the reduction has been defined)
+// This function creates a new outlined function with the following modifications to 's'
+// - Unpacking statements: all remain the same but those variables corresponding to the reduction operation. 
+//   For them, the variable names are modified from NAME to g_th_NAME
+// - The rest of statements in 's' remain the same, we substitute the shared variables 
+//   corresponding to reduction symbols buy local copies
+// - We add an extra statement per reduction to store the value local value computed by the current thread
+// This new outlined function will be called by the Nanos reduction method, 
+// which will be created by the function 'generateReductionWrapperFunction'
+// The transformations in the code to generate a nanos reduction from a reduction defined in a parealle construct are:
+// 1. Input:
+//    void foo( ) {
+//        #pragma omp parallel reductio(op:sym)
+//    }
+// 2. First transformation: outline the parallel
+//    void foo( ) {
+//        XOMP_parallel_for_NANOS( outlined_parallel_func, ... );
+//    }
+//    void outlined_parallel_func( void* __out_argv ) {
+//         /* code generated by 'generateFunction', 'generateLoopFunction' or 'generateSectionsFunction' */
+//    }
+// 3. Second transformation: reoutline the parallel and create a wraper to perform the reduction
+//    void foo( ) {
+//        XOMP_parallel_for_NANOS( outlined_parallel_func, ... );
+//    }
+//    void outlined_parallel_func( void* __out_argv ) {     // This has become the wrapper
+//         /* code generated by 'generateReductionWrapperFunction' */
+//    }
+//    void reoutlined_parallel_func( void *__out_argv, nanos_ws_desc_t *wsd ) {
+//        /* code we are modifying in this function */
+//    }
+// Example:
+// 1. For an input code:
+//     int sum = 0;
+//     int i = 1;
+//     #pragma omp parallel reduction(+:sum) firstprivate(i)
+//         sum=sum + i;
+// 2. Nanos parallel construct outlining will generate an outlined function with the following statements:
+//     int* sum = (int *)(((struct OUT__2__1527___data *)__out_argv) -> sum_p);
+//     int i = (int )(((struct OUT__3__9808___data *)__out_argv) -> i);
+//     int _p_i = i;
+//     *sum = *sum + _p_i;
+// 3. And this function will create a new outlined function modifying the previous statements as follows:
+//     int (*g_th_sum)[256] = (int (*)[256])(((struct OUT__2__1527___data *)__out_argv) -> g_th_sum_p);
+//     int i = (int )(((struct OUT__3__9808___data *)__out_argv) -> i);
+//     int _p_i = i;
+//     int _p_sum = 0;
+//     _p_sum = _p_sum + _p_i;
+//     ( *g_th_sum)[XOMP_get_nanos_thread_num()] = _p_sum;
 SgFunctionDeclaration *
         Outliner::generateReductionFunction( SgBasicBlock* s,
                                              const std::string& func_name_str,
@@ -1746,7 +1818,8 @@ SgFunctionDeclaration *
     ROSE_ASSERT( s && scope );
     ROSE_ASSERT( isSgGlobal( scope ) );
     
-    //step 1. Create function skeleton, 'func'.
+    //step 1. Create function skeleton, 'func'
+    //---------------------------------------------------------------------------------------
     SgFunctionParameterList* parameterList = buildFunctionParameterList( );
     SgFunctionDeclaration* func = createFuncSkeleton( func_name_str, buildVoidType( ), parameterList, scope );
     ROSE_ASSERT( func );
@@ -1756,11 +1829,11 @@ SgFunctionDeclaration *
         func->set_linkage( "C" );
     }
     
-    //step 3. Create the function body
+    //step 2. Create the function body
+    //---------------------------------------------------------------------------------------
     SgBasicBlock* func_body = func->get_definition( )->get_body( );
     ROSE_ASSERT( func_body != NULL );
-    // Copy the block to the new function
-    // Avoid copying the unpacking statements, since they have to be placed in the original outlined function
+    // Copy the block to the new function avoiding the unpacking statements
     SgStatementPtrList reduction_stmts = s->get_statements( );
     ROSE_ASSERT( !reduction_stmts.empty( ) );
     SgType * struct_type = struct_decl->get_type( );
@@ -1775,6 +1848,7 @@ SgFunctionDeclaration *
         }
         else
         {   // For the variables that are reduction symbols, we transform the variable name form NAME to g_th_NAME
+            // otherwise, we just insert the unpacking statement as it was
             SgInitializedNamePtrList vars = it_decl->get_variables( );
             ROSE_ASSERT( vars.size( ) == 1 );
             SgInitializedName * old_unpack_init_name = * vars.begin( );
@@ -1815,14 +1889,18 @@ SgFunctionDeclaration *
     if( Outliner::useNewFile )
         ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
     
-    // Add the needed parameters
+    //step 3: variable handling: create parameters, packing and unpacking statements and replace variables
+    //---------------------------------------------------------------------------------------
+    // We don't need to do this again, since the statements in the original 's' already passed by this when we outlined the parallel / sections / loop
+    // std::set<SgInitializedName *> restoreVars;
+    // variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
+
+    //step 4: parameters checking
+    //---------------------------------------------------------------------------------------
+    // Parameters should be created during 'variableHandling', but since we don't call this function, we create them manually
+    // The parameters we need here are:
     //    - __out_argv: data struct with the variables to the outlined function
-    //    - wsd: is only needed when the reduction is made on a sections construct
-    // This is ususaly done in variableHandling method, but we don't call this method 
-    // because we don't need most of the things it does
-    // But we add it always to match the header
-//     std::set<SgInitializedName *> restoreVars;
-//     variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
+    //    - wsd: is only needed when the reduction is made on a sections construct, but we add it always to match the Nanos header
     SgFunctionParameterList * params = func->get_parameterList( );
     SgInitializedName * out_argv_param = buildInitializedName( "__out_argv", buildPointerType( buildVoidType( ) ) );
     SgInitializedName * wsd_param = buildInitializedName( "wsd", buildPointerType( buildOpaqueType( "nanos_ws_desc_t", func_body ) ) );
@@ -1838,6 +1916,7 @@ SgFunctionDeclaration *
     return func;
 }
 
+// This method generates the expression that performs a reduction over 'lhs' and 'rhs' depending on the reduction operation
 static SgStatement * build_nanos_reduction_loop_body_from_operation( SgExpression * lhs, SgExpression * rhs, 
                                                                      SgOmpClause::omp_reduction_operator_enum r_operator )
 {
@@ -1875,6 +1954,49 @@ static SgStatement * build_nanos_reduction_loop_body_from_operation( SgExpressio
     return loop_body;
 }
 
+// This method generates a wraper over an already outlined function to perform a reduction
+// This is the second part of the process of generating a Nanos reduction, 
+// as is specified in the documentation of the function 'generateReductionFunction'
+// Following the example for 'generateReductionFunction', this method creates a function containing the following code:
+//     static void OUT__1__7705__(void *__out_argv)
+//         // Unpacking statements: original packed statements that are now in the reduction wrapping function
+//         int *sum = (int *)(((struct OUT__3__9808___data *)__out_argv) -> sum_p);
+//         int i = (int )(((struct OUT__3__9808___data *)__out_argv) -> i);
+//         // Array to store the local values computed by each thread
+//         int g_th_sum[XOMP_get_nanos_num_threads()];
+//         // Packing statements to the outlided function that will perform the reduction code
+//         // this includes an array of #threads elements to store each thread reduction value
+//         struct OUT__3__1527___data __out_argv3__1527__;
+//         __out_argv3__1527__.g_th_sum_p = &g_th_sum;
+//         __out_argv3__1527__.i = i;
+//         void *g_array[1] = {(sum)};                      // Global symbol (for each reduction variable)
+//         long g_size_array[1] = {sizeof(int )};           // Size of the reduction variable (for each reduction variable)
+//         void *g_th_array[1] = {((void **)(&g_th_sum))};  // Global array storing local values (for each reduction variable)
+//         // Functions performing the reduction of each thread values into a unique reduction value (for each reduction variable)
+//         void (*__nanos_all_thread_reduction_array__[1])(void *, void *, int ) = {((void (*)(void *, void *, int ))__nanos_all_threads_reduction__)};
+//         // Function copying the nanos internal values into the original variables (for each reduction variable)
+//         void (*__nanos_copy_back_reduction_array__[1])(int , void *, void *) = {((void (*)(int , void *, void *))__nanos_copy_back_reduction__)};
+//         // Function copying the value computed for each thread into a nanos internal variable (for each reduction variable)
+//         // FIXME This is not correct because we cannot control that this is perform when needed!
+//         void (*__nanos_set_privates_array__[1])(void *, void **, int , int ) = {((void (*)(void *, void **, int , int ))__nanos_set_privates__)};
+//         nanos_ws_desc_t *wsd;                                                        // Work descriptor storing Nanos information
+//         // Actual call to the Nanos reduction method
+//          XOMP_reduction_for_NANOS( 1, __nanos_all_thread_reduction_array__, reduction_func, &__out_argv3__1527__, 
+//                                    __nanos_copy_back_reduction_array__, __nanos_set_privates_array__, 
+//                                    g_th_array, g_array, g_size_array, 1, wsd, file_name, #line);
+//     }
+// This method also created the functions introduced above for data movement:
+//     static void __nanos_all_threads_reduction__( int *omp_out, int *omp_in, int num_scalars ) {
+//         for (int i = 0; i < num_scalars; ++i) 
+//             omp_out[i] += omp_in[i];
+//     }
+//     static void __nanos_copy_back_reduction__( int team_size, void *original, void *privates ) {
+//         for (int i = 0; i < team_size; ++i)
+//             *((int *)original) += ((int *)privates)[i];
+//     }
+//     static void __nanos_set_privates__( void *nanos_privates, void **global_data, int reduction_id, int thread ) {
+//         ((int *)nanos_privates)[thread] = ((int **)global_data)[reduction_id][thread];
+//     }
 SgFunctionDeclaration *
         Outliner::generateReductionWrapperFunction( SgFunctionDeclaration * func,
                                                     SgOmpClauseBodyStatement * target,
@@ -1886,35 +2008,13 @@ SgFunctionDeclaration *
                                                     SgScopeStatement* scope, 
                                                     std::set<SgVariableDeclaration *>& unpacking_stmts )
 {
-    // 1. Create the function body containing:
-    //     - the unpacking statements: original packed statements that are now in the reduction wrapping function
-    //     - the packing statements: to the outlided function that will perform the reduction code
-    //                               this includes an array of #threads elements to store each thread reduction value
-    //     - an array with all global data symbols
-    //     - an array with the size of all global data symbol
-    //     - an array with all global per thread data symbols 
-    //     - an array with pointers to the functions that initialize each nanos reduction
-    //     - an array with pointers to the functions that perform the copy back to the orginal data from the nanos internal variables
-    //     - an array with pointers to the functions that perform the threads reduction for each nanos reduction
-    //   Example:
-    //     static void  OUT__1__6706__( void *__out_argv, nanos_ws_desc_t *wsd ) {
-    //         int *sum = (int *)(((struct OUT__1__6706___data *)__out_argv) -> sum_p);         // unpacking
-    //         TYPE g_th_RED[XOMP_get_nanos_num_threads()];
-    //         struct OUT__2__1527___data __out_argv1__1527__;                                  // packing
-    //         __out_argv1__1527__.g_th_sum_p = &g_th_sum;
-    //         void *g_array[1] = {(sum)};                                                      // globals array
-    //         long g_size_array[1] = {sizeof(int )};                                           // global sizes array
-    //         void *g_th_array[1] = {((void **)(&g_th_sum))};                                  // per-thread globals array
-    //         void (*__nanos_all_thread_reduction_array_1__[1])(void *, void *, int ) = {(__nanos_all_threads_reduction0__)};
-    //         void (*__nanos_copy_back_reduction_array_3__[1])(int , void *, void *) = {(__nanos_copy_back_reduction2__)};
-    //         void (*__nanos_set_privates_array_5__[1])(void *, void **, int , int ) = {(__nanos_set_privates4__)};
-    //     }
+    // 1. Create the function body containing
     // ---------------------------------------------------------------------------
-    
     SgBasicBlock * old_func_body = func->get_definition( )->get_body( );
     SgBasicBlock * new_func_body = buildBasicBlock( );
     replaceStatement( old_func_body, new_func_body );
     
+    // The unpacking statements remain as they were originally
     for( std::set<SgVariableDeclaration *>::iterator it = unpacking_stmts.begin( ); it != unpacking_stmts.end( ); ++it )
     {
         new_func_body->append_statement( *it );
@@ -1924,9 +2024,10 @@ SgFunctionDeclaration *
     SgExprListExp * global_data_initializers = buildExprListExp( );
     SgExprListExp * global_data_size_initializers = buildExprListExp( );
     SgExprListExp * global_th_data_initializers = buildExprListExp( );
+    SgType * g_th_type = buildPointerType( buildVoidType( ) );
     for( ASTtools::VarSymSet_t::const_iterator rs = reduction_syms.begin (); rs != reduction_syms.end (); ++rs )
     {
-        // Reduction symbol declaration
+        // Reduction symbol declaration: int g_th_sum[XOMP_get_nanos_num_threads()];
         const SgVariableSymbol* r_sym = isSgVariableSymbol( *rs );
         SgName current_global_data_name = "g_th_" + r_sym->get_name( );
         SgFunctionCallExp* get_num_threads = buildFunctionCallExp( "XOMP_get_nanos_num_threads", buildIntType( ), 
@@ -1935,66 +2036,58 @@ SgFunctionDeclaration *
                 buildVariableDeclaration( current_global_data_name, buildArrayType( r_sym->get_type( ), get_num_threads ),
                                                   /*init*/ NULL, new_func_body );
         new_func_body->append_statement( global_data_array_decl );
-                
-                // Initializer of the current symbol for the array of symbols
+        
+        // Initializer of the current symbol for the array of symbols: {((void **)(&g_th_sum))}
         global_data_initializers->append_expression( 
                 buildAssignInitializer( buildVarRefExp( r_sym->get_name( ), new_func_body ), 
                                         buildPointerType( buildVoidType( ) ) ) );
         global_data_size_initializers->append_expression( buildSizeOfOp( r_sym->get_type( ) ) );
         global_th_data_initializers->append_expression( 
-                buildAssignInitializer( buildCastExp( buildAddressOfOp( buildVarRefExp( current_global_data_name, 
-                                        new_func_body ) ),
-        buildPointerType( buildPointerType( buildVoidType( ) ) ) ), 
-        buildPointerType( buildPointerType( buildVoidType( ) ) ) ) );
+                buildAssignInitializer( buildCastExp( buildAddressOfOp( buildVarRefExp( current_global_data_name, new_func_body ) ),
+                                                      buildPointerType( g_th_type ) ),
+                                        buildPointerType( g_th_type ) ) );
     }
-            // Actual array of symbols
-    SgAggregateInitializer * global_data_array_initializer = 
-            buildAggregateInitializer( global_data_initializers, buildPointerType( buildVoidType( ) ) );
+    // Array of original reduction symbols
+    SgAggregateInitializer * global_data_array_initializer = buildAggregateInitializer( global_data_initializers, g_th_type );
     SgName global_data_array_name = "g_array";
     SgVariableDeclaration * global_data_array = 
             buildVariableDeclaration( global_data_array_name, 
-                                      buildArrayType( buildPointerType( buildVoidType( ) ), 
-                                              buildIntVal( n_reductions ) ),
+                                      buildArrayType( g_th_type, buildIntVal( n_reductions ) ),
                                       global_data_array_initializer, new_func_body );
     new_func_body->append_statement( global_data_array );
-            // Actual array of per thread sizes
-    SgAggregateInitializer * global_data_size_array_initializer = 
-            buildAggregateInitializer( global_data_size_initializers, buildPointerType( buildVoidType( ) ) );
+    // Array of sizes
+    SgAggregateInitializer * global_data_size_array_initializer = buildAggregateInitializer( global_data_size_initializers, g_th_type );
     SgName global_data_size_array_name = "g_size_array";
     SgVariableDeclaration * global_data_size_array = 
             buildVariableDeclaration( global_data_size_array_name, 
                                       buildArrayType( buildLongType( ), buildIntVal( n_reductions ) ),
                                       global_data_size_array_initializer, new_func_body );
     new_func_body->append_statement( global_data_size_array );
-            // Actual array of per thread symbols
+    // Array of arrays of per-thread reduction values
     SgAggregateInitializer * global_th_data_array_initializer = 
-            buildAggregateInitializer( global_th_data_initializers, 
-                                       buildPointerType( buildPointerType( buildVoidType( ) ) ) );
+            buildAggregateInitializer( global_th_data_initializers, buildPointerType( g_th_type ) );
     SgName global_th_data_array_name = "g_th_array";
     SgVariableDeclaration * global_th_data_array = 
             buildVariableDeclaration( global_th_data_array_name, 
-                                      buildArrayType( buildPointerType( buildVoidType( ) ), 
-                                                      buildIntVal( n_reductions ) ),
+                                      buildArrayType( g_th_type, buildIntVal( n_reductions ) ),
                                       global_th_data_array_initializer, new_func_body );
     new_func_body->append_statement( global_th_data_array );
     
-    // We must call this function here, so we have created the statement 
-    // that is going to be immediately after the packing statements ( global_data_array )
+    // We must call this function here, so we already have the statement 
+    // that is going to be immediately after the packing statements ( g_array )
     ASTtools::VarSymSet_t reduction_pdSyms;
     reduction_pdSyms.insert( pdSyms.begin( ), pdSyms.end( ) );
     reduction_pdSyms.insert( reduction_syms.begin( ), reduction_syms.end( ) );
     std::string reduction_wrapper_name = Outliner::generatePackingStatements( global_data_array, syms, pdSyms,
                                                                               struct_decl, reduction_syms );
     
-    // 3. Create the function that computes the reduction of each thread partial reduction
+    // 2. Create the function that computes the reduction of each thread partial reduction
     //    There will be one function per reduction
-    //        static void __nanos_reduction1__(int *omp_out,int *omp_in,int num_scalars) {
-    //            int i;
-    //            for (i = 0; i < num_scalars; i++) {
-    //                omp_out[i] *= omp_in[i];
-    //            }
-    //        }
     // ---------------------------------------------------------------------------
+    //    static void __nanos_all_threads_reduction__( int *omp_out, int *omp_in, int num_scalars ) {
+    //        for (int i = 0; i < num_scalars; ++i) 
+    //            omp_out[i] += omp_in[i];
+    //    }
     SgExprListExp * nanos_all_th_red_funcs_array = buildExprListExp( );
     SgType * all_th_reduc_func_return_type = buildVoidType( );
     SgFunctionType* all_th_reduction_func_type = 
@@ -2065,15 +2158,13 @@ SgFunctionDeclaration *
                                       nanos_all_th_red_initializer, new_func_body );
     new_func_body->append_statement( nanos_all_th_red_func_array );
     
-    // 4. Create the copy back function for the reduction values
+    // 3. Create the copy back function for the reduction values
     //    There will be one function per reduction
-    //        static void __nanos_copy_back_reduction2__(int team_size, void *original, void *privates) {
-    //            int i;
-    //            for (i = 0; i < team_size; i++) {
-    //                *((TYPE *)original) += ((TYPE *)privates)[i];
-    //            }
-    //        }
     // ---------------------------------------------------------------------------
+    //     static void __nanos_copy_back_reduction__( int team_size, void *original, void *privates ) {
+    //         for (int i = 0; i < team_size; ++i)
+    //             *((int *)original) += ((int *)privates)[i];
+    //     }
     SgExprListExp * nanos_copy_back_red_funcs_array = buildExprListExp( );
     SgType * copy_back_reduc_func_return_type = buildVoidType( );
     SgFunctionType* copy_back_reduction_func_type = 
@@ -2144,9 +2235,13 @@ SgFunctionDeclaration *
                                       nanos_copy_back_red_initializer, new_func_body );
     new_func_body->append_statement( nanos_copy_back_red_func_array );
     
-    // 5. Generate the function that copies the global values computed in the outlined reduction funtion
+    // 4. Generate the function that copies the global values computed in the outlined reduction funtion
     //    into the nanos private copies member 
+    //    There will be one function per reduction
     // ---------------------------------------------------------------------------
+    //    static void __nanos_set_privates__( void *nanos_privates, void **global_data, int reduction_id, int thread ) {
+    //        ((int *)nanos_privates)[thread] = ((int **)global_data)[reduction_id][thread];
+    //    }
     SgExprListExp * set_privates_func_inits = buildExprListExp( );
     SgType * set_privates_func_return_type = buildVoidType( );
     SgFunctionType* set_privates_func_type = 
@@ -2211,7 +2306,8 @@ SgFunctionDeclaration *
                                       set_privates_initializer, new_func_body );
     new_func_body->append_statement( set_privates_func_array );
     
-    // 6. Generate the WSD (WorkSahring Descriptor) variable.
+    // 5. Generate the WSD (WorkSahring Descriptor) variable.
+    // ---------------------------------------------------------------------------
     // When Reductions are applied to sections, this value is initialized in libnanos.c::NANOS_sections and passed as a parameter.
     // Otherwise, we don't need it, so we create an empty variable to fulfill the header requirements
     // Example:
@@ -2240,7 +2336,6 @@ SgFunctionDeclaration *
     }
     
     // 7. Generate the call to the Nanos reduction function
-    // 
     // ---------------------------------------------------------------------------
     SgExprListExp* parameters = NULL;
     SgExpression * p1_num_reductions = buildIntVal( reduction_syms.size( ) );

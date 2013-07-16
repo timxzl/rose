@@ -805,55 +805,50 @@ static void insert_libxompf_h(SgNode* startNode)
 static SgBasicBlock* generateArrayAssignmentStatements
        ( SgInitializedName* left_operand, SgInitializedName* right_operand/*, SgScopeStatement* scope*/ )
 {
-     // parameter validation
-//     ROSE_ASSERT( scope != NULL ); // enforce top-down AST construction here for simplicity
-    ROSE_ASSERT( left_operand != NULL );
-    ROSE_ASSERT( right_operand != NULL );
+    // parameter validation
+    ROSE_ASSERT(scope != NULL); // enforce top-down AST construction here for simplicity
+    ROSE_ASSERT (left_operand != NULL);
+    ROSE_ASSERT (right_operand != NULL);
 
-      // Build the actual loop that initializes the array positions
-    SgBasicBlock* bb = buildBasicBlock();
-    generateInitializingLoop( bb, buildVarRefExp( left_operand ), buildVarRefExp( right_operand ) );
-      
-#if 0
-      SgType* left_type = left_operand->get_type();
-      SgType* right_type = right_operand->get_type();
-      SgArrayType* left_array_type = isSgArrayType(left_type);
-      SgArrayType* right_array_type = isSgArrayType(right_type);
-      ROSE_ASSERT (left_array_type != NULL);
-      ROSE_ASSERT (right_array_type != NULL);
-      
+    SgType* left_type = left_operand->get_type();
+    SgType* right_type = right_operand->get_type();
+    SgArrayType* left_array_type = isSgArrayType(left_type);
+    SgArrayType* right_array_type = isSgArrayType(right_type);
+
+    ROSE_ASSERT (left_array_type != NULL);
+    ROSE_ASSERT (right_array_type != NULL);
       // make sure two array are compatible: same dimension, bounds, and element types, etc.
-      ROSE_ASSERT (getElementType(left_array_type) == getElementType(right_array_type));
-      int dim_count = getDimensionCount(left_array_type);
-      ROSE_ASSERT (dim_count == getDimensionCount(right_array_type));
-      int element_count = getArrayElementCount (left_array_type); 
-      ROSE_ASSERT (element_count == (int) getArrayElementCount (right_array_type));
+    ROSE_ASSERT (getElementType(left_array_type) == getElementType(right_array_type));
+    int dim_count = getDimensionCount(left_array_type);
+    ROSE_ASSERT (dim_count == getDimensionCount(right_array_type));
+    int element_count = getArrayElementCount (left_array_type); 
+    ROSE_ASSERT (element_count == (int) getArrayElementCount (right_array_type));
 
-      SgBasicBlock* bb = buildBasicBlock();
+    SgBasicBlock* bb = buildBasicBlock();
        // front_stmt_list.push_back() will handle this later on.
        // Keep this will cause duplicated appendStatement()
       // appendStatement(bb, scope);
      
          // int *a_ap = (int*) a;
-      string right_name = right_operand->get_name().getString(); 
-      string right_name_p = right_name+"_ap"; // array pointer (ap)
-      SgType* elementPointerType = buildPointerType( getElementType(left_array_type) );
-      SgAssignInitializer * initor = buildAssignInitializer
-             (buildCastExp(buildVarRefExp(right_operand,scope),elementPointerType),elementPointerType);
-      SgVariableDeclaration* decl_right = buildVariableDeclaration (right_name_p, elementPointerType, initor, bb );
-     appendStatement(decl_right, bb);
+    string right_name = right_operand->get_name().getString(); 
+    string right_name_p = right_name+"_ap"; // array pointer (ap)
+    SgType* elementPointerType = buildPointerType(buildIntType());
+    SgAssignInitializer * initor = buildAssignInitializer
+            (buildCastExp(buildVarRefExp(right_operand,scope),elementPointerType),elementPointerType);
+    SgVariableDeclaration* decl_right = buildVariableDeclaration (right_name_p, elementPointerType, initor, bb );
+    appendStatement(decl_right, bb);
       
       // int *b_ap = (int*) b;
-      string left_name = left_operand->get_name().getString(); 
-      string left_name_p = left_name+"_ap";
-      SgAssignInitializer * initor2 = buildAssignInitializer
-             (buildCastExp(buildVarRefExp(left_operand,scope),elementPointerType),elementPointerType);
-      SgVariableDeclaration* decl_left = buildVariableDeclaration (left_name_p, elementPointerType, initor2, bb );
-     appendStatement(decl_left, bb);
+    string left_name = left_operand->get_name().getString(); 
+    string left_name_p = left_name+"_ap";
+    SgAssignInitializer * initor2 = buildAssignInitializer
+            (buildCastExp(buildVarRefExp(left_operand,scope),elementPointerType),elementPointerType);
+    SgVariableDeclaration* decl_left = buildVariableDeclaration (left_name_p, elementPointerType, initor2, bb );
+    appendStatement(decl_left, bb);
    
      // int i;
-     SgVariableDeclaration* decl_i = buildVariableDeclaration("_p_i", buildIntType(), NULL, bb);
-     appendStatement(decl_i, bb);
+    SgVariableDeclaration* decl_i = buildVariableDeclaration("_p_i", buildIntType(), NULL, bb);
+    appendStatement(decl_i, bb);
 
    //  for (i=0;i<element_count; i++) 
    //    *(b_ap+i) = *(a_ap+i);
@@ -861,31 +856,22 @@ static SgBasicBlock* generateArrayAssignmentStatements
     SgStatement* test_stmt = buildExprStatement(buildLessThanOp(buildVarRefExp(decl_i),buildIntVal(element_count)));
     SgExpression* incr_exp = buildPlusPlusOp(buildVarRefExp(decl_i),SgUnaryOp::postfix);
     SgStatement* loop_body = buildAssignStatement(
-         buildPointerDerefExp(buildAddOp(buildVarRefExp(decl_left),buildVarRefExp(decl_i))),
-         buildPointerDerefExp(buildAddOp(buildVarRefExp(decl_right),buildVarRefExp(decl_i)))
-          );
+            buildPointerDerefExp(buildAddOp(buildVarRefExp(decl_left),buildVarRefExp(decl_i))),
+    buildPointerDerefExp(buildAddOp(buildVarRefExp(decl_right),buildVarRefExp(decl_i)))
+                                                 );
     SgForStatement* for_stmt = buildForStatement(init_stmt, test_stmt, incr_exp, loop_body);
-     appendStatement(for_stmt, bb);
-#endif
+    appendStatement(for_stmt, bb);
 
-     return bb;
-}
-
-static SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_operand, SgExpression* right_operand )
-{
-     // parameter validation
-    ROSE_ASSERT( left_operand != NULL );
-    ROSE_ASSERT( right_operand != NULL );
-
-      // Build the actual loop that initializes the array positions
-    SgBasicBlock* bb = buildBasicBlock();
-    generateInitializingLoop( bb, left_operand, right_operand );
-    
     return bb;
 }
 
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
 
+// This method inserts a new empty struct of a given type before a given statement
+// This empty struct will be used to call Nanos specifix XOMP functions
+// For constructs other than parallel, we generate only one empty struct
+// Example:
+//     struct OUT__1__7331___data *empty___out_argv1__7331__ = (struct OUT__1__7331___data *)0;
 SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement* stmt_sc, 
                                         SgType* struct_type, std::string base_name )
 {
@@ -898,6 +884,16 @@ SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement*
     return buildVarRefExp( empty_struct_name, stmt_sc );
 }
 
+// This method generates an empty struct of a given tye allocated dinamically and returns it
+// Nanos requires a struct filled with the proper parameters and a struct of the same type but empty to execute properly
+// When executing a parallel construct, the number of empty structs we need depends on the number of threads executing,
+// and we only can know this value dinamically
+// Example:
+//     static struct OUT__1__7812___data *get_empty_struct___out_argv2__7812__() {
+//         struct OUT__1__7812___data *empty___out_argv2__7812__ = 0;
+//         return empty___out_argv2__7812__;
+//     }
+}
 SgExpression* build_nanos_get_empty_struct( SgStatement* ancestor, SgScopeStatement* expr_sc, 
                                             SgType* struct_type, std::string base_name )
 {
@@ -938,15 +934,22 @@ SgExpression* build_nanos_get_empty_struct( SgStatement* ancestor, SgScopeStatem
     return buildCastExp( buildFunctionRefExp( func_sym ), buildPointerType( casting_func_type ) );
 }
 
+// This method initialized the members of an empty struct with the values in an initialized struct
+// Example:
+//     static void init_struct___out_argv1__7331__(struct OUT__1__7331___data *empty_data, struct OUT__1__7331___data *initialized_data) {
+//         empty_data->member_1 = initialized_data->member_1;
+//         ...
+//         empty_data->member_N = initialized_data->member_N;
+//    }
 SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor, std::string& wrapper_name, 
                                                           SgClassDeclaration* struct_decl )
 {
     SgScopeStatement* decl_sc = ancestor->get_scope( );
     ROSE_ASSERT( decl_sc != NULL );
-      
+    
     // Build the definition and insert it after the englobing funtion of the original OpenMP pragma
     SgFunctionParameterList* params = buildFunctionParameterList( );
-  
+    
     // parameters
     ROSE_ASSERT( struct_decl != NULL );
     SgPointerType * pt_struct_type = buildPointerType( struct_decl->get_type( ) );
@@ -971,14 +974,14 @@ SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor,
         
         SgBasicBlock* func_body = func_def->get_definition( )->get_body( );
         ROSE_ASSERT( func_body != NULL );
-            
+        
         SgInitializedNamePtrList param_names = params->get_args( );
         Rose_STL_Container<SgInitializedName*>::iterator params_i = param_names.begin( );
         ROSE_ASSERT(param_names.size() == 2);
-            
+        
         SgVarRefExp* empty_st_expr = buildVarRefExp( isSgInitializedName( *params_i ), func_body );
         SgVarRefExp* init_st_expr = buildVarRefExp( isSgInitializedName( *++params_i ), func_body );
-            
+        
         Rose_STL_Container<SgDeclarationStatement*>::iterator member_i;
         for( member_i = st_members.begin( ); member_i != st_members.end( ); ++member_i )
         {
@@ -988,14 +991,13 @@ SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor,
         {
             SgInitializedNamePtrList& member_name_list = member->get_variables( );
             SgInitializedName* member_name = *( member_name_list.begin( ) );
-                
+            
             // Create the initialization expression
             SgVarRefExp* member_expr = buildVarRefExp( member_name, func_body );
             SgExpression* lhs = buildArrowExp( empty_st_expr, member_expr );
             SgExpression* rhs = buildArrowExp( init_st_expr, member_expr );
             
             // Add the expression to the function body
-    //         SgStatement * init_member = buildAssignStatement( lhs, rhs );
             SgBasicBlock * init_member = generateArrayAssignmentStatements( lhs, rhs );
             appendStatement( init_member, func_body );
         }
@@ -1015,6 +1017,12 @@ SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor,
   return buildCastExp( buildFunctionRefExp( func_sym ), buildPointerType( casting_func_type ) );
 }
 
+// This method generates a function that returns the alignment of a struct declaration
+// The alignment is needed to execute any openmp directive with nanos, and it can only obtained dinamically
+// Example:
+//     static long get_alignof___out_argv3__7705__() {
+//         return __alignof__(struct OUT__3__7705___data);
+//     }
 SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapper_name, SgClassDeclaration* struct_decl )
 {
     SgScopeStatement* decl_sc = ancestor->get_scope( );
@@ -1047,7 +1055,7 @@ SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapp
     return buildFunctionRefExp( func_sym );
 }
 
-// Get dependency clauses from 'task'
+// Parse dependency clauses from 'task' and store expressions and dependency direction
 void get_dependency_clauses( SgOmpTaskStatement * task, SgExprListExp * & dependences_direction, 
                              SgExprListExp * & dependences_data, int & n_deps )
 {
@@ -1094,6 +1102,13 @@ void get_dependency_clauses( SgOmpTaskStatement * task, SgExprListExp * & depend
     }
 }
 
+// This method computes the base symbol of an expression of a dependency clause
+// The possible cases are:
+//   - scalar S               ->  S
+//   - array A[x]             ->  A
+//   - shape expression [x]A  ->  A
+//   - array section A[x:y]   ->  A
+// FIXME We may have pointers here!
 static SgVarRefExp * get_dependecy_base_symbol_exp( SgExpression * dep_expr )
 {
     SgExpression * result_tmp = dep_expr;
@@ -1134,7 +1149,7 @@ SgExpression * build_nanos_dependencies_array( SgExprListExp * dependences, std:
         {
             SgExpression * base_expr = get_dependecy_base_symbol_exp( *dep );
             initializers->append_expression( buildAssignInitializer( buildAddressOfOp( base_expr ), buildPointerType( buildVoidType( ) ) ) );
-        }          
+        }
     }
     else
     {
@@ -1147,23 +1162,25 @@ SgExpression * build_nanos_dependencies_array( SgExprListExp * dependences, std:
     SgInitializer* initializers_array = buildAggregateInitializer( initializers, array_type );
     SgVariableDeclaration* array_decl = buildVariableDeclaration( SgName( array_name ), array_type, initializers_array, scope );
     SageInterface::insertStatementBefore( task, array_decl );
-      
+    
     return buildVarRefExp( array_name, scope );
 }
 
+
+// This method builds, for each dependency, an array of 'nanos_region_dimension_t' with n_dim elements
+// Example:
+//     {
+//         { size_t /*dimension size*/, size_t /*lower bound accessed*/, size_t /*length accessed*/}, /*Dim 0*/
+//         ...,
+//         { size_t /*dimension size*/, size_t /*lower bound accessed*/, size_t /*length accessed*/}  /*Dim N*/
+//     }
 void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std::string & n_dims_name, std::string & offsets_name,
                                                SgExprListExp * dependences_data, 
                                                SgOmpTaskStatement * task, SgScopeStatement * scope,
                                                SgExpression * & all_dims_ref, SgExpression * & n_dims_ref, SgExpression * & offsets_ref )
 {
-    // For each dependency, we build an array of 'nanos_region_dimension_t' with n_dim elements
-    //       {
-    //          { size_t /*dimension size*/, size_t /*lower bound accessed*/, size_t /*length accessed*/}, /*Dim 0*/
-    //          ...,
-    //          { size_t /*dimension size*/, size_t /*lower bound accessed*/, size_t /*length accessed*/}  /*Dim N*/
-    //       }
     SgExprListExp * all_deps_initializers = buildExprListExp( );
-      
+    
     // Build an array containing the number of dimensions of each dependency
     SgExprListExp * n_dims_initializers = buildExprListExp( );
     
@@ -1355,7 +1372,7 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
 //                  unpack statements
 //                  pack statements
 //                  nanos reduction variables 
-//                  XOMP_reduction_for_NANOS( ... )
+//                  XOMP_reduction_for_NANOS( re-outlined_func, ... )
 //               }
 //               re-outlined_func { code with some transformations for nanos reduction }
 void generate_nanos_reduction( SgFunctionDeclaration * func,
