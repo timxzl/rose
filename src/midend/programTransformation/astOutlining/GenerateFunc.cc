@@ -396,7 +396,7 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
                   bool isPointerDeref, // must use pointer deference or not
                   const SgInitializedName* i_name, // original variable to be passed as the function parameter
                   SgClassDeclaration* struct_decl, // the struct declaration type used to wrap parameters 
-                  SgScopeStatement* scope) // the scope into which the statement will be inserted 
+                  SgScopeStatement* scope) // the scope into which the statement will be inserted
 {
     ROSE_ASSERT( param && scope && i_name );
     
@@ -428,7 +428,7 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
     else if( Outliner::temp_variable || Outliner::useStructureWrapper ) 
     // unique processing for C/C++ if temp variables are used
     {
-        if( isPointerDeref || ( !isPointerDeref && is_array_parameter ) )
+        if( isPointerDeref || ( !isPointerDeref && is_array_parameter ) )    
             // use pointer dereferencing for some
             local_type = buildPointerType(orig_var_type);
         else                    // use variable clone instead for others
@@ -498,9 +498,10 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
                 // We use void* for all pointer types elements within the data structure. So type casting is needed here
                 // e.g.   class Hello **this__ptr__ = (class Hello **)(((struct OUT__1__1527___data *)__out_argv) -> this__ptr___p);
                 
+
                 param_ref = buildArrowExp( buildCastExp( buildVarRefExp( param, scope ), 
-                                                        buildPointerType( struct_decl->get_type( ) ) ), 
-                                        buildVarRefExp( field_name, struct_def ) );
+                                                         buildPointerType( struct_decl->get_type( ) ) ), 
+                                           buildVarRefExp( field_name, struct_def ) );
                 if( !isSgArrayType( local_type ) )
                 {
                     // When necessary, we must catch the address before we do the casting
@@ -536,7 +537,7 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
         // Or for structure type paramter
         // int (*sum)[100UL] = __out_argv->sum_p; // is PointerDeref type
         // int i = __out_argv->i;
-            local_val = buildAssignInitializer( param_ref );
+            local_val = buildAssignInitializer( param_ref ); 
     }
     else
     {
@@ -549,7 +550,7 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
         SgType* local_var_type_ptr =  SgPointerType::createType (ref ? ref->get_base_type (): orig_var_type);
         ROSE_ASSERT (local_var_type_ptr);
         SgCastExp* cast_expr = buildCastExp(param_ref,local_var_type_ptr,SgCastExp::e_C_style_cast);
-    
+
         if (Outliner::temp_variable) // variable cloning is enabled
         {
             // int* ip = (int *)(__out_argv[1]); // isPointerDeref == true
@@ -576,13 +577,13 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
             // using pointer dereferences to get the original type
             //  we use reference type instead of pointer type for C++
             /*
-            * extern "C" void OUT__1__8452__(int *ip__,int *jp__,int (*sump__)[100UL]) {
-            *   int &i =  *((int *)ip__);
-            *   int &j =  *((int *)jp__);
-            *   int (&sum)[100UL] =  *((int (*)[100UL])sump__);
-            *   ...
-            * };
-            */ 
+             * extern "C" void OUT__1__8452__(int *ip__,int *jp__,int (*sump__)[100UL]) {
+             *   int &i =  *((int *)ip__);
+             *   int &j =  *((int *)jp__);
+             *   int (&sum)[100UL] =  *((int (*)[100UL])sump__);
+             *   ...
+             * };
+             */ 
             {
                 local_val = buildAssignInitializer(buildPointerDerefExp(cast_expr));
             }
@@ -934,7 +935,7 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
         {
           SgPointerDerefExp * deref_exp = SageBuilder::buildPointerDerefExp(buildVarRefExp(sym_new));
           // deref_exp->set_need_paren(true);       // This is done again inside SageInterface::replaceExpression
-          SageInterface::replaceExpression( ref_orig, deref_exp );
+          SageInterface::replaceExpression(isSgExpression(ref_orig),isSgExpression(deref_exp));
         }
       }
       else // no variable cloning is used
@@ -980,13 +981,13 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
  */
 static
 std::set<SgVariableDeclaration *>
-variableHandling( const ASTtools::VarSymSet_t& syms, // all variables passed to the outlined function: //regular (shared) parameters?
+variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to the outlined function: //regular (shared) parameters?
               const ASTtools::VarSymSet_t& pdSyms, // those must use pointer dereference: use pass-by-reference
 //              const std::set<SgInitializedName*> & readOnlyVars, // optional analysis: those which can use pass-by-value, used for classic outlining without parameter wrapping, and also for variable clone to decide on if write-back is needed
 //              const std::set<SgInitializedName*> & liveOutVars, // optional analysis: used to control if a write-back is needed when variable cloning is used.
               const std::set<SgInitializedName*> & restoreVars, // variables to be restored after variable cloning
               SgClassDeclaration* struct_decl, // an optional struct wrapper for all variables
-              SgFunctionDeclaration* func ) // the outlined function
+              SgFunctionDeclaration* func) // the outlined function
 {
   VarSymRemap_t sym_remap; // variable remapping for regular(shared) variables: all passed by reference using pointer types?
   VarSymRemap_t private_remap; // variable remapping for private/firstprivate/reduction variables

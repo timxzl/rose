@@ -143,6 +143,7 @@ Unparse_ExprStmt::unparseLanguageSpecificExpression(SgExpression* expr, SgUnpars
           case KERN_CALL:               { unparseCudaKernelCall(expr, info); break; }
           case SHAPE_EXPRESSION:        { unparseShapeExpression(expr, info); break; }
           case ARRAY_SECTION_EXP:       { unparseArraySectionExp(expr, info); break; }
+
           default:
              {
             // printf ("Default reached in switch statement for unparsing expressions! expr = %p = %s \n",expr,expr->class_name().c_str());

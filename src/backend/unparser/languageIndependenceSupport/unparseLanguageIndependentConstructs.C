@@ -3352,6 +3352,7 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
         curprint(string(" : "));
       break;
       }
+
     case V_SgOmpSharedClause:
       curprint(string(" shared("));
       break;
@@ -3368,7 +3369,8 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
     SgOmpMapClause * m_clause = isSgOmpMapClause (clause);
     ROSE_ASSERT (m_clause != NULL);
     dims = m_clause->get_array_dimensions();
-  }
+  }  
+
 
   //unparse variable list then
   SgVarRefExpPtrList::iterator p = c->get_variables().begin();
@@ -3571,6 +3573,7 @@ void UnparseLanguageIndependentConstructs::unparseOmpClause(SgOmpClause* clause,
         unparseOmpExpressionsClause(isSgOmpExpressionsClause(clause), info);
         break;
       }
+
     default:
       {
         cerr<<"Unhandled OpenMP clause type in UnparseLanguageIndependentConstructs::unparseOmpClause():"<<clause->class_name()<<endl;

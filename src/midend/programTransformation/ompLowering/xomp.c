@@ -2,6 +2,7 @@
 #include "libxomp.h"
 
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY 
+
 // GOMP header
 #include "libgomp_g.h"
 // GOMP has higher precedence if other runtime libraries' path are specified
@@ -290,7 +291,7 @@ void XOMP_parallel_end (char* file_name, int line_no)
   }
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
   GOMP_parallel_end ();
-#endif
+#endif    
 }
 
 #else // USE_ROSE_NANOS_OPENMP_LIBRARY
@@ -1766,7 +1767,7 @@ void XOMP_critical_start (void** data)
     NANOS_critical_start();
 #else   
     _ompc_enter_critical(data);
-#endif  
+#endif    
 }
 
 void XOMP_critical_end (void** data)
@@ -1807,7 +1808,7 @@ bool xomp_master(void)
 extern bool XOMP_master(void)
 {
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
-  return (omp_get_thread_num() == 0);
+  return (omp_get_thread_num() ==0);
 #elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
   return NANOS_master();
 #else   
@@ -1881,7 +1882,7 @@ int XOMP_get_nanos_num_threads( void )
 
 void XOMP_flush_all ()
 {
-#ifdef USE_ROSE_GOMP_OPENMP_LIBRARY
+#ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
   __sync_synchronize();
 #elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
   NANOS_flush();

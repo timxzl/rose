@@ -1028,6 +1028,7 @@ namespace OmpSupport
       }
       return result;
   }
+
   
   bool OmpAttribute::hasClause(omp_construct_enum omp_type)
   {
@@ -1131,7 +1132,7 @@ namespace OmpSupport
           (omp_type == e_firstprivate)||
           (omp_type == e_shared)||
           (omp_type == e_copyin)||
-          (omp_type == e_lastprivate) 
+          (omp_type == e_lastprivate)
           )
       {
         result += OmpSupport::toString(omp_type);

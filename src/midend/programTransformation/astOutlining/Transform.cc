@@ -54,7 +54,7 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
     SgClassDeclaration* result = NULL;
 #ifndef USE_ROSE_NANOS_OPENMP_LIBRARY   
     // no need to generate the declaration if no variables are to be passed
-    if (syms.empty())
+    if( syms.empty( ) )
         /*!
         * GOMP and OMNI RTLs do not requiere of an structure when there is no parameter to be passed to the outlined function.
         * On the contrary, NANOS methods always require an struct, so we build an structure with no member.
@@ -65,20 +65,20 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
     ROSE_ASSERT( s != NULL );
     ROSE_ASSERT( func_scope != NULL );
     // this declaration will later on be inserted right before the outlining target calling the outlined function
-    ROSE_ASSERT( isSgGlobal(func_scope) != NULL );
+    ROSE_ASSERT( isSgGlobal( func_scope ) != NULL );
     string decl_name = func_name_str+"_data";
-  
+    
     result = buildStructDeclaration( decl_name, getGlobalScope( s ) );
-//  result ->setForward(); // cannot do this!! it becomes prototype
-//  if (result->get_firstNondefiningDeclaration()  )
-//   ROSE_ASSERT(isSgClassDeclaration(result->get_firstNondefiningDeclaration())->isForward() == true);
-//   cout<<"Debug Outliner::generateParameterStructureDeclaration(): struct address ="<<result <<" firstNondefining address ="<<result->get_firstNondefiningDeclaration()<<endl;
+    //  result ->setForward(); // cannot do this!! it becomes prototype
+    //  if (result->get_firstNondefiningDeclaration()  )
+    //   ROSE_ASSERT(isSgClassDeclaration(result->get_firstNondefiningDeclaration())->isForward() == true);
+    //   cout<<"Debug Outliner::generateParameterStructureDeclaration(): struct address ="<<result <<" firstNondefining address ="<<result->get_firstNondefiningDeclaration()<<endl;
 
     // insert member variable declarations to it
     SgClassDefinition *def = result->get_definition( );
     ROSE_ASSERT( def != NULL ); 
     SgScopeStatement* def_scope = isSgScopeStatement( def );
-    ROSE_ASSERT( def_scope != NULL );
+    ROSE_ASSERT( def_scope != NULL ); 
 
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
     // Sara Royuela: it is important that this member is the first in the struct
@@ -97,12 +97,12 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
 #endif
 
     for( ASTtools::VarSymSet_t::const_iterator i = syms.begin( ); i != syms.end( ); ++i )
-    {
+    { 
         const SgInitializedName* i_name = (*i)->get_declaration( );
         ROSE_ASSERT( i_name );
         const SgVariableSymbol* i_symbol = isSgVariableSymbol( i_name->get_symbol_from_symbol_table( ) );
         ROSE_ASSERT( i_symbol != NULL );
-        string member_name= i_name->get_name( ).str( );
+        string member_name = i_name->get_name( ).str( );
         SgType* member_type = i_name->get_type( ) ;
         // use pointer type or its original type?
         SgType * non_typef_type = member_type->stripType( SgType::STRIP_TYPEDEF_TYPE );
@@ -113,7 +113,7 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
             // member_type = buildPointerType(member_type);
             // Liao, 10/26/2009
             // We use void* instead of type* to ease the handling of C++ class pointers wrapped into the data structure
-            // Using void* can avoid adding a forward class declaration  which is needed for classA *
+            // Using void* can avoid adding a forward class declaration  which is needed for classA * 
             // It also simplifies unparsing: unparsing the use of classA* has some complications. 
             // The downside is that type casting is needed for setting and using the pointer typed values
             if( isSgArrayType( non_typef_type ) != NULL )
@@ -170,7 +170,7 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
     ROSE_ASSERT( isSgStatement( global_scoped_ancestor ) );
     insertStatementBefore( isSgStatement( global_scoped_ancestor ), result ); 
     moveUpPreprocessingInfo( result, isSgStatement( global_scoped_ancestor ) );
-        
+    
     if( global_scoped_ancestor->get_parent( ) != func_scope )
     {   //TODO 
         cout << "Outliner::generateParameterStructureDeclaration() separated file case is not yet handled." << endl;
@@ -631,13 +631,11 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
   int var_count = syms.size();
   int counter=0;
   string wrapper_name= generateFuncArgName(target); //"__out_argv";
-  SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()); 
-  ROSE_ASSERT (class_def != NULL);
   
 #ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
 // Nanos always requires the struct
-    if (var_count==0) 
-      return wrapper_name;
+  if (var_count==0) 
+    return wrapper_name;
 #endif
   
   SgScopeStatement* cur_scope = target->get_scope();
@@ -718,7 +716,8 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
               rhs = buildAddressOfOp(rhs); 
           }
       }
-
+      SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()); 
+      ROSE_ASSERT (class_def != NULL);
       lhs = buildDotExp ( buildVarRefExp(out_argv), buildVarRefExp (member_name, class_def));
       
       SgType * lhs_type = lhs->get_type()->stripType( SgType::STRIP_TYPEDEF_TYPE );

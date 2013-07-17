@@ -271,6 +271,7 @@ void* xomp_hostMalloc(size_t size);
 //get the time stamp for now, up to microsecond resolution: 1e-6 , but maybe 1e-4 in practice
 double xomp_time_stamp(void);
 
+
 // memory copy from src to dest, return the pointer to dest. NULL pointer if anything is wrong 
 void * xomp_memcpyHostToDevice (void *dest, const void * src, size_t n_n);
 void * xomp_memcpyDeviceToHost (void *dest, const void * src, size_t n_n);

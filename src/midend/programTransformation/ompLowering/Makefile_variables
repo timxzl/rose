@@ -22,7 +22,7 @@ mptOmpLowering_includeHeaders=\
 	$(mptOmpLoweringPath)/omp_lowering.h \
 	$(mptOmpLoweringPath)/nanos_error.h \
 	$(mptOmpLoweringPath)/nanos_version.h \
-    $(mptOmpLoweringPath)/nanos-int.h \
+	$(mptOmpLoweringPath)/nanos-int.h \
 	$(mptOmpLoweringPath)/nanos_reduction.h \
 	$(mptOmpLoweringPath)/nanos.h \
 	$(mptOmpLoweringPath)/nanos_omp.h \

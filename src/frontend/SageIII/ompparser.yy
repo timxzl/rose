@@ -473,7 +473,8 @@ data_privatization_clause : PRIVATE {
                           ;
 
 data_privatization_in_clause : FIRSTPRIVATE { 
-                                 ompattribute->addClause(e_firstprivate); omptype = e_firstprivate;
+                                 ompattribute->addClause(e_firstprivate); 
+                                 omptype = e_firstprivate;
                                } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
                              ;
 
@@ -484,8 +485,7 @@ data_privatization_out_clause : LASTPRIVATE {
                               ;
 
 data_sharing_clause : SHARED {
-                        ompattribute->addClause(e_shared); 
-                        omptype = e_shared; 
+                        ompattribute->addClause(e_shared); omptype = e_shared; 
                       } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
                     ;
 
@@ -546,11 +546,11 @@ target_data_clause : device_clause
                 ;
 
 target_directive: /* #pragma */ OMP TARGET {
-                  ompattribute = buildOmpAttribute(e_target,gNode,true);
-                  omptype = e_target;
-                }
-                 target_clause_optseq 
-               ;
+                       ompattribute = buildOmpAttribute(e_target,gNode,true);
+                       omptype = e_target;
+                     }
+                     target_clause_optseq 
+                  ;
 
 target_clause_optseq : /* empty */
                        | target_clause_seq
@@ -571,7 +571,7 @@ device_clause : DEVICE {
                            ompattribute->addClause(e_device);
                            omptype = e_device;
                          } '(' expression ')' {
-                           addExpression("");
+                            addExpression("");
                          }
                 ;
 if_clause: IF {
@@ -604,15 +604,15 @@ map_clause: MAP {
 
 target_clause_optseq: /* empty, default to be inout */ { ompattribute->setMapVariant(e_map_inout);  omptype = e_map_inout; /*No effect here???*/ }
                     | ALLOC ':' { ompattribute->setMapVariant(e_map_alloc);  omptype = e_map_alloc; } 
-                    | IN    ':' { ompattribute->setMapVariant(e_map_in); omptype = e_map_in; } 
-                    | OUT   ':' { ompattribute->setMapVariant(e_map_out); omptype = e_map_out; } 
-                    | INOUT ':' { ompattribute->setMapVariant(e_map_inout); omptype = e_map_inout; } 
+                    | IN     ':' { ompattribute->setMapVariant(e_map_in); omptype = e_map_in; } 
+                    | OUT    ':' { ompattribute->setMapVariant(e_map_out); omptype = e_map_out; } 
+                    | INOUT  ':' { ompattribute->setMapVariant(e_map_inout); omptype = e_map_inout; } 
                     ;
 
 /* parsing real expressions here, Liao, 10/12/2008
    */       
 /* expression: { omp_parse_expr(); } EXPRESSION { if (!addExpression((const char*)$2)) YYABORT; }
- */
+*/
 /* Sara Royuela, 04/27/2012
  * Extending grammar to accept conditional expressions, arithmetic and bitwise expressions and member accesses
  */
@@ -935,23 +935,22 @@ id_expression_opt_dimension: ID_EXPRESSION { if (!addVar((const char*)$1)) YYABO
 dimension_field_optseq: /* empty */
                       | dimension_field_seq
                       ;
-                       
+
 dimension_field_seq : dimension_field
                     | dimension_field_seq dimension_field
                     ;
-                       
-dimension_field: '[' expression { lower_exp = current_exp; }
+dimension_field: '[' expression {lower_exp = current_exp; }
                  ':' expression { upper_exp = current_exp;
-                      assert( array_symbol != NULL );
+                      assert ( array_symbol != NULL );
                       SgType* t = array_symbol->get_type();
-                      bool isPointer= ( isSgPointerType(t) != NULL );
-                      bool isArray= ( isSgArrayType(t) != NULL);
-                      if( !isPointer && ! isArray ) 
+                      bool isPointer= (isSgPointerType(t) != NULL );
+                      bool isArray= (isSgArrayType(t) != NULL);
+                      if (!isPointer && ! isArray ) 
                       {
                         std::cerr<<"Error. ompparser.yy expects a pointer or array type."<<std::endl;
                         std::cerr<<"while seeing "<<t->class_name()<<std::endl;
                       }
-                      ompattribute->array_dimensions[array_symbol].push_back( std::make_pair (lower_exp, upper_exp) );
+                      ompattribute->array_dimensions[array_symbol].push_back( std::make_pair (lower_exp, upper_exp));
                       }
                   ']'
                 ;
@@ -1093,3 +1092,4 @@ static bool addExpression(const char* expr) {
     ompattribute->addExpression(omptype,std::string(expr),current_exp);
     return true;
 }
+

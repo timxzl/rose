@@ -2251,6 +2251,7 @@ BUILD_BINARY_DEF(ShapeExpression)
 
 #undef BUILD_BINARY_DEF
 
+
 SgArraySectionExp* SageBuilder::buildArraySectionExp( SgExpression* lower_bound/*=NULL*/, SgExpression* length/*=NULL*/ )
 {
     SgArraySectionExp* result = new SgArraySectionExp( lower_bound, length );
