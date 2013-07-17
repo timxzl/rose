@@ -1893,7 +1893,7 @@ void XOMP_flush_all ()
 
 void XOMP_flush_one(char * startAddress, int nbyte)
 {
-#ifdef USE_ROSE_GOMP_OPENMP_LIBRARY
+#ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
   __sync_synchronize();
 #elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
   printf("None selective flush supported with Nanos++ RTL. Performing global flush\n");
@@ -1908,9 +1908,9 @@ void XOMP_ordered_start (void)
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
    GOMP_ordered_start();
 #else   
+
 #endif
 }
-
 void XOMP_ordered_end (void)
 {
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  

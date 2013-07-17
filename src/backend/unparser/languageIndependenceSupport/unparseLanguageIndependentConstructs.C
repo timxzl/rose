@@ -3352,7 +3352,7 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
         curprint(string(" : "));
       break;
       }
-
+ 
     case V_SgOmpSharedClause:
       curprint(string(" shared("));
       break;

@@ -550,7 +550,7 @@ target_directive: /* #pragma */ OMP TARGET {
                        omptype = e_target;
                      }
                      target_clause_optseq 
-                  ;
+                   ;
 
 target_clause_optseq : /* empty */
                        | target_clause_seq
@@ -571,7 +571,7 @@ device_clause : DEVICE {
                            ompattribute->addClause(e_device);
                            omptype = e_device;
                          } '(' expression ')' {
-                            addExpression("");
+                           addExpression("");
                          }
                 ;
 if_clause: IF {
@@ -586,7 +586,7 @@ num_threads_clause: NUM_THREADS {
                            ompattribute->addClause(e_num_threads);
                            omptype = e_num_threads;
                          } '(' expression ')' {
-                           addExpression("");
+                            addExpression("");
                          }
                       ;
 map_clause: MAP {
@@ -941,7 +941,7 @@ dimension_field_seq : dimension_field
                     ;
 dimension_field: '[' expression {lower_exp = current_exp; }
                  ':' expression { upper_exp = current_exp;
-                      assert ( array_symbol != NULL );
+                      assert (array_symbol != NULL);
                       SgType* t = array_symbol->get_type();
                       bool isPointer= (isSgPointerType(t) != NULL );
                       bool isArray= (isSgArrayType(t) != NULL);
@@ -951,7 +951,7 @@ dimension_field: '[' expression {lower_exp = current_exp; }
                         std::cerr<<"while seeing "<<t->class_name()<<std::endl;
                       }
                       ompattribute->array_dimensions[array_symbol].push_back( std::make_pair (lower_exp, upper_exp));
-                      }
+                      } 
                   ']'
                 ;
 

@@ -54,14 +54,14 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
     SgClassDeclaration* result = NULL;
 #ifndef USE_ROSE_NANOS_OPENMP_LIBRARY   
     // no need to generate the declaration if no variables are to be passed
-    if( syms.empty( ) )
+    if( syms.empty( ) ) 
         /*!
         * GOMP and OMNI RTLs do not requiere of an structure when there is no parameter to be passed to the outlined function.
         * On the contrary, NANOS methods always require an struct, so we build an structure with no member.
         */
         return result;
 #endif
-
+    
     ROSE_ASSERT( s != NULL );
     ROSE_ASSERT( func_scope != NULL );
     // this declaration will later on be inserted right before the outlining target calling the outlined function
@@ -631,7 +631,7 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
   int var_count = syms.size();
   int counter=0;
   string wrapper_name= generateFuncArgName(target); //"__out_argv";
-  
+
 #ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
 // Nanos always requires the struct
   if (var_count==0) 
@@ -662,6 +662,9 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
   // statements relative to "target".
   SageInterface::insertStatementBefore(target, out_argv);
 
+  SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()) ; 
+  ROSE_ASSERT (class_def != NULL);
+
   SgVariableSymbol * wrapper_symbol = getFirstVarSym(out_argv);
   ROSE_ASSERT(wrapper_symbol->get_parent() != NULL);
   //  cout<<"Inserting wrapper declaration ...."<<wrapper_symbol->get_name().getString()<<endl;
@@ -684,7 +687,7 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
       SgVariableSymbol * i_symbol = const_cast<SgVariableSymbol *>(*i);
       //SgType* i_type = i_symbol->get_type();
        string member_name= i_name->get_name ().str ();
-//     cout<<"Debug: Outliner::generatePackingStatements() symbol to be packed:"<<member_name<<endl;
+//     cout<<"Debug: Outliner::generatePackingStatements() symbol to be packed:"<<member_name<<endl;  
       
       bool is_nanos_reduction_sym = false;
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
@@ -716,8 +719,6 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
               rhs = buildAddressOfOp(rhs); 
           }
       }
-      SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()); 
-      ROSE_ASSERT (class_def != NULL);
       lhs = buildDotExp ( buildVarRefExp(out_argv), buildVarRefExp (member_name, class_def));
       
       SgType * lhs_type = lhs->get_type()->stripType( SgType::STRIP_TYPEDEF_TYPE );

@@ -498,7 +498,7 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
                 // We use void* for all pointer types elements within the data structure. So type casting is needed here
                 // e.g.   class Hello **this__ptr__ = (class Hello **)(((struct OUT__1__1527___data *)__out_argv) -> this__ptr___p);
                 
-
+                
                 param_ref = buildArrowExp( buildCastExp( buildVarRefExp( param, scope ), 
                                                          buildPointerType( struct_decl->get_type( ) ) ), 
                                            buildVarRefExp( field_name, struct_def ) );
