@@ -146,8 +146,13 @@ extern void XOMP_loop_ordered_runtime_init(int lower, int upper, int stride);
 // empty_data: pointer to a data segment with the same type as 'data'
 // init_func: function that initializes 'empty_data' with the values of the members in 'data'
 // policy: integer defining the scheduling policy
-extern void XOMP_loop_for_NANOS ( void (*func)(void *), void *data, long data_size, long (*get_data_align)(void), 
-                                  void * empty_data, void (*init_func)(void *, void *), int policy );
+// lower_bound: original loop lower bound
+// upper_bound: original loop upper bound
+// step: original loop step
+// wait: boolean indicating whether the loop construct has a nowait clause
+extern void XOMP_loop_for_NANOS ( void (*func)(void * loop_data, nanos_ws_desc_t * wsd), void *data, long data_size, long (*get_data_align)(void), 
+                                  void * empty_data, void (*init_func)(void *, void *), int policy,
+                                  int lower_bound, int upper_bound, int step, int chunk, bool wait );
 
 // if (start), 
 // mostly used because of gomp, omni will just call  XOMP_loop_xxx_next();

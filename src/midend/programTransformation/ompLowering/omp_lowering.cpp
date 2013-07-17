@@ -1717,8 +1717,7 @@ void generate_nanos_reduction( SgFunctionDeclaration * func,
 //! Inspired in method 'generateOutlinedTask'
 SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrapper_name, ASTtools::VarSymSet_t & syms, 
                                              std::set<SgInitializedName *> & readOnlyVars, ASTtools::VarSymSet_t& pdSyms3, 
-                                             SgClassDeclaration * & struct_decl,
-                                             SgExpression * lower, SgExpression * upper, SgExpression * stride, SgExpression * chunk )
+                                             SgClassDeclaration * & struct_decl )
 {
     ROSE_ASSERT( node != NULL );
     SgOmpClauseBodyStatement * target = isSgOmpClauseBodyStatement( node );
@@ -1850,8 +1849,7 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
 #endif
     
     ASTtools::VarSymSet_t redution_syms;
-    wrapper_name = Outliner::generatePackingStatements( target, syms, pdSyms3, struct_decl, redution_syms, 
-                                                        lower, upper, stride, chunk );
+    wrapper_name = Outliner::generatePackingStatements( target, syms, pdSyms3, struct_decl, redution_syms );
     
     return result;
 }
@@ -2127,14 +2125,14 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
         SgOmpClause::omp_schedule_kind_enum s_kind = s_clause->get_kind( );
         switch( s_kind )
         {
-            case SgOmpClause::e_omp_schedule_static:    sched_policy = buildIntVal(0);  break;
-            case SgOmpClause::e_omp_schedule_dynamic:   sched_policy = buildIntVal(1);  break;
-            case SgOmpClause::e_omp_schedule_guided:    sched_policy = buildIntVal(2);  break;
-            case SgOmpClause::e_omp_schedule_runtime:   sched_policy = buildIntVal(3);  break;
-            case SgOmpClause::e_omp_schedule_auto:      sched_policy = buildIntVal(4);  break;
-            case SgOmpClause::e_omp_schedule_last:      sched_policy = buildIntVal(5);  break;
-            case SgOmpClause::e_omp_schedule_unknown:   sched_policy = buildIntVal(6);  break;
-            default:                                    sched_policy = buildIntVal(7);  break;
+            case SgOmpClause::e_omp_schedule_static:    sched_policy = buildIntVal(1);  break;
+            case SgOmpClause::e_omp_schedule_dynamic:   sched_policy = buildIntVal(2);  break;
+            case SgOmpClause::e_omp_schedule_guided:    sched_policy = buildIntVal(3);  break;
+            case SgOmpClause::e_omp_schedule_runtime:   sched_policy = buildIntVal(4);  break;
+            case SgOmpClause::e_omp_schedule_auto:      sched_policy = buildIntVal(5);  break;
+            case SgOmpClause::e_omp_schedule_last:      sched_policy = buildIntVal(6);  break;
+            case SgOmpClause::e_omp_schedule_unknown:   sched_policy = buildIntVal(7);  break;
+            default:                                    sched_policy = buildIntVal(8);  break;
         }
     }
     else
@@ -2162,11 +2160,13 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
     SgScopeStatement* ancestor_sc = ancestor_st->get_scope( );
     ROSE_ASSERT( ancestor_sc != NULL );
     
+    // Save the original values of the loop boundaries before modifying them
+    SgExpression * param_lower = SageInterface::copyExpression( orig_lower );
+    SgExpression * param_upper = SageInterface::copyExpression( orig_upper );
+    SgExpression * param_stride = SageInterface::copyExpression( orig_stride );
+    
     // this function will generate the outlined function and the struct to be passed as argument
-    SgFunctionDeclaration* outlined_func = generateOutlinedLoop( node, wrapper_name, 
-                                                                 syms, readOnlyVars, pdSyms3, struct_decl, 
-                                                                 copyExpression(orig_lower), copyExpression(orig_upper), 
-                                                                 copyExpression(orig_stride), copyExpression(chunk_size) );
+    SgFunctionDeclaration* outlined_func = generateOutlinedLoop( node, wrapper_name, syms, readOnlyVars, pdSyms3, struct_decl );
 
     // step 4.Generate the call to the XOMP routine that wraps Nanos call
     SgExprListExp* parameters  = NULL;
@@ -2185,6 +2185,8 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
     SgExpression* param_empty_data = buildCastExp( empty_data, buildPointerType( buildVoidType( ) ) );
     SgExpression* param_init_func = build_nanos_init_arguments_struct_function( ancestor_st, wrapper_name, struct_decl );
       
+    SgExpression * wait = buildBoolValExp( !hasClause( target, V_SgOmpNowaitClause ) );
+    
     std::vector<SgExpression*> param_list;
     param_list.push_back( param_outlined_func );
     param_list.push_back( param_data );
@@ -2193,6 +2195,11 @@ SgFunctionDeclaration* generateOutlinedLoop( SgNode * node, std::string & wrappe
     param_list.push_back( param_empty_data );
     param_list.push_back( param_init_func );
     param_list.push_back( sched_policy );
+    param_list.push_back( param_lower );
+    param_list.push_back( param_upper );
+    param_list.push_back( param_stride );
+    param_list.push_back( chunk_size );
+    param_list.push_back( wait );
     parameters = buildExprListExp( param_list );
       
     /*extern void XOMP_loop_for_NANOS( void (*func) (void *), void *data, long arg_size, long arg_align, 
@@ -6319,34 +6326,23 @@ void lower_omp(SgSourceFile* file)
   }
   
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-  // FIXME This should not be here. If the compilation is multifile or it has no main, then it will fail!
   SgFunctionDeclaration * main_decl = findMain( file );
   if (main_decl != NULL)
   {
-      SgScopeStatement* main_sc = main_decl->get_definition()->get_scope(); 
-    
-    /*! Initialize the OpenMP NANOS interface 
+      /*! Initialize the OpenMP NANOS interface only in the file where the main function is 
        * __attribute__((weak, section("nanos_init"))) nanos_init_desc_t __section__nanos_init = {
        *   nanos_omp_set_interface,
        *   (void *) 0
        * }; 
-     */
-      SgType* first_member_type = buildPointerType( buildOpaqueType( "nanos_init_func_t", main_sc ) );
-      SgFunctionParameterTypeList* param_type_list = buildFunctionParameterTypeList( buildPointerType( buildVoidType( ) ) );
-      SgFunctionType* init_func_type = buildFunctionType( buildVoidType( ), param_type_list );
-      SgAssignInitializer* first_member_val = buildAssignInitializer(
-              buildFunctionRefExp( "nanos_omp_set_interface", init_func_type, main_sc ), first_member_type );
-      SgAssignInitializer* second_member_val = buildAssignInitializer(
-              buildCastExp( buildIntVal( 0 ), buildPointerType( buildVoidType( ) ) ),
-              buildPointerType( buildVoidType( ) ) );
-      SgExprListExp* members = buildExprListExp( first_member_val, second_member_val );
-      SgType* nanos_init_type = buildOpaqueType( "nanos_init_desc_t", main_sc );
-      SgAggregateInitializer* section_initor = buildAggregateInitializer( members, nanos_init_type );
-      SgVariableDeclaration* section_init_decl = buildVariableDeclaration ( "__section__nanos_init", nanos_init_type, 
-                                                                            section_initor, main_sc );
-      attachComment( section_init_decl, "This declaration is used to initialize the Nanos Runtime Library" );
-      attachArbitraryText( section_init_decl, "__attribute__((weak, section(\"nanos_init\")))" );
-      insertStatementAfter( main_decl, section_init_decl );
+       */
+      SgScopeStatement* main_sc = main_decl->get_scope(); 
+      SgStatement* file_last_stmt = main_sc->lastStatement( );
+      
+      std::string comment = "\n//This declaration is used to initialize the Nanos Runtime Library";
+      std::string nanos_interface_init = "__attribute__((weak, section(\"nanos_init\"))) nanos_init_desc_t __section__nanos_init = { \n\tnanos_omp_set_interface, \n\t(void*) 0 \n};";
+      
+      attachArbitraryText( file_last_stmt, comment, PreprocessingInfo::after );
+      attachArbitraryText( file_last_stmt, nanos_interface_init, PreprocessingInfo::after );
   }
 #endif
 

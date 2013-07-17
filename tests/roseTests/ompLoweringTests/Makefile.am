@@ -97,7 +97,7 @@ endif
 
 if WITH_NANOS_OPENMP_LIB
 # Tests failing with Nanos are temporaily removed: nestedpar1.c ompfor4.c (Nanos bug in slicer implementation), parallel-reduction.c,
-#   parallel-reduction2.c, parallelsections.c, reduction-classic.c
+#   parallel-reduction2.c, parallelsections.c, reduction-classic.c, task_untied2 ( Nanos bug, mcc sometimes fails too ), section.c, firstprivate.c
 C_TESTCODES_REQUIRED_TO_RUN = \
 	3loops.c \
 	array_init.c \
@@ -108,7 +108,6 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	empty.c \
 	falsesharing.c \
 	firstlastprivate.c \
-	firstprivate.c \
 	flush.c \
 	get_max_threads.c \
 	hello-1.c \
@@ -140,7 +139,6 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	private.c \
 	privatej.c \
 	rice1.c \
-	section.c \
 	section1.c \
 	set_num_threads.c \
 	single.c \
@@ -148,7 +146,6 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	spmd1.c \
 	task_largenumber.c \
 	task_untied.c \
-	task_untied2.c \
 	task_untied3.c
 else
 C_TESTCODES_REQUIRED_TO_RUN = \

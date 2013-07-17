@@ -123,8 +123,7 @@ namespace OmpSupport
     //! Inspired in method 'generateOutlinedTask' and only used when Nanos OpenMP RTL is configured
     SgFunctionDeclaration* generateOutlinedLoop( SgNode* node, std::string& wrapper_name, std::set<SgVariableSymbol*>& syms, 
                                                  std::set<SgInitializedName*>& readOnlyVars, std::set<SgVariableSymbol*>& pdSyms3, 
-                                                 SgClassDeclaration*& struct_decl,
-                                                 SgExpression * lower, SgExpression * upper, SgExpression * stride, SgExpression * chunk );
+                                                 SgClassDeclaration*& struct_decl );
   
     //! A helper function to generate explicit task for omp section
     //! Inspired in method 'generateOutlinedTask' and only used when Nanos OpenMP RTL is configured

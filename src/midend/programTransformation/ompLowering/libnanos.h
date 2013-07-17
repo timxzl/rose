@@ -27,8 +27,9 @@ void NANOS_task( void ( * ) ( void * ),                                         
                  bool, unsigned,                                                            // clauses
                  int, int *, void **, int *, nanos_region_dimension_t **, long int * );     // dependencies
 
-void NANOS_loop( void ( * ) ( void * ), void *, long, long ( * )( void ),
-                 void *, void ( * ) ( void *, void * ), int );
+void NANOS_loop( void ( * ) ( void *, nanos_ws_desc_t * ), void *, long, long ( * )( void ),
+                 void *, void ( * ) ( void *, void * ), int,
+                 int, int, int, int, bool );
 
 void NANOS_sections( void ( * ) ( void *, nanos_ws_desc_t * ), void *,
                      long, long ( * ) ( void ), void *, void ( * ) ( void *, void * ),

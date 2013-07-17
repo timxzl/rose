@@ -939,13 +939,13 @@ dimension_field_optseq: /* empty */
 dimension_field_seq : dimension_field
                     | dimension_field_seq dimension_field
                     ;
-dimension_field: '[' expression {lower_exp = current_exp; }
+dimension_field: '[' expression {lower_exp = current_exp; } 
                  ':' expression { upper_exp = current_exp;
                       assert (array_symbol != NULL);
                       SgType* t = array_symbol->get_type();
                       bool isPointer= (isSgPointerType(t) != NULL );
                       bool isArray= (isSgArrayType(t) != NULL);
-                      if (!isPointer && ! isArray ) 
+                      if (!isPointer && ! isArray )
                       {
                         std::cerr<<"Error. ompparser.yy expects a pointer or array type."<<std::endl;
                         std::cerr<<"while seeing "<<t->class_name()<<std::endl;

@@ -48,7 +48,7 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
         const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
         ASTtools::VarSymSet_t& symsUsingAddress, // variables whose addresses are stored into the struct 
         SgScopeStatement* func_scope, // the scope of the outlined function, could be different from s's global scope
-        char nanos_ws,
+        bool nanos_ws,
         const ASTtools::VarSymSet_t& nanos_red_syms ) 
 {
     SgClassDeclaration* result = NULL;
@@ -83,14 +83,10 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
     // Sara Royuela: it is important that this member is the first in the struct
     // It is expected to be there in method 'generateLoopFunction'
-    if( ( nanos_ws == '1' ) || ( nanos_ws == '2' ) )
+    if( nanos_ws )
     {
         string member_name = "wsd";
-        SgType* member_type;
-        if( nanos_ws == '1' )
-            member_type = buildOpaqueType( "nanos_loop_info_t", getGlobalScope( s ) );
-        else
-            member_type = buildOpaqueType( "nanos_ws_info_loop_t", getGlobalScope( s ) );
+        SgType* member_type = buildOpaqueType( "nanos_ws_info_loop_t", getGlobalScope( s ) );
         SgVariableDeclaration * member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
         appendStatement( member_decl, def_scope );
     }
@@ -624,10 +620,9 @@ static SgStatement* build_array_packing_statement( SgExpression * lhs, SgExpress
 std::string Outliner::generatePackingStatements( SgStatement* target, 
                                                  const ASTtools::VarSymSet_t & syms, const ASTtools::VarSymSet_t & pdsyms,
                                                  SgClassDeclaration* struct_decl /* = NULL */, 
-                                                 const ASTtools::VarSymSet_t & nanos_red_syms /*= NULL*/, 
-                                                 SgExpression * lower /* = NULL */, SgExpression * upper /* = NULL */, 
-                                                 SgExpression * stride /* = NULL */, SgExpression * chunk /* = NULL */ )
+                                                 const ASTtools::VarSymSet_t & nanos_red_syms /*= NULL*/ )
 {
+
   int var_count = syms.size();
   int counter=0;
   string wrapper_name= generateFuncArgName(target); //"__out_argv";
@@ -750,48 +745,6 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
     
     SageInterface::insertStatementBefore( target, assignment );
   }
-  
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-  // Add Nanos extra packing statements when comming from Loop: wsd.lower, wsd.upper, wsd.step, wsd.chunk
-    if( ( lower != NULL ) && ( upper != NULL ) && ( stride != NULL ) && ( chunk != NULL ) )
-    {
-        SgClassSymbol * loop_info_sym = SageInterface::lookupClassSymbolInParentScopes( "nanos_loop_info_t", cur_scope );
-        ROSE_ASSERT( loop_info_sym != NULL );    
-        SgClassDeclaration * loop_info_decl = loop_info_sym->get_declaration( );
-        SgClassDefinition * loop_info_def = loop_info_decl->get_definition( );
-        SgDeclarationStatementPtrList loop_info_members = loop_info_def->get_members( );
-        
-        SgVariableDeclaration * member_lower = isSgVariableDeclaration( loop_info_members[0] );
-        SgVariableDeclaration * member_upper = isSgVariableDeclaration( loop_info_members[1] );
-        SgVariableDeclaration * member_step = isSgVariableDeclaration( loop_info_members[2] );
-        SgVariableDeclaration * member_chunk = isSgVariableDeclaration( loop_info_members[3] );
-        
-        // Generate the actual packing statements
-        string member_name = "wsd";
-        SgExpression * wsd_access = buildDotExp( buildVarRefExp( out_argv ), 
-                buildVarRefExp( member_name, class_def ) );
-        
-        SgExpression * wsd_lower = buildDotExp( wsd_access, buildVarRefExp( member_lower->get_decl_item( "lower" ), cur_scope ) );
-        SgExprStatement * lower_stmt = buildAssignStatement( wsd_lower, lower );
-        SageInterface::insertStatementBefore( target, lower_stmt );
-  
-        SgExpression * wsd_upper = buildDotExp( wsd_access, buildVarRefExp( member_upper->get_decl_item( "upper" ), cur_scope ) );
-        SgExprStatement * upper_stmt = buildAssignStatement( wsd_upper, upper );
-        SageInterface::insertStatementBefore( target, upper_stmt );
-  
-        SgExpression * wsd_step = buildDotExp( wsd_access, buildVarRefExp( member_step->get_decl_item( "step" ), cur_scope ) );
-        SgExprStatement * step_stmt = buildAssignStatement( wsd_step, stride );
-        SageInterface::insertStatementBefore( target, step_stmt );
-  
-        SgExpression * wsd_chunk = buildDotExp( wsd_access, buildVarRefExp( member_chunk->get_decl_item( "chunk" ), cur_scope ) );
-        SgExprStatement * chunk_stmt = buildAssignStatement( wsd_chunk, chunk );
-        SageInterface::insertStatementBefore( target, chunk_stmt );
-    }
-    else
-    {
-        ROSE_ASSERT( ( lower == NULL ) && ( upper == NULL ) && ( stride == NULL ) && ( chunk == NULL ) );
-    }
-#endif
   
   return wrapper_name; 
 }

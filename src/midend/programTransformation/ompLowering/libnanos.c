@@ -237,110 +237,37 @@ void NANOS_task( void ( * func ) ( void * ), void *data,
 
 
 // ************************************************************************************ //
-// ************************** Nanos Loop structs and methods ************************** //
+// ********************** Nanos Worksharings structs and methods ********************** //
 
-static const char * nanos_get_slicer_name( int policy )
+static int loop_id = 0;
+static int sections_id = 0;
+
+static nanos_omp_sched_t nanos_get_scheduling( int policy )
 {
     switch( policy )
     {
-        case 0:     return "static_for";
-        case 1:     return "dynamic_for";
-        case 2:     return "guided_for";
+        case 1:     return omp_sched_static;
+        case 2:     return omp_sched_dynamic;
+        case 3:     return omp_sched_guided;
         default:    printf( "Unrecognized scheduling policy %d. Using static scheduling\n", policy );
-                    return "static_for";
+                    return omp_sched_static;
     };
 }
 
-static int loop_id = 0;
-void NANOS_loop( void ( * func ) ( void * ), void * data, long data_size, long ( * get_data_align )( void ),
-                 void* empty_data, void ( * init_func ) ( void *, void * ), int policy )
-{    
-    nanos_err_t err;
-
-    // Create the WD and its properties
-    void * wd = ( void * ) 0;
-    nanos_wd_dyn_props_t props;
-    props.tie_to = ( void * ) 0;
-    props.priority = 0;
-      
-    // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
-    int num_copies = 0;
-    // Compute dependencies (ROSE is not currently supporting dependencies among the tasks)
-    int num_data_accesses = 0;
-    // TODO Compute dimensions
-    int num_dimensions = 0;
-    // Compute device descriptor (at the moment, only SMP is supported)
-    int num_devices = 1;
-    
-    // Create the slicer
-    nanos_smp_args_t _smp_args = { func };
-    char * loop_name; 
-    asprintf( &loop_name, "loop_%d", loop_id++ );
-    struct nanos_const_wd_definition nanos_wd_const_data = { 
-        { { 1,          // mandatory creation
-            1,          // tied
-            0, 0, 0, 0, 0, 0 },                      // properties 
-        ( *get_data_align )( ),                      // data alignment
-          num_copies, num_devices, num_dimensions,
-          loop_name                                  // description
-        }, 
-        { { &nanos_smp_factory,                      // device description
-            &_smp_args }                             // outlined function
-        } 
-    };
-    void * slicer = nanos_find_slicer( nanos_get_slicer_name( policy ) );
-    if( slicer == 0 )
-        nanos_handle_error( NANOS_UNIMPLEMENTED );
-    err = nanos_create_sliced_wd( &wd, nanos_wd_const_data.base.num_devices, nanos_wd_const_data.devices, 
-                                   data_size, nanos_wd_const_data.base.data_alignment, ( void ** ) &empty_data, 
-                                  nanos_current_wd( ), slicer, &nanos_wd_const_data.base.props, &props, 
-                                  num_copies, ( nanos_copy_data_t ** ) 0, 
-                                  num_dimensions, ( nanos_region_dimension_internal_t ** ) 0 );
-    if( err != NANOS_OK )
-        nanos_handle_error( err );
-    
-    // Initialize outlined data
-    ( *init_func )( empty_data, data );
-    
-    // Submit the work to the runtime system
-    err = nanos_submit( wd, num_data_accesses, ( nanos_data_access_t * ) 0, ( nanos_team_t ) 0 );
-    if( err != NANOS_OK )
-        nanos_handle_error( err );
-    
-    // Wait for work completion
-    err = nanos_wg_wait_completion( nanos_current_wd( ), 0 );
-    if( err != NANOS_OK )
-        nanos_handle_error( err );
-}
-
-// ************************ END Nanos Loop structs and methods ************************ //
-// ************************************************************************************ //
-
-
-// ************************************************************************************ //
-// ************************ Nanos Sections structs and methods ************************ //
-
-static int sections_id = 0;
-
-void NANOS_sections( void ( * func ) ( void * section_data, nanos_ws_desc_t * wsd ), void * data,
-                     long data_size, long ( * get_data_align )( void ), void * empty_data, void ( * init_func ) ( void *, void * ),
-                     int n_sections, bool wait )
+static void NANOS_worksharing( int lb, int ub, int step, int chunk, char * description,
+                               void ( * func ) ( void * data, nanos_ws_desc_t * wsd ), void * data, long data_size, long ( * get_data_align )( void ), 
+                               void * empty_data, void ( * init_func ) ( void *, void * ), void * ws_policy, bool wait )
 {
     nanos_err_t err;
-    
-    // Get scheduling policy
-    void * ws_policy = nanos_omp_find_worksharing( omp_sched_static );
-    if( ws_policy == 0 )
-        nanos_handle_error( NANOS_UNIMPLEMENTED );
-    
+
     // Create the Worksharing
     bool single_guard;
     nanos_ws_desc_t * wsd;
     nanos_ws_info_loop_t ws_info_loop;
-    ws_info_loop.lower_bound = 0;
-    ws_info_loop.upper_bound = n_sections - 1;
-    ws_info_loop.loop_step = 1;
-    ws_info_loop.chunk_size = 1;
+    ws_info_loop.lower_bound = lb;
+    ws_info_loop.upper_bound = ub;
+    ws_info_loop.loop_step = step;
+    ws_info_loop.chunk_size = chunk;
     err = nanos_worksharing_create( &wsd, ws_policy, ( void ** ) &ws_info_loop, &single_guard );
     if( err != NANOS_OK )
         nanos_handle_error( err );
@@ -379,15 +306,13 @@ void NANOS_sections( void ( * func ) ( void * section_data, nanos_ws_desc_t * ws
     
             // Create the slicer
             nanos_smp_args_t _smp_args = { func };
-            char * sections_name; 
-            asprintf( &sections_name, "sections_%d", sections_id++ );
             struct nanos_const_wd_definition nanos_wd_const_data = { 
                 { { 1,          // mandatory creation
                     1,          // tied
                     0, 0, 0, 0, 0, 0 },                         // properties 
                     ( *get_data_align )( ),                     // data alignment
                     num_copies, num_devices, num_dimensions,
-                    sections_name                               // description
+                    description                                 // description
                 }, 
                 { { &nanos_smp_factory,                         // device description
                     &_smp_args }                                // outlined function
@@ -430,6 +355,54 @@ void NANOS_sections( void ( * func ) ( void * section_data, nanos_ws_desc_t * ws
             nanos_handle_error( err );
     }
 }
+
+void NANOS_loop( void ( * func ) ( void * loop_data, nanos_ws_desc_t * wsd ), void * data, long data_size, long ( * get_data_align )( void ),
+                 void* empty_data, void ( * init_func ) ( void *, void * ), int policy,
+                 int lower_bound, int upper_bound, int step, int chunk, bool wait )
+{
+    // Get scheduling policy
+    void * ws_policy = nanos_omp_find_worksharing( nanos_get_scheduling( policy ) );
+    if( ws_policy == 0 )
+        nanos_handle_error( NANOS_UNIMPLEMENTED );
+
+    char * loop_name; 
+    asprintf( &loop_name, "loop_%d", loop_id++ );
+    NANOS_worksharing( lower_bound, upper_bound, step , chunk, loop_name,
+                       func, data, data_size, get_data_align, empty_data, init_func, 
+                       ws_policy, wait );
+}
+
+void NANOS_sections( void ( * func ) ( void * section_data, nanos_ws_desc_t * wsd ), void * data,
+                     long data_size, long ( * get_data_align )( void ), void * empty_data, void ( * init_func ) ( void *, void * ),
+                     int n_sections, bool wait )
+{
+    // Get scheduling policy
+    void * ws_policy = nanos_omp_find_worksharing( omp_sched_static );
+    if( ws_policy == 0 )
+        nanos_handle_error( NANOS_UNIMPLEMENTED );
+    
+    char * sections_name; 
+    asprintf( &sections_name, "sections_%d", sections_id++ );
+    NANOS_worksharing( /*lb*/ 0, /*ub*/ n_sections - 1, /*step*/ 1 , /*chunk*/ 1, sections_name,
+                       func, data, data_size, get_data_align, empty_data, init_func, 
+                       ws_policy, wait );
+}
+
+bool NANOS_single( void )
+{
+    bool single_guard;
+  
+    nanos_err_t err = nanos_single_guard( &single_guard );
+    if( err != NANOS_OK )
+        nanos_handle_error(err);
+
+    return single_guard;
+}
+
+// ******************** END Nanos Worksharings structs and methods ******************** //
+// ************************************************************************************ //
+
+
 
 // ************************************************************************************ //
 // ***************************** Nanos Reduction methods ****************************** //
@@ -529,6 +502,10 @@ void NANOS_reduction( int n_reductions,
 // ************************************************************************************ //
 
 
+// ************************************************************************************ //
+// ******************** Nanos synchronization defines and methods ********************* //
+
+
 void NANOS_barrier( void )
 {
     nanos_team_barrier( );
@@ -542,10 +519,7 @@ void NANOS_taskwait( void )
         nanos_handle_error( err );
 }
 
-// ************************************************************************************ //
-// ************************ Nanos Critical defines and methods ************************ //
-
-__attribute__((weak)) nanos_lock_t nanos_default_critical_lock/* = { NANOS_LOCK_FREE }*/;
+__attribute__((weak)) nanos_lock_t nanos_default_critical_lock = { NANOS_LOCK_FREE };
 
 void NANOS_critical_start( void )
 {
@@ -560,14 +534,6 @@ void NANOS_critical_end( void )
     if( err != NANOS_OK )
         nanos_handle_error( err );
 }
-
-// ********************** END Nanos Critical defines and methods ********************** //
-// ************************************************************************************ //
-
-
-
-// ************************************************************************************ //
-// ************************* Nanos Atomic defines and methods ************************* //
 
 void NANOS_atomic ( int op, int type, void * variable, void * operand )
 {
@@ -651,22 +617,6 @@ void NANOS_atomic ( int op, int type, void * variable, void * operand )
   }
 }
 
-// *********************** END Nanos Atomic defines and methods *********************** //
-// ************************************************************************************ //
-
-
-
-bool NANOS_single( void )
-{
-    bool single_guard;
-  
-    nanos_err_t err = nanos_single_guard( &single_guard );
-    if( err != NANOS_OK )
-        nanos_handle_error(err);
-
-    return single_guard;
-}
-
 bool NANOS_master( void )
 {
     return ( omp_get_thread_num( ) == 0 );
@@ -676,3 +626,6 @@ void NANOS_flush( void )
 {
     __sync_synchronize( );
 }
+
+// ****************** END Nanos synchronization defines and methods ******************* //
+// ************************************************************************************ //

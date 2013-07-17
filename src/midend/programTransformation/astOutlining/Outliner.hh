@@ -217,8 +217,7 @@ namespace Outliner
         const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
         ASTtools::VarSymSet_t& pdSyms, // variables must use pointer types (pointer dereferencing: pdf). The rest variables use pass-by-value
         SgScopeStatement* func_scope, // the scope of the outlined function, could be in another file
-        char nanos_ws = '0', // indicates if we are generating the struct for a worksharing ( only usefull if Nanos RTL )
-                             // '0'-> no ws,  '1'-> omp for, '2'-> omp sections
+        bool nanos_ws = false, // indicates if we are generating the struct for a worksharing ( only usefull if Nanos RTL )
         const ASTtools::VarSymSet_t& nanos_red_syms = ASTtools::VarSymSet_t( ) ); // variables that are a reduction symbol while using Nanos RTL
 
 
@@ -274,9 +273,7 @@ namespace Outliner
     std::string generatePackingStatements( SgStatement * target, 
                                            const ASTtools::VarSymSet_t & syms, const ASTtools::VarSymSet_t & pdsyms, 
                                            SgClassDeclaration * struct_decl = NULL,  
-                                           const ASTtools::VarSymSet_t & redution_syms = ASTtools::VarSymSet_t( ),
-                                           SgExpression * lower = NULL, SgExpression * upper = NULL, 
-                                           SgExpression * stride = NULL, SgExpression * chunk = NULL );
+                                           const ASTtools::VarSymSet_t & redution_syms = ASTtools::VarSymSet_t( ) );
 
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
     /*!

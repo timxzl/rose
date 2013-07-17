@@ -1723,10 +1723,12 @@ void XOMP_loop_end_nowait (void)
 
 #else
 
-void XOMP_loop_for_NANOS ( void (*func) (void *), void *data, long data_size, long (*get_data_align)(void), 
-                           void * empty_data, void (* init_func) (void *, void *), int policy )
+void XOMP_loop_for_NANOS ( void (*func) (void * loop_data, nanos_ws_desc_t * wsd), void *data, long data_size, long (*get_data_align)(void), 
+                           void * empty_data, void (* init_func) (void *, void *), int policy,
+                           int lower_bound, int upper_bound, int step, int chunk, bool wait )
 {
-    NANOS_loop( func, data, data_size, get_data_align, empty_data, init_func, policy);
+    NANOS_loop( func, data, data_size, get_data_align, empty_data, init_func, policy, 
+                lower_bound, upper_bound, step, chunk, wait );
 }
 #endif
 

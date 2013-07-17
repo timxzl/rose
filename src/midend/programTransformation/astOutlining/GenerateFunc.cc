@@ -1381,15 +1381,8 @@ Outliner::generateFunction ( SgBasicBlock* s,  // block to be outlined
 //    }
 // The outlined function body 'func_body' will be:
 //    int i;
-//    int nanos_lower = ( (nanos_loop_info_t ) ((struct OUT__1__6388___data *)__out_argv) )->wsd.lower;
-//    int nanos_upper = ( (nanos_loop_info_t ) ((struct OUT__1__6388___data *)__out_argv) )->wsd.upper;
-//    int nanos_step = ( (nanos_loop_info_t ) ((struct OUT__1__6388___data *)__out_argv) )->wsd.step;
-//    if( nanos_step > 0 )
-//        for (i = nanos_lower; i <= nanos_upper; i += nanos_step)
-//            a_0[i] = i * 2;
-//    else
-//        for (i = nanos_lower; i >= nanos_upper; i += nanos_step)
-//            a_0[i] = i * 2;
+//    for (i = nanos_lower; i <= nanos_upper; i += nanos_step)
+//        a_0[i] = i * 2;
 SgFunctionDeclaration *
     Outliner::generateLoopFunction ( SgBasicBlock* s,
                                      const string& func_name_str,
@@ -1431,131 +1424,81 @@ SgFunctionDeclaration *
     //---------------------------------------------------------------------------------------
     unpacking_stmts = variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
     ROSE_ASSERT( func != NULL );
+
+    //step 4: parameters checking
+    //---------------------------------------------------------------------------------------
+    // Member 'wsd' is only needed when there is a reduction performed sections construct
+    // But we add it always to match the header of the Nanos sections method
+    SgFunctionParameterList * params = func->get_parameterList( );
+    SgInitializedName * wsd_param = buildInitializedName( "wsd", buildPointerType( buildOpaqueType( "nanos_ws_desc_t", func_body ) ) );
+    SageInterface::appendArg( params, wsd_param );
     func->set_type( buildFunctionType( func->get_type()->get_return_type( ), 
-                    buildFunctionParameterTypeList( func->get_parameterList( ) ) ) );
+                    buildFunctionParameterTypeList( params ) ) );
+
     // Retest this...
     ROSE_ASSERT( func_body->get_parent( ) == func->get_definition( ) );
     ROSE_ASSERT( scope->lookup_function_symbol( func->get_name( ) ) );
     
-    //step 4. Create the function body PART 2
+    //step 5. Create the function body PART 2
     //---------------------------------------------------------------------------------------
     // Here we introduce in the function code the statements for Nanos calls
     // We split the construction of the function body because 
     // we need variable handling to be done before building the nanos calls
     // and we need the original code to be placed in the function code 
     // before the handling is made because it can cause replacement
-    SgClassSymbol * loop_info_sym = SageInterface::lookupClassSymbolInParentScopes( "nanos_loop_info_t", scope );
-    SgVariableDeclaration * member_lower, * member_upper, * member_step;
-    if( loop_info_sym == NULL )
-    {
-        // Generate the struct type definition to avoid errors durint AstConsistencyTests
-        // Don't add this in the outlined code because the struct is defined in nanos-int.h
-        SgClassDeclaration * loop_info_decl = buildStructDeclaration( "nanos_loop_info_t", SageInterface::getGlobalScope( scope ) );
-        SgClassDefinition * loop_info_def = loop_info_decl->get_definition( );
-        ROSE_ASSERT( loop_info_def != NULL );
-        member_lower = buildVariableDeclaration( "lower", buildIntType( ), NULL, loop_info_def );
-        member_upper = buildVariableDeclaration( "upper", buildIntType( ), NULL, loop_info_def );
-        member_step = buildVariableDeclaration( "step", buildIntType( ), NULL, loop_info_def );
-        loop_info_def->append_member( member_lower );
-        loop_info_def->append_member( member_upper );
-        loop_info_def->append_member( member_step );
-        loop_info_decl->set_definition( loop_info_def );
-        
-        loop_info_sym = isSgClassSymbol( loop_info_decl->search_for_symbol_from_symbol_table( ) );
-        ROSE_ASSERT( loop_info_sym != NULL ); 
-        loop_info_sym->set_declaration( loop_info_decl );
-        ROSE_ASSERT( loop_info_sym->get_declaration( )->get_definition( ) != NULL );
-    }
-    else
-    {
-        SgClassDeclaration * loop_info_decl = loop_info_sym->get_declaration( );
-        SgClassDefinition * loop_info_def = loop_info_decl->get_definition( );
-        SgDeclarationStatementPtrList loop_info_members = loop_info_def->get_members( );
-        
-        member_lower = isSgVariableDeclaration( loop_info_members[0] );
-        member_upper = isSgVariableDeclaration( loop_info_members[1] );
-        member_step = isSgVariableDeclaration( loop_info_members[2] );
-    }
-    
-    // Get the WSD member from the __out_argv parameter
-    // (nanos_loop_info_t ) ( ( (struct OUT__1__6388___data *)__out_argv )->wsd )
-    SgInitializedNamePtrList& argsList = func->get_parameterList( )->get_args( );
-    ROSE_ASSERT( argsList.size() == 1 );      // The only argument must be __out_argv
-    SgDeclarationStatementPtrList st_members = struct_decl->get_definition( )->get_members( );
-    SgVariableDeclaration * wsd_member = isSgVariableDeclaration( *( st_members.begin( ) ) );
-    SgInitializedName * wsd_name = wsd_member->get_decl_item( "wsd" );
-    SgInitializedName * n = *argsList.begin( );
-    SgExpression * param_expr = buildVarRefExp( n, func_body );
-    SgExpression * wsd_expr = buildVarRefExp( wsd_name, func_body );
-    // We don't cast to 'loop_info_sym->get_type( )' 
-    // because 'nanos_loop_info_t' is a typedef in 'nanos-int.h', so we don't need to name 'struct'
-    SgExpression * wsd = buildCastExp( buildArrowExp( buildCastExp( param_expr, buildPointerType( struct_decl->get_type( ) ) ),
-                                                      wsd_expr ),
-                                       buildOpaqueType( "nanos_loop_info_t", func_body ) );
 
-    // Create variables containing the lower and upper bounds and the step of the nanos loop using WSD and replace the loop boundaries
-    //     int nanos_lower = ((nanos_loop_info_t )(((struct OUT__2__6660___data *)__out_argv) -> wsd)).lower;
-    //     int nanos_upper = ((nanos_loop_info_t )(((struct OUT__2__6660___data *)__out_argv) -> wsd)).upper;
-    //     int nanos_step = ((nanos_loop_info_t )(((struct OUT__2__6660___data *)__out_argv) -> wsd)).step
-    SgExpression * wsd_lower = buildDotExp( wsd, buildVarRefExp( member_lower->get_decl_item( "lower" ), func_body ) );
-    SgExpression * wsd_upper = buildDotExp( wsd, buildVarRefExp( member_upper->get_decl_item( "upper" ), func_body ) );
-    SgExpression * wsd_step = buildDotExp( wsd, buildVarRefExp( member_step->get_decl_item( "step" ), func_body ) );   
-    SgInitializer * lower_init = buildAssignInitializer( wsd_lower, buildIntType( ) );
-    SgVariableDeclaration * lower = buildVariableDeclaration( "nanos_lower", buildIntType( ), lower_init, func_body );
-    SgInitializer * upper_init = buildAssignInitializer( wsd_upper, buildIntType( ) );
-    SgVariableDeclaration * upper = buildVariableDeclaration( "nanos_upper", buildIntType( ), upper_init, func_body );
-    SgInitializer * step_init = buildAssignInitializer( wsd_step, buildIntType( ) );
-    SgVariableDeclaration * step = buildVariableDeclaration( "nanos_step", buildIntType( ), step_init, func_body );
-    Rose_STL_Container<SgNode *> loop_list = NodeQuery::querySubTree( func_body, V_SgForStatement );
-    ROSE_ASSERT( !loop_list.empty( ) ); 
-    SgForStatement * original_loop = isSgForStatement( *( loop_list.begin( ) ) );
-    insertStatementBefore( original_loop, lower );
-    insertStatementBefore( original_loop, upper );
-    insertStatementBefore( original_loop, step );
+    // Create the Nanos worksharing that will iterate over the sections
+    //     nanos_ws_item_loop_t nanos_item_loop;
+    //     err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
+    //     if( err != 0 /*NANOS_OK*/ )
+    //         nanos_handle_error( err );
+    SgType * nanos_item_loop_type = buildOpaqueType( "nanos_ws_item_loop_t", func_body );   // We do not create the type because we dont want it to cast to 'struct'
+    SgVariableDeclaration* nanos_item_loop = buildVariableDeclaration( "nanos_item_loop", nanos_item_loop_type, NULL, func_body );
+    SgExprListExp * nanos_next_item_params = buildExprListExp( buildVarRefExp( wsd_param, func_body ), 
+                                                               buildCastExp( buildAddressOfOp( buildVarRefExp( nanos_item_loop ) ),
+                                                                             buildPointerType( buildPointerType( buildVoidType( ) ) ) ) );
+    SgType * nanos_err_type = buildOpaqueType( "nanos_err_t", func_body );
+    SgFunctionCallExp * nanos_next_item_call = buildFunctionCallExp( "nanos_worksharing_next_item", nanos_err_type, nanos_next_item_params, func_body );
+    SgInitializer * nanos_next_item_init = buildAssignInitializer( nanos_next_item_call, nanos_err_type );
+    SgVariableDeclaration * nanos_next_item_error = buildVariableDeclaration( "nanos_err", nanos_err_type, nanos_next_item_init, func_body );
+    SgStatement * nanos_handle_error = buildFunctionCallStmt( "nanos_handle_error", buildVoidType( ), 
+                                                              buildExprListExp( buildVarRefExp( nanos_next_item_error ) ), func_body );
+    SgStatement * nanos_next_item_check_result = buildIfStmt( buildNotEqualOp( buildVarRefExp( nanos_next_item_error ), buildIntVal( 0 ) ),
+                                                              nanos_handle_error, NULL );
+    prependStatement( nanos_next_item_check_result, func_body );
+    prependStatement( nanos_next_item_error, func_body );
+    prependStatement( nanos_item_loop, func_body );
+
+    // Nanos worksharing iteraton
+    //    while( nanos_item_loop.execute ) {
+    //        int i;
+    //        for( i = nanos_item_loop.lower; i <= nanos_item_loop.upper; ++i ) {
+    //            // Create the two possible loops depending on the sign of the step
+    //            if( stride > 0 )
+    //                for( int i = nanos_item_loop.lower; i <= nanos_item_loop.upper; i += nanos_item_loop.step ) { ... }
+    //            else
+    //                for( int i = nanos_item_loop.lower; i >= nanos_item_loop.upper; i += nanos_item_loop.step ) { ... }
+    //        }
+    //        err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
+    //    }
+    SgStatement * while_cond =  buildExprStatement( buildDotExp( buildVarRefExp( nanos_item_loop ), 
+                                                                 buildOpaqueVarRefExp( "execute", func_body ) ) );
+    SgBasicBlock * while_body = buildBasicBlock( );
+    SgExpression * loop_lower = buildDotExp( buildVarRefExp( nanos_item_loop ), buildOpaqueVarRefExp( "lower", while_body ) );
+    SgExpression * loop_upper = buildDotExp( buildVarRefExp( nanos_item_loop ), buildOpaqueVarRefExp( "upper", while_body ) );
+
+    Rose_STL_Container<SgNode *> for_list = NodeQuery::querySubTree( func_body, V_SgForStatement );
+    ROSE_ASSERT( !for_list.empty( ) );
+    SgForStatement * original_loop = isSgForStatement( for_list[0] );
+    SageInterface::setLoopLowerBound( original_loop, loop_lower );
+    SageInterface::setLoopUpperBound( original_loop, loop_upper );
     
-    // Create the two possible loops depending on the sign of the step
-    // Input:
-    //     for( int i = LB; i < UB; i += stride ) { ... }
-    // Output:
-    //     if( stride > 0 )
-    //        for( int i = nanos_LB; i <= nanos_UB; i += stride ) { ... }
-    //     else
-    //        for( int i = nanos_LB; i >= nanos_UB; i += stride ) { ... }
-    SageInterface::setLoopLowerBound( original_loop, buildVarRefExp( lower ) );
-    SageInterface::setLoopUpperBound( original_loop, buildVarRefExp( upper ) );
-    SageInterface::setLoopStride( original_loop, buildVarRefExp( step ) ); 
-    SgExpression * loop_test = isSgExprStatement( original_loop->get_test( ) )->get_expression( );
-    if( isSgEqualityOp( loop_test ) || isSgGreaterOrEqualOp( loop_test ) || isSgGreaterThanOp( loop_test )
-        || isSgLessOrEqualOp( loop_test ) || isSgLessThanOp( loop_test ) || isSgNotEqualOp( loop_test ) )
-    {
-        SgBinaryOp * loop_test_op = isSgBinaryOp( loop_test );
-        
-        SgForStatement * true_loop = isSgForStatement( SageInterface::copyStatement( original_loop ) );
-        SgStatement * true_loop_test = buildExprStatement(
-                buildLessOrEqualOp( SageInterface::copyExpression( loop_test_op->get_lhs_operand( ) ),
-                                    SageInterface::copyExpression( loop_test_op->get_rhs_operand( ) ) ) );
-        true_loop->set_test( true_loop_test );
-        true_loop_test->set_parent( true_loop );
-        
-        SgForStatement * false_loop = isSgForStatement( SageInterface::copyStatement( original_loop ) );
-        SgStatement * false_loop_test = buildExprStatement(
-                buildGreaterOrEqualOp( SageInterface::copyExpression( loop_test_op->get_lhs_operand( ) ),
-                                       SageInterface::copyExpression( loop_test_op->get_rhs_operand( ) ) ) );
-        false_loop->set_test( false_loop_test );
-        false_loop_test->set_parent( false_loop );
-        
-        SgExpression * cond = buildGreaterThanOp( buildVarRefExp( step ), buildIntVal( 0 ) );
-        SgStatement * if_stmt = buildIfStmt( cond, true_loop, false_loop );
-        
-        SageInterface::replaceStatement( original_loop, if_stmt );
-    }
-    else
-    {
-        std::cerr << "error. generateLoopFunction(): non comparison operation '" << loop_test->unparseToString( ) 
-                  << "' case is not yet handled !" << std::endl;
-        ROSE_ASSERT( false );
-    }
-    
+    while_body->append_statement( SageInterface::copyStatement( original_loop ) );
+    SgStatement * next_item_call = buildFunctionCallStmt( "nanos_worksharing_next_item", nanos_err_type, nanos_next_item_params, func_body );
+    while_body->append_statement( next_item_call );
+    SgWhileStmt * nanos_while = buildWhileStmt( while_cond, while_body );
+    replaceStatement( original_loop, nanos_while );
+
     return func;
 }
 
@@ -1632,7 +1575,7 @@ SgFunctionDeclaration *
     
     // Create the Nanos worksharing that will iterate over the sections
     //     nanos_ws_item_loop_t nanos_item_loop;
-    //     err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
+    //     err = nanos_worksharing_next_item( wsd, ( void ** ) &nanos_item_loop );
     //     if( err != 0 /*NANOS_OK*/ )
     //         nanos_handle_error( err );
     SgType * nanos_item_loop_type = buildOpaqueType( "nanos_ws_item_loop_t", func_body );   // We do not create the type because we dont want it to cast to 'struct'
@@ -1708,8 +1651,8 @@ SgFunctionDeclaration *
     while_body->append_statement( for_loop_it );
     while_body->append_statement( for_loop );
     while_body->append_statement( next_item_call );
-    SgWhileStmt * nanos_while_body = buildWhileStmt( while_cond, while_body );
-    appendStatement( nanos_while_body, func_body );
+    SgWhileStmt * nanos_while = buildWhileStmt( while_cond, while_body );
+    appendStatement( nanos_while, func_body );
     
     if( Outliner::useNewFile )
         ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
@@ -1723,8 +1666,8 @@ SgFunctionDeclaration *
     // Member 'wsd' is only needed when there is a reduction performed sections construct
     // But we add it always to match the header of the Nanos sections method
     SgFunctionParameterList * params = func->get_parameterList( );
-    SgInitializedName * wsd_member = buildInitializedName( "wsd", buildPointerType( buildOpaqueType( "nanos_ws_desc_t", func_body ) ) );
-    SageInterface::appendArg( params, wsd_member );
+    SgInitializedName * wsd_param = buildInitializedName( "wsd", buildPointerType( buildOpaqueType( "nanos_ws_desc_t", func_body ) ) );
+    SageInterface::appendArg( params, wsd_param );
     func->set_type( buildFunctionType( func->get_type()->get_return_type( ), 
                     buildFunctionParameterTypeList( params ) ) );
     
