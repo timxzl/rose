@@ -370,7 +370,7 @@ namespace OmpSupport
     {
       return expressions[targetConstruct];
     }
-    
+
   //! Expression List
   void OmpAttribute::addExpressionToList(omp_construct_enum targetConstruct, SgExpression* expr )
   {
@@ -943,7 +943,7 @@ namespace OmpSupport
       case e_if:
       case e_num_threads:
       case e_nowait:
-          
+
       case e_ordered_clause:
       case e_reduction:
       case e_schedule:
@@ -955,8 +955,8 @@ namespace OmpSupport
       case e_device:
 
      // task dependencies implementation
-        case e_depend:
-                 
+      case e_depend:
+        
         result = true; 
         break;
         
@@ -1131,7 +1131,8 @@ namespace OmpSupport
           (omp_type == e_firstprivate)||
           (omp_type == e_shared)||
           (omp_type == e_copyin)||
-          (omp_type == e_lastprivate) )
+          (omp_type == e_lastprivate) 
+          )
       {
         result += OmpSupport::toString(omp_type);
         string varListString = toOpenMPString(getVariableList(omp_type));
@@ -1216,7 +1217,7 @@ namespace OmpSupport
       if (iter != var_list.begin())
         result +=",";
       result+=(*iter).first;
-      // For map (a[0:n], b[0:m],c), a variable may have optional list of dimension and shape information
+      // For map (a[0:n], b[0:m],c), a variable may have optional list of dimension information
       SgInitializedName* initname = isSgInitializedName((*iter).second);
       if (initname != NULL)
       {
@@ -1231,7 +1232,7 @@ namespace OmpSupport
          result += ":"; 
          result += c_pair.second->unparseToString();
          result+="]";
-       }
+       } 
       }
     }
     return result;

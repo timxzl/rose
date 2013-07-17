@@ -524,7 +524,6 @@ SgOmpLastprivateClause
 SgOmpNowaitClause
 SgOmpNumThreadsClause
 SgOmpOrderedClause
-SgOmpOutputClause
 SgOmpPrivateClause
 SgOmpReductionClause
 SgOmpScheduleClause

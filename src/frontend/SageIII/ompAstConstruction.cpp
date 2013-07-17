@@ -786,7 +786,7 @@ namespace OmpSupport
     ROSE_ASSERT(result != NULL);
 
     // build variable list
-    setClauseVariableList(result, att, map_op);
+    setClauseVariableList(result, att, map_op); 
 
     //this is somewhat inefficient. 
     // since the attribute has dimension info for all map clauses
@@ -794,6 +794,7 @@ namespace OmpSupport
     result->set_array_dimensions(att->array_dimensions);
     return result;
   }
+
 
   SgOmpDependClause* buildOmpDependClause( OmpAttribute* att, omp_construct_enum depend_op )
   {

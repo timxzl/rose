@@ -11,8 +11,7 @@
 #include <stdio.h>
 #include <assert.h>
 #include <iostream>
-#include "sage3basic.h"     // Sage Interface and Builders
-#include "rose_config.h"    // For task clauses rules
+#include "sage3basic.h" // Sage Interface and Builders
 #include "sageBuilder.h"
 #include "OmpAttribute.h"
 
@@ -78,7 +77,7 @@ bool b_within_variable_list  = false;  // a flag to indicate if the program is n
 // the latest variable symbol being parsed, used to help parsing the array dimensions associated with array symbol
 // such as a[0:n][0:m]
 static SgVariableSymbol* array_symbol; 
-static SgExpression* lower_exp = NULL;      // Reused for array_section
+static SgExpression* lower_exp = NULL;
 static SgExpression* upper_exp = NULL;
 
 // support for array sections and shaping expressions in omp task depend clauses
@@ -306,7 +305,7 @@ unique_single_clause : COPYPRIVATE {
                      ;
 
 task_directive : /* #pragma */ OMP TASK {
-                   ompattribute = buildOmpAttribute(e_task, gNode, true);
+                   ompattribute = buildOmpAttribute(e_task,gNode,true);
                    omptype = e_task; 
                  } task_clause_optseq
                ;
@@ -316,7 +315,6 @@ task_clause_optseq :  /* empty */
                    | task_clause_optseq task_clause
                    | task_clause_optseq ',' task_clause
                    ;
-
 
 task_clause : unique_task_clause
             | data_default_clause
@@ -470,14 +468,12 @@ data_default_clause : DEFAULT '(' SHARED ')' {
                     ;
                     
 data_privatization_clause : PRIVATE {
-                              ompattribute->addClause(e_private); 
-                              omptype = e_private;
+                              ompattribute->addClause(e_private); omptype = e_private;
                             } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
                           ;
 
 data_privatization_in_clause : FIRSTPRIVATE { 
-                                 ompattribute->addClause(e_firstprivate); 
-                                 omptype = e_firstprivate;
+                                 ompattribute->addClause(e_firstprivate); omptype = e_firstprivate;
                                } '(' {b_within_variable_list = true;} variable_list ')' {b_within_variable_list = false;}
                              ;
 
@@ -533,88 +529,88 @@ reduction_operator : '+' {
                    ;
 
 target_data_directive: /* pragma */ OMP TARGET DATA {
-                         ompattribute = buildOmpAttribute(e_target_data, gNode,true);
-                         omptype = e_target_data;
-                       }
-                       target_data_clause_seq
-                     ;
+                       ompattribute = buildOmpAttribute(e_target_data, gNode,true);
+                       omptype = e_target_data;
+                     }
+                      target_data_clause_seq
+                    ;
 
 target_data_clause_seq : target_data_clause
-                       | target_data_clause_seq target_data_clause
-                       | target_data_clause_seq ',' target_data_clause
-                       ;
+                    | target_data_clause_seq target_data_clause
+                    | target_data_clause_seq ',' target_data_clause
+                    ;
 
 target_data_clause : device_clause 
-                   | map_clause
-                   | if_clause
-                   ;
-
-target_directive: /* #pragma */ OMP TARGET {
-                    ompattribute = buildOmpAttribute(e_target,gNode,true);
-                    omptype = e_target;
-                  }
-                  target_clause_optseq 
+                | map_clause
+                | if_clause
                 ;
 
+target_directive: /* #pragma */ OMP TARGET {
+                  ompattribute = buildOmpAttribute(e_target,gNode,true);
+                  omptype = e_target;
+                }
+                 target_clause_optseq 
+               ;
+
 target_clause_optseq : /* empty */
-                     | target_clause_seq
-                     ;
+                       | target_clause_seq
+                       ;
 
 target_clause_seq : target_clause
-                  | target_clause_seq target_clause
-                  | target_clause_seq ',' target_clause
-                  ;
+                    | target_clause_seq target_clause
+                    | target_clause_seq ',' target_clause
+                    ;
 
 target_clause : device_clause 
-              | map_clause
-              | if_clause
-              | num_threads_clause
-              ;
+                | map_clause
+                | if_clause
+                | num_threads_clause
+                ;
 
 device_clause : DEVICE {
-                  ompattribute->addClause(e_device);
-                  omptype = e_device;
-                } '(' expression ')' {
-                  addExpression("");
-                }
-              ;
-if_clause : IF {
-              ompattribute->addClause(e_if);
-              omptype = e_if;
-            } '(' expression ')' {
-              addExpression("");
-            }
-          ;
+                           ompattribute->addClause(e_device);
+                           omptype = e_device;
+                         } '(' expression ')' {
+                           addExpression("");
+                         }
+                ;
+if_clause: IF {
+                           ompattribute->addClause(e_if);
+                           omptype = e_if;
+             } '(' expression ')' {
+                            addExpression("");
+             }
+             ;
 
-num_threads_clause : NUM_THREADS {
-                       ompattribute->addClause(e_num_threads);
-                       omptype = e_num_threads;
-                     } '(' expression ')' {
-                       addExpression("");
-                     }
-                   ;
-map_clause : MAP {
-               ompattribute->addClause(e_map);
-               omptype = e_map; // use as a flag to see if it will be reset later
-             } '(' target_clause_optseq { 
-               b_within_variable_list = true;
-               if (omptype == e_map) // map data directions are not explicitly specified
-               {
-                  ompattribute->setMapVariant(e_map_inout);  omptype = e_map_inout;  
-               }
-             } 
-             variable_list ')' { b_within_variable_list =false;} 
+num_threads_clause: NUM_THREADS {
+                           ompattribute->addClause(e_num_threads);
+                           omptype = e_num_threads;
+                         } '(' expression ')' {
+                           addExpression("");
+                         }
+                      ;
+map_clause: MAP {
+                          ompattribute->addClause(e_map);
+                           omptype = e_map; // use as a flag to see if it will be reset later
+                     } '(' target_clause_optseq 
+                     { 
+                       b_within_variable_list = true;
+                       if (omptype == e_map) // map data directions are not explicitly specified
+                       {
+                          ompattribute->setMapVariant(e_map_inout);  omptype = e_map_inout;  
+                       }
+                     } 
+                     variable_list ')' { b_within_variable_list =false;} 
 
-target_clause_optseq : /* empty, default to be inout */ 
-                       { ompattribute->setMapVariant(e_map_inout);  omptype = e_map_inout; /*No effect here???*/ }
-                     | ALLOC ':' { ompattribute->setMapVariant(e_map_alloc);  omptype = e_map_alloc; } 
-                     | IN    ':' { ompattribute->setMapVariant(e_map_in); omptype = e_map_in; } 
-                     | OUT   ':' { ompattribute->setMapVariant(e_map_out); omptype = e_map_out; } 
-                     | INOUT ':' { ompattribute->setMapVariant(e_map_inout); omptype = e_map_inout; } 
-                     ;
+target_clause_optseq: /* empty, default to be inout */ { ompattribute->setMapVariant(e_map_inout);  omptype = e_map_inout; /*No effect here???*/ }
+                    | ALLOC ':' { ompattribute->setMapVariant(e_map_alloc);  omptype = e_map_alloc; } 
+                    | IN    ':' { ompattribute->setMapVariant(e_map_in); omptype = e_map_in; } 
+                    | OUT   ':' { ompattribute->setMapVariant(e_map_out); omptype = e_map_out; } 
+                    | INOUT ':' { ompattribute->setMapVariant(e_map_inout); omptype = e_map_inout; } 
+                    ;
 
 /* parsing real expressions here, Liao, 10/12/2008
- */       
+   */       
 /* expression: { omp_parse_expr(); } EXPRESSION { if (!addExpression((const char*)$2)) YYABORT; }
  */
 /* Sara Royuela, 04/27/2012
@@ -873,7 +869,7 @@ multiplicative_expr : primary_expr
 primary_expr : unary_expr
              | '(' expression ')' {
                  $$ = current_exp;
-               }
+               } 
              | incr_expr;
              ;
 
@@ -932,30 +928,31 @@ variable_list : id_expression_opt_dimension
               | variable_list ',' id_expression_opt_dimension
               ;
 
-id_expression_opt_dimension : ID_EXPRESSION { if (!addVar((const char*)$1)) YYABORT; } dimension_field_optseq
-                            ;
+id_expression_opt_dimension: ID_EXPRESSION { if (!addVar((const char*)$1)) YYABORT; } dimension_field_optseq
+                           ;
 
-/* Parse dimension information associated with map(a[0:n][0:m]) Liao 1/22/2013 */
-dimension_field_optseq : /* empty */
-                       | dimension_field_seq
-                       ;
+/* Parse optional dimension information associated with map(a[0:n][0:m]) Liao 1/22/2013 */
+dimension_field_optseq: /* empty */
+                      | dimension_field_seq
+                      ;
                        
 dimension_field_seq : dimension_field
                     | dimension_field_seq dimension_field
                     ;
                        
-dimension_field : '[' expression { lower_exp = current_exp; }
-                  ':' expression { upper_exp = current_exp;
-                       assert( array_symbol != NULL );
-                       SgType* t = array_symbol->get_type();
-                       bool isPointer= ( isSgPointerType(t) != NULL );
-                       bool isArray= ( isSgArrayType(t) != NULL);
-                       if( !isPointer && ! isArray ) {
-                         std::cerr<<"Error. ompparser.yy expects a pointer or array type."<<std::endl;
-                         std::cerr<<"while seeing "<<t->class_name()<<std::endl;
-                       }
-                       ompattribute->array_dimensions[array_symbol].push_back( std::make_pair (lower_exp, upper_exp) );
-                     }
+dimension_field: '[' expression { lower_exp = current_exp; }
+                 ':' expression { upper_exp = current_exp;
+                      assert( array_symbol != NULL );
+                      SgType* t = array_symbol->get_type();
+                      bool isPointer= ( isSgPointerType(t) != NULL );
+                      bool isArray= ( isSgArrayType(t) != NULL);
+                      if( !isPointer && ! isArray ) 
+                      {
+                        std::cerr<<"Error. ompparser.yy expects a pointer or array type."<<std::endl;
+                        std::cerr<<"while seeing "<<t->class_name()<<std::endl;
+                      }
+                      ompattribute->array_dimensions[array_symbol].push_back( std::make_pair (lower_exp, upper_exp) );
+                      }
                   ']'
                 ;
 
@@ -1064,8 +1061,6 @@ unary_expr_opt : /* empty */
                ;
 
 %%
-
-
 int yyerror(const char *s) {
     printf("%s!\n", s);
     return 0;

@@ -919,7 +919,7 @@ Unparse_Java::unparseMFuncDeclStmt(SgStatement* stmt, SgUnparse_Info& info)
      }
      else {
          curprint(") ");
-         curprint(exception_attribute != NULL ?  ("throws " + exception_attribute -> expression + " ").c_str() : "");        
+         curprint(exception_attribute != NULL ?  ("throws " + exception_attribute -> expression + " ").c_str() : "");
          SgFunctionDefinition *function_definition = mfuncdecl_stmt->get_definition();
 //
 // charles4 10/10/2011: For some reason, when either of the 2 entry points below are invoked,

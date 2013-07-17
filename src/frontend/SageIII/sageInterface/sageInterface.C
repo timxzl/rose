@@ -6243,8 +6243,7 @@ void SageInterface::replaceExpression(SgExpression* oldExp, SgExpression* newExp
           isSgBinaryOp(parent)->set_lhs_operand(newExp);
          }
      else if (oldExp==isSgBinaryOp(parent)->get_rhs_operand())
-         {
-             isSgBinaryOp(parent)->set_rhs_operand(newExp); }
+         {isSgBinaryOp(parent)->set_rhs_operand(newExp); }
      else
        ROSE_ASSERT(false);
    } else //unary parent
@@ -8370,7 +8369,7 @@ void SageInterface::appendStatement(SgStatement *stmt, SgScopeStatement* scope)
 
   void SageInterface::appendStatementList(const std::vector<SgStatement*>& stmts, SgScopeStatement* scope) {
     for (size_t i = 0; i < stmts.size(); ++i) {
-      appendStatement(stmts[i], scope);   
+      appendStatement(stmts[i], scope);
     }
   }
 //!SageInterface::prependStatement()

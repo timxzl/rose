@@ -2507,7 +2507,7 @@ namespace sg
       case V_SgOmpLastprivateClause:
         Dispatcher::dispatch(rv, assume_sage_type<SgOmpLastprivateClause>(*n));
         break;
-      
+
       case V_SgOmpReductionClause:
         Dispatcher::dispatch(rv, assume_sage_type<SgOmpReductionClause>(*n));
         break;
@@ -2722,7 +2722,7 @@ namespace sg
       case V_SgQualifiedNameType:
         Dispatcher::dispatch(rv, assume_sage_type<SgQualifiedNameType>(*n));
         break;
-        
+
       // intermediary types - should not occur during AST traversal
       // \note this list is incomplete
       case V_SgNode:

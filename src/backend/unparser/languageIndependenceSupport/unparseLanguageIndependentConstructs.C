@@ -3376,7 +3376,7 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
   {
     SgVariableSymbol * sym  = (*p)->get_symbol();
     ROSE_ASSERT (sym != NULL);
-    SgInitializedName* init_name = (*p)->get_symbol()->get_declaration();           
+    SgInitializedName* init_name = sym->get_declaration();           
     SgName tmp_name  = init_name->get_name();
     curprint( tmp_name.str());
     if (is_map)
@@ -3558,10 +3558,10 @@ void UnparseLanguageIndependentConstructs::unparseOmpClause(SgOmpClause* clause,
     case V_SgOmpCopyinClause:
     case V_SgOmpFirstprivateClause:
     case V_SgOmpLastprivateClause:
-    case V_SgOmpPrivateClause: 
+    case V_SgOmpPrivateClause:
     case V_SgOmpReductionClause:
-    case V_SgOmpMapClause:    
-    case V_SgOmpSharedClause:   
+    case V_SgOmpMapClause:
+    case V_SgOmpSharedClause:
       {     
         unparseOmpVariablesClause(isSgOmpVariablesClause(clause), info);
         break;

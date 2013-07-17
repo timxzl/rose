@@ -1106,6 +1106,7 @@ class EasyStorage < std::map< SgSymbol*,  std::vector < std::pair <SgExpression*
      static void readFromFile (std::istream& in) {};
    };
 
+
 /** Maps SgSharedVector to/from file representation. This is almost exactly the same as the
  *  vector of Sg object pointers specialization except the rebuildDataStoredInEasyStorageClass() constructs the SgSharedVector
  *  in a different manner. In an original AST all SgSharedVector objects probably pointed to a common underlying storage pool

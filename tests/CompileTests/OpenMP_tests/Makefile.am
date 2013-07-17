@@ -134,7 +134,7 @@ C_TESTCODES_REQUIRED_TO_PASS = \
 	threadprivate.c \
 	threadProcessor.c \
 	upperCase.c \
-	variables.c
+	variables.c 
 
 C_OMP_ACC_TESTCODES_REQUIRED_TO_PASS = \
         axpy_ompacc.c \

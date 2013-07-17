@@ -13,9 +13,9 @@ INCLUDES = $(ROSE_INCLUDES)
 roseomp_LDADD = $(LIBS_WITH_RPATH) $(ROSE_LIBS)
 roseompacc_LDADD = $(LIBS_WITH_RPATH) $(ROSE_LIBS)
 
-GOMP_PATH	= @gomp_omp_runtime_library_path@
-OMNI_PATH	= @omni_omp_runtime_support_path@
-NANOS_PATH 	= @nanos_omp_runtime_library_path@
+GOMP_PATH = @gomp_omp_runtime_library_path@
+OMNI_PATH = @omni_omp_runtime_support_path@
+NANOS_PATH= @nanos_omp_runtime_library_path@
 
 # all input files are put into tests/CompileTests/OpenMP_tests
 # They are shared by both OpenMP parsing tests and OpenMP lowering tests
@@ -89,6 +89,7 @@ OMP_ACC_TESTCODES_REQUIRED_TO_PASS = \
 	matrixmultiply-ompacc.c \
 	jacobi-ompacc.c \
 	jacobi-ompacc-opt1.c
+
 endif
 
 # Put test codes which can run (with main() ) here
@@ -227,7 +228,7 @@ endif
 # threadprivate3.c
 
 if !OS_MACOSX
-	C_TESTCODES_REQUIRED_TO_RUN += threadprivate.c threadprivate2.c threadprivate3.c
+   C_TESTCODES_REQUIRED_TO_RUN += threadprivate.c threadprivate2.c threadprivate3.c
 endif
 
 # C++ test codes which can only be compiled
@@ -238,7 +239,7 @@ CXX_TESTCODES_REQUIRED_TO_COMPILE = \
 # C++ test codes which can be compiled and linked to final executables
 # Following tests fail with Nanos: helloNested.cpp, objectLastprivate.cpp
 if WITH_NANOS_OPENMP_LIB
-CXX_TESTCODES_REQUIRED_TO_RUN = \
+CXX_TESTCODES_REQUIRED_TO_RUN =  \
 	hello1.cpp \
 	objectPrivate.cpp \
 	objectFirstPrivate.cpp \
@@ -252,7 +253,7 @@ CXX_TESTCODES_REQUIRED_TO_RUN = \
 	helloNested.cpp \
 	objectPrivate.cpp \
 	objectFirstPrivate.cpp \
-	objectLastprivate.cpp
+        objectLastprivate.cpp \
 	orphanedAtomic.cpp \
 	preprocessingInfo2.cpp \
 	task_link.cpp \

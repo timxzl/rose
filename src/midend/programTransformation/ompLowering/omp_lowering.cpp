@@ -746,7 +746,7 @@ static void insert_libxompf_h(SgNode* startNode)
    //  for (i=0;i<element_count; i++) 
    //    for (j=0;j<element_count; j++)
    //      b_ap[i][j] = a_ap[i][j];
-    static void generateInitializingLoop( SgScopeStatement * scope, SgExpression * lhs, SgExpression * rhs )
+    static void generateInitializingLoop( SgExpression * lhs, SgExpression * rhs, SgScopeStatement * scope )
 {
         // Parameter validation
                 // Get LHS real type
@@ -793,9 +793,9 @@ static void insert_libxompf_h(SgNode* startNode)
         SgStatement* test_stmt = buildExprStatement( buildLessThanOp( buildVarRefExp( decl_i ), buildIntVal( element_count ) ) );
         SgExpression* incr_exp = buildPlusPlusOp( buildVarRefExp( decl_i ), SgUnaryOp::postfix );
         SgScopeStatement* loop_body = buildBasicBlock( );
-        generateInitializingLoop( loop_body, 
-                                  buildPntrArrRefExp( lhs, buildVarRefExp( index_name, scope ) ), 
-                                  buildPntrArrRefExp( rhs, buildVarRefExp( index_name, scope ) ) );
+        generateInitializingLoop( buildPntrArrRefExp( lhs, buildVarRefExp( index_name, scope ) ), 
+                                  buildPntrArrRefExp( rhs, buildVarRefExp( index_name, scope ) ),
+                                  loop_body );
         
         SgForStatement* for_stmt = buildForStatement( init_stmt, test_stmt, incr_exp, loop_body );
         appendStatement( for_stmt, scope );
@@ -806,6 +806,14 @@ static SgBasicBlock* generateArrayAssignmentStatements
        ( SgInitializedName* left_operand, SgInitializedName* right_operand/*, SgScopeStatement* scope*/ )
 {
     // parameter validation
+    ROSE_ASSERT( left_operand != NULL );
+    ROSE_ASSERT( right_operand != NULL );
+
+      // Build the actual loop that initializes the array positions
+    SgBasicBlock* bb = buildBasicBlock();
+    generateInitializingLoop( buildVarRefExp( left_operand ), buildVarRefExp( right_operand ), bb );
+      
+#if 0 
     ROSE_ASSERT(scope != NULL); // enforce top-down AST construction here for simplicity
     ROSE_ASSERT (left_operand != NULL);
     ROSE_ASSERT (right_operand != NULL);
@@ -861,7 +869,21 @@ static SgBasicBlock* generateArrayAssignmentStatements
                                                  );
     SgForStatement* for_stmt = buildForStatement(init_stmt, test_stmt, incr_exp, loop_body);
     appendStatement(for_stmt, bb);
+#endif
 
+    return bb;
+}
+
+static SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_operand, SgExpression* right_operand )
+{
+     // parameter validation
+    ROSE_ASSERT( left_operand != NULL );
+    ROSE_ASSERT( right_operand != NULL );
+
+      // Build the actual loop that initializes the array positions
+    SgBasicBlock* bb = buildBasicBlock();
+    generateInitializingLoop( left_operand, right_operand, bb );
+    
     return bb;
 }
 
@@ -893,7 +915,6 @@ SgExpression* build_nanos_empty_struct( SgStatement* omp_stmt, SgScopeStatement*
 //         struct OUT__1__7812___data *empty___out_argv2__7812__ = 0;
 //         return empty___out_argv2__7812__;
 //     }
-}
 SgExpression* build_nanos_get_empty_struct( SgStatement* ancestor, SgScopeStatement* expr_sc, 
                                             SgType* struct_type, std::string base_name )
 {
@@ -985,22 +1006,22 @@ SgExpression* build_nanos_init_arguments_struct_function( SgStatement* ancestor,
         Rose_STL_Container<SgDeclarationStatement*>::iterator member_i;
         for( member_i = st_members.begin( ); member_i != st_members.end( ); ++member_i )
         {
-        // Get the current member
-        SgVariableDeclaration* member = isSgVariableDeclaration( *( member_i ) );
-        if( member != NULL )
-        {
-            SgInitializedNamePtrList& member_name_list = member->get_variables( );
-            SgInitializedName* member_name = *( member_name_list.begin( ) );
-            
-            // Create the initialization expression
-            SgVarRefExp* member_expr = buildVarRefExp( member_name, func_body );
-            SgExpression* lhs = buildArrowExp( empty_st_expr, member_expr );
-            SgExpression* rhs = buildArrowExp( init_st_expr, member_expr );
-            
-            // Add the expression to the function body
-            SgBasicBlock * init_member = generateArrayAssignmentStatements( lhs, rhs );
-            appendStatement( init_member, func_body );
-        }
+            // Get the current member
+            SgVariableDeclaration* member = isSgVariableDeclaration( *( member_i ) );
+            if( member != NULL )
+            {
+                SgInitializedNamePtrList& member_name_list = member->get_variables( );
+                SgInitializedName* member_name = *( member_name_list.begin( ) );
+                
+                // Create the initialization expression
+                SgVarRefExp* member_expr = buildVarRefExp( member_name, func_body );
+                SgExpression* lhs = buildArrowExp( empty_st_expr, member_expr );
+                SgExpression* rhs = buildArrowExp( init_st_expr, member_expr );
+                
+                // Add the expression to the function body
+                SgBasicBlock * init_member = generateArrayAssignmentStatements( lhs, rhs );
+                appendStatement( init_member, func_body );
+            }
         }
     }
   
@@ -5399,7 +5420,7 @@ static void insertInnerThreadBlockReduction(SgOmpClause::omp_reduction_operator_
       {
         // SgExprStatement* init_stmt = buildAssignStatement(buildVarRefExp(local_decl), buildVarRefExp(orig_var, bb1));
         SgInitializedName* leftArray = getFirstInitializedName(local_decl); 
-        SgBasicBlock* arrayAssign = generateArrayAssignmentStatements (leftArray, orig_var); 
+        SgBasicBlock* arrayAssign = generateArrayAssignmentStatements (leftArray, orig_var/*, bb1*/); 
        front_stmt_list.push_back(arrayAssign);   
       } 
 #endif    

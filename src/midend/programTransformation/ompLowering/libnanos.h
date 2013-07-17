@@ -39,7 +39,7 @@ int NANOS_get_num_threads( void );
 void NANOS_reduction( int, void ( ** )( void *, void *, int ),
                       void ( * )( void *, /*void**, */nanos_ws_desc_t * ), void *, void ( ** )( int, void *, void * ),
                       void ( ** )( void *, void **, int, int ),
-                      void **, void **, long *, int, nanos_ws_desc_t *, const char *, int );
+                      void **, void **, long *, nanos_ws_desc_t *, const char *, int );
 
 void NANOS_taskwait( void );
 void NANOS_barrier( void );

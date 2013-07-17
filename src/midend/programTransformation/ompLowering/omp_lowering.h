@@ -19,10 +19,12 @@ namespace OmpSupport
   //! makeDataSharingExplicit() can call some of existing functions for some work in OmpSupport namespace by Hongyi 07/16/2012
   //! TODO: add a function within the OmpSupport namespace, the function should transform the AST, so all variables' data-sharing attributes are explicitied represented in the AST. ROSE has dedicated AST nodes for OpenMP directives and the associated clauses, such as private, shared, reduction.
 
+
   int patchUpSharedVariables(SgFile* );
   // TODO:  patchUpDefaultVariables(SgFile* );
 
   int makeDataSharingExplicit( SgFile* );   
+
 
   // last edited by Hongyi on 07/24/2012. 
 
@@ -111,8 +113,8 @@ namespace OmpSupport
   //! Translate omp single 
   void transOmpSingle(SgNode* node);
 
- //! A helper function to generate implicit or explicit task for either omp parallel or omp task
- // It calls the ROSE AST outliner internally. 
+  //! A helper function to generate implicit or explicit task for either omp parallel or omp task
+  // It calls the ROSE AST outliner internally. 
   SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_name, 
           std::set<SgVariableSymbol*>& syms, SgClassDeclaration*& struct_decl);
  

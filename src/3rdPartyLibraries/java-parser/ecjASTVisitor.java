@@ -76,18 +76,18 @@ class ecjASTVisitor extends ExtendedASTVisitor {
             TypeDeclaration type_declaration = (TypeDeclaration) node;
             JavaParserSupport.LocalOrAnonymousType special_type = javaParserSupport.localOrAnonymousType.get(node);
             String typename = (special_type == null
-                    ? new String(type_declaration.name)
-                : special_type.isAnonymous()
-                    ? special_type.typename
-                : special_type.simplename);
+                                             ? new String(type_declaration.name)
+                                             : special_type.isAnonymous()
+                                                      ? special_type.typename
+                                                      : special_type.simplename);
             return " TypeDeclaration - " + (type_declaration.kind(type_declaration.modifiers) == TypeDeclaration.INTERFACE_DECL
-                    ? "interface"
-                : type_declaration.kind(type_declaration.modifiers) == TypeDeclaration.ANNOTATION_TYPE_DECL
-                    ? "@interface"
-                : type_declaration.kind(type_declaration.modifiers) == TypeDeclaration.ENUM_DECL
-                    ? "enum" 
-                : "class") +
-                    ": " + typename + "(***) -- binding: " + ((TypeDeclaration) node).binding.getClass().getCanonicalName();
+                                                ? "interface"
+                                                : type_declaration.kind(type_declaration.modifiers) == TypeDeclaration.ANNOTATION_TYPE_DECL
+                                                      ? "@interface"
+                                                      : type_declaration.kind(type_declaration.modifiers) == TypeDeclaration.ENUM_DECL
+                                                            ? "enum" 
+                                                            : "class") +
+                   ": " + typename + "(***) -- binding: " + ((TypeDeclaration) node).binding.getClass().getCanonicalName();
         }
         else if (node instanceof MessageSend)
             return " MessageSend: " + new String(((MessageSend) node).selector) + "( ... )";
@@ -115,9 +115,9 @@ class ecjASTVisitor extends ExtendedASTVisitor {
             if (javaParserSupport.verboseLevel > 1)
                 System.out.println("    Side-visiting Type Declaration Header for " + type.getClass().getName());
             JavaParser.cactionTypeDeclarationHeader(type.superclass != null,
-                    type.superInterfaces == null ? 0 : type.superInterfaces.length,
-                    type.typeParameters == null  ? 0 : type.typeParameters.length,
-                    javaParserSupport.createJavaToken(type));
+                                                    type.superInterfaces == null ? 0 : type.superInterfaces.length,
+                                                    type.typeParameters == null  ? 0 : type.typeParameters.length,
+                                                    javaParserSupport.createJavaToken(type));
         }
         else if (MethodHeaderDelimiters.containsKey(node)) {
             AbstractMethodDeclaration method = MethodHeaderDelimiters.get(node);
@@ -148,7 +148,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
     }
 
     public void postVisit(ASTNode node) {
-        if (javaParserSupport.verboseLevel > 1)
+       if (javaParserSupport.verboseLevel > 1)
             System.out.println("Post-visiting " + nodeId(node));
 
         //
@@ -184,7 +184,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
             if (binding instanceof TypeBinding) {
                 TypeBinding enclosing_binding = (TypeBinding) binding;
                 String package_name = javaParserSupport.getPackageName(enclosing_binding),
-                type_name = javaParserSupport.getTypeName(enclosing_binding);
+                       type_name = javaParserSupport.getTypeName(enclosing_binding);
                 JavaParser.cactionTypeParameterReference(package_name, type_name, -1 /* no method index */, type_parameter_name, javaParserSupport.createJavaToken(node));
             }
             else if (binding instanceof MethodBinding) {
@@ -193,7 +193,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
                 if (method_declaration != null) {
                     TypeBinding type_binding = method_binding.declaringClass;
                     String package_name = javaParserSupport.getPackageName(type_binding),
-                    type_name = javaParserSupport.getTypeName(type_binding);
+                           type_name = javaParserSupport.getTypeName(type_binding);
                     int method_index = javaParserSupport.classMemberTable.get(method_declaration);
                     JavaParser.cactionTypeParameterReference(package_name, type_name, method_index, type_parameter_name, javaParserSupport.createJavaToken(node));
                 }
@@ -224,7 +224,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         }
         else { // the name is a variable
             String package_name = "",
-            type_name = "";
+                   type_name = "";
 
             if (node.localVariableBinding() == null) { // not a local variable
                 TypeBinding type_binding = node.actualReceiverType;
@@ -257,15 +257,15 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 
         JavaParserSupport.LocalOrAnonymousType special_type = javaParserSupport.localOrAnonymousType.get(node);
         String package_name = (special_type == null
-                ? javaParserSupport.getPackageName(node.binding)
-            : special_type.package_name
+                                      ? javaParserSupport.getPackageName(node.binding)
+                                      : special_type.package_name
                               ),
-        typename = (special_type == null
-                ? javaParserSupport.getTypeName(node.binding)
-            : special_type.isAnonymous()
-                ? special_type.typename
-            : special_type.simplename
-                   );
+               typename = (special_type == null
+                                  ? javaParserSupport.getTypeName(node.binding)
+                                  : special_type.isAnonymous()
+                                           ? special_type.typename
+                                           : special_type.simplename
+                          );
 
         JavaParser.cactionTypeDeclaration(package_name,
                                           typename,
@@ -334,9 +334,9 @@ class ecjASTVisitor extends ExtendedASTVisitor {
             if (javaParserSupport.verboseLevel > 1)
                 System.out.println("    Side-visiting Type Declaration Header for " + node.getClass().getName());
             JavaParser.cactionTypeDeclarationHeader(node.superclass != null,
-                    node.superInterfaces == null ? 0 : node.superInterfaces.length,
-                    node.typeParameters == null  ? 0 : node.typeParameters.length,
-                    javaParserSupport.createJavaToken(node));
+                                                    node.superInterfaces == null ? 0 : node.superInterfaces.length,
+                                                    node.typeParameters == null  ? 0 : node.typeParameters.length,
+                                                    javaParserSupport.createJavaToken(node));
         }
         JavaParser.cactionTypeDeclarationEnd(javaParserSupport.createJavaToken(node));
     }
@@ -522,7 +522,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         node.type.traverse(this, scope);
         for (int i = 0; i < dimensions_length; i++) {
             if (node.dimensions[i] != null)
-                node.dimensions[i].traverse(this, scope);
+                 node.dimensions[i].traverse(this, scope);
             else JavaParser.cactionIntLiteral(0, "0", javaParserSupport.createJavaToken(node));
         }
         if (node.initializer != null) {
@@ -545,8 +545,8 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         javaParserSupport.preprocessClass(node.type.resolvedType);
 
         JavaParser.cactionArrayAllocationExpressionEnd(node.dimensions == null ? 0 : node.dimensions.length,
-                node.initializer != null,
-                javaParserSupport.createJavaToken(node));
+                                                       node.initializer != null,
+                                                       javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving exit (ArrayAllocationExpression,BlockScope)");
@@ -689,8 +689,8 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 
          // do nothing by default
 
-        if (javaParserSupport.verboseLevel > 0)
-            System.out.println("Leaving exit (ArrayTypeReference,BlockScope)");
+         if (javaParserSupport.verboseLevel > 0)
+               System.out.println("Leaving exit (ArrayTypeReference,BlockScope)");
     }
 
 
@@ -846,7 +846,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
             System.out.println("Inside of enter (BreakStatement,BlockScope)");
 
         JavaParser.cactionBreakStatement((node.label == null ? "" : new String(node.label)),
-                                          javaParserSupport.createJavaToken(node));
+                                         javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving enter (BreakStatement,BlockScope)");
@@ -1111,10 +1111,10 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         //
 /*        
         if (node.typeParameters != null) {
-        System.out.println();
-        System.out.println("*** No support yet for constructor type parameters");
-        System.exit(1);
-    }
+            System.out.println();
+            System.out.println("*** No support yet for constructor type parameters");
+            System.exit(1);
+        }
 */
 
         int constructor_index = javaParserSupport.classMemberTable.get(node);
@@ -1129,14 +1129,14 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         //
         //
         /*
-        if (node.javadoc != null) {
-        node.javadoc.traverse(this, node.scope);
-    }
+       if (node.javadoc != null) {
+            node.javadoc.traverse(this, node.scope);
+        }
         if (node.annotations != null) {
-        int annotationsLength = node.annotations.length;
-        for (int i = 0; i < annotationsLength; i++)
-        node.annotations[i].traverse(this, node.scope);
-    }
+            int annotationsLength = node.annotations.length;
+            for (int i = 0; i < annotationsLength; i++)
+                node.annotations[i].traverse(this, node.scope);
+        }
         */
 
         if (node.typeParameters != null) {
@@ -1148,10 +1148,10 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 
         /*
         if (node.arguments != null) {
-        int argumentLength = node.arguments.length;
-        for (int i = 0; i < argumentLength; i++)
-        node.arguments[i].traverse(this, node.scope);
-    }
+            int argumentLength = node.arguments.length;
+            for (int i = 0; i < argumentLength; i++)
+                node.arguments[i].traverse(this, node.scope);
+        }
         */
 
         if (node.thrownExceptions != null) {
@@ -1316,10 +1316,10 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         //
 /*        
         if (node.genericTypeArguments != null) {
-        System.out.println();
-        System.out.println("*** No support yet for constructor type arguments");
-        System.exit(1);
-    }
+            System.out.println();
+            System.out.println("*** No support yet for constructor type arguments");
+            System.exit(1);
+        }
 */
         JavaParser.cactionExplicitConstructorCall(javaParserSupport.createJavaToken(node));
           
@@ -1339,12 +1339,12 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         pushRawMethodParameterTypes(node.binding, javaParserSupport.createJavaToken(node));
 
         JavaParser.cactionExplicitConstructorCallEnd(node.isImplicitSuper(),
-                node.isSuperAccess(),
-                node.qualification != null,
-                node.binding.parameters.length,
-                node.typeArguments == null ? 0 : node.typeArguments.length,
-                node.arguments == null ? 0 : node.arguments.length,
-                javaParserSupport.createJavaToken(node));
+                                                     node.isSuperAccess(),
+                                                     node.qualification != null,
+                                                     node.binding.parameters.length,
+                                                     node.typeArguments == null ? 0 : node.typeArguments.length,
+                                                     node.arguments == null ? 0 : node.arguments.length,
+                                                     javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving exit (ExplicitConstructorCall,BlockScope)");
@@ -1528,7 +1528,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 
     public boolean enter(ForeachStatement node, BlockScope scope) {
         if (javaParserSupport.verboseLevel > 0)
-            System.out.println("Inside of enter (ForeachStatement,BlockScope)");
+               System.out.println("Inside of enter (ForeachStatement,BlockScope)");
 
         JavaParser.cactionForeachStatement(javaParserSupport.createJavaToken(node));
 
@@ -1617,83 +1617,83 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         //
         StringBuffer import_reference = new StringBuffer();
         for (int i = 0, tokenArrayLength = node.tokens.length; i < tokenArrayLength; i++) {
-        String token_string = new String(node.tokens[i]);
+            String token_string = new String(node.tokens[i]);
 
-        if (i > 0) { // Not the first simple name?  Add a "." seperator to the QualifiedName 
-        import_reference.append('.');
-    }
-        import_reference.append(token_string);
+            if (i > 0) { // Not the first simple name?  Add a "." seperator to the QualifiedName 
+                import_reference.append('.');
+            }
+            import_reference.append(token_string);
 
-        //
+            //
             // Now, look to see if the name we've constructed so far is the name of a class.
             // Once we've found the longest prefix of the import name that is a class, we append
             // the remaining suffix to the name_suffix variable.
-        //
-        Class c = javaParserSupport.getClassForName(import_reference.toString());
-        if (c != null) { // a class?
-        cls = c; // save the first class we find.
-    }
-        else if (cls != null){ // already found a class, so this name is a suffix.
-        name_suffix += token_string;
+            //
+            Class c = javaParserSupport.getClassForName(import_reference.toString());
+            if (c != null) { // a class?
+                cls = c; // save the first class we find.
+            }
+            else if (cls != null){ // already found a class, so this name is a suffix.
+                name_suffix += token_string;
                 // TODO: look for the inner class here? 
-    }
-    }
+            }
+        }
 
         boolean containsWildcard = ((node.bits & node.OnDemand) != 0);
         String importReferenceWithoutWildcard = import_reference.toString();
 
         if (javaParserSupport.verboseLevel > 1)
-        System.out.println("importReference (string) = " + import_reference.toString());
+            System.out.println("importReference (string) = " + import_reference.toString());
 
         String package_name,
-        type_name;
+               type_name;
 
         if (cls == null) { // We may just have a package ... Process it.
-        package_name = importReferenceWithoutWildcard;
-        type_name = "";
+            package_name = importReferenceWithoutWildcard;
+            type_name = "";
 
-        JavaParser.cactionPushPackage(package_name, javaParserSupport.createJavaToken(node));
-        JavaParser.cactionIdentifyImportedPackage(package_name, javaParserSupport.createJavaToken(node));
-        JavaParser.cactionPopPackage();
-    }
+            JavaParser.cactionPushPackage(package_name, javaParserSupport.createJavaToken(node));
+            JavaParser.cactionIdentifyImportedPackage(package_name, javaParserSupport.createJavaToken(node));
+            JavaParser.cactionPopPackage();
+        }
         else {
-        // 
+            // 
             // Make sure this class is available
-        //
-        javaParserSupport.preprocessClass(cls);
+            //
+            javaParserSupport.preprocessClass(cls);
 
-        String canonical_name = cls.getCanonicalName();
-        package_name = javaParserSupport.getMainPackageName(cls);
-        type_name = canonical_name.substring(package_name.length() == 0 ? 0 : package_name.length() + 1);
-    }
+            String canonical_name = cls.getCanonicalName();
+            package_name = javaParserSupport.getMainPackageName(cls);
+            type_name = canonical_name.substring(package_name.length() == 0 ? 0 : package_name.length() + 1);
+        }
 
         if (! (package_name.equals(javaParserSupport.unitPackageName) && type_name.length() == 0)) { // Do not import the current package! 
-        JavaParser.cactionImportReference(node.isStatic(), package_name, type_name, name_suffix, containsWildcard, javaParserSupport.createJavaToken(node));
-    }
+            JavaParser.cactionImportReference(node.isStatic(), package_name, type_name, name_suffix, containsWildcard, javaParserSupport.createJavaToken(node));
+        }
 */
 /*        
         String package_name = (javaParserSupport.importPackageName.containsKey(node) ? javaParserSupport.importPackageName.get(node) : ""),
-        type_name = (javaParserSupport.importTypeName.containsKey(node) ? javaParserSupport.importTypeName.get(node) : ""),
-        name_suffix = (javaParserSupport.importNameSuffix.containsKey(node) ? javaParserSupport.importNameSuffix.get(node) : "");
+               type_name = (javaParserSupport.importTypeName.containsKey(node) ? javaParserSupport.importTypeName.get(node) : ""),
+               name_suffix = (javaParserSupport.importNameSuffix.containsKey(node) ? javaParserSupport.importNameSuffix.get(node) : "");
 
         boolean contains_wildcard = ((node.bits & node.OnDemand) != 0);
         
         if ((package_name.length() > 0 || type_name.length() > 0) && (! (package_name.equals(javaParserSupport.unitPackageName) && type_name.length() == 0))) { // Do not import the current package! 
-        // 
+            // 
             // Make sure this class is available
-        //
-        Class cls = javaParserSupport.importClass.get(node);
-        if (cls != null) {
-        javaParserSupport.preprocessClass(cls);
-    }
+            //
+            Class cls = javaParserSupport.importClass.get(node);
+            if (cls != null) {
+                javaParserSupport.preprocessClass(cls);
+            }
 
-        JavaParser.cactionImportReference(node.isStatic(), package_name, type_name, name_suffix, contains_wildcard, javaParserSupport.createJavaToken(node));
-    }
+            JavaParser.cactionImportReference(node.isStatic(), package_name, type_name, name_suffix, contains_wildcard, javaParserSupport.createJavaToken(node));
+        }
 */
         if (node != javaParserSupport.unit.currentPackage) { // Do no import the current package.
             String package_name = "",
-            type_name = "", 
-            name_suffix = "";
+                   type_name = "", 
+                   name_suffix = "";
             boolean contains_wildcard = ((node.bits & node.OnDemand) != 0);
 
             // 
@@ -1710,8 +1710,8 @@ class ecjASTVisitor extends ExtendedASTVisitor {
                 String canonical_name = base_class.getCanonicalName();
                 type_name = base_class.getSimpleName();
                 package_name = (type_name.length() < canonical_name.length()
-                        ? canonical_name.substring(0, canonical_name.length() - type_name.length() - 1)
-                    : "");
+                                    ? canonical_name.substring(0, canonical_name.length() - type_name.length() - 1)
+                                    : "");
             }
             else {
                 package_name = new String(CharOperation.concatWith(node.tokens, '.'));
@@ -1807,459 +1807,459 @@ class ecjASTVisitor extends ExtendedASTVisitor {
     //**********************************************************
 /*
     public boolean enter(Javadoc node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (Javadoc,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (Javadoc,BlockScope)");
 
-    JavaParser.cactionJavadoc(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadoc(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (Javadoc,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (Javadoc,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(Javadoc node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (Javadoc,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (Javadoc,BlockScope)");
+    }
 
 
     public boolean enter(Javadoc node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (Javadoc,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (Javadoc,ClassScope)");
 
-    JavaParser.cactionJavadocClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (Javadoc,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (Javadoc,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(Javadoc node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (Javadoc,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (Javadoc,ClassScope)");
+    }
 
 
     public boolean enter(JavadocAllocationExpression node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocAllocationExpression,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocAllocationExpression,BlockScope)");
 
-    JavaParser.cactionJavadocAllocationExpression(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocAllocationExpression(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocAllocationExpression,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocAllocationExpression,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocAllocationExpression node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocAllocationExpression,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocAllocationExpression,BlockScope)");
+    }
 
 
     public boolean enter(JavadocAllocationExpression node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocAllocationExpression,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocAllocationExpression,ClassScope)");
 
-    JavaParser.cactionJavadocAllocationExpressionClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocAllocationExpressionClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocAllocationExpression,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocAllocationExpression,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocAllocationExpression node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocAllocationExpression,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocAllocationExpression,ClassScope)");
+    }
 
 
     public boolean enter(JavadocArgumentExpression node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter JavadocArgumentExpression(JavadocArgumentExpression,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter JavadocArgumentExpression(JavadocArgumentExpression,BlockScope)");
 
-    JavaParser.cactionJavadocArgumentExpression(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocArgumentExpression(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocArgumentExpression,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocArgumentExpression,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocArgumentExpression node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocArgumentExpression,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocArgumentExpression,BlockScope)");
+    }
 
 
     public boolean enter(JavadocArgumentExpression node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocArgumentExpression,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocArgumentExpression,ClassScope)");
 
-    JavaParser.cactionJavadocArgumentExpressionClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocArgumentExpressionClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocArgumentExpression,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocArgumentExpression,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocArgumentExpression node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocArgumentExpression,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocArgumentExpression,ClassScope)");
+    }
 
 
     public boolean enter(JavadocArrayQualifiedTypeReference node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocArrayQualifiedTypeReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocArrayQualifiedTypeReference,BlockScope)");
 
-    JavaParser.cactionJavadocArrayQualifiedTypeReference(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocArrayQualifiedTypeReference(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocArrayQualifiedTypeReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocArrayQualifiedTypeReference,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocArrayQualifiedTypeReference node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocArrayQualifiedTypeReference,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocArrayQualifiedTypeReference,BlockScope)");
+    }
 
 
     public boolean enter(JavadocArrayQualifiedTypeReference node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocArrayQualifiedTypeReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocArrayQualifiedTypeReference,ClassScope)");
 
-    JavaParser.cactionJavadocArrayQualifiedTypeReferenceClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocArrayQualifiedTypeReferenceClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocArrayQualifiedTypeReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocArrayQualifiedTypeReference,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocArrayQualifiedTypeReference node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocArrayQualifiedTypeReference,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocArrayQualifiedTypeReference,ClassScope)");
+    }
 
 
     public boolean enter(JavadocArraySingleTypeReference node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocArraySingleTypeReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocArraySingleTypeReference,BlockScope)");
 
-    JavaParser.cactionJavadocArraySingleTypeReference(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocArraySingleTypeReference(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocArraySingleTypeReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocArraySingleTypeReference,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocArraySingleTypeReference node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocArraySingleTypeReference,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocArraySingleTypeReference,BlockScope)");
+    }
 
 
     public boolean enter(JavadocArraySingleTypeReference node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocArraySingleTypeReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocArraySingleTypeReference,ClassScope)");
 
-    JavaParser.cactionJavadocArraySingleTypeReferenceClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocArraySingleTypeReferenceClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocArraySingleTypeReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocArraySingleTypeReference,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocArraySingleTypeReference node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocArraySingleTypeReference,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocArraySingleTypeReference,ClassScope)");
+    }
 
 
     public boolean enter(JavadocFieldReference node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocFieldReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocFieldReference,BlockScope)");
 
-    JavaParser.cactionJavadocFieldReference(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocFieldReference(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocFieldReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocFieldReference,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocFieldReference node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocFieldReference,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocFieldReference,BlockScope)");
+    }
 
 
     public boolean enter(JavadocFieldReference node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocFieldReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocFieldReference,ClassScope)");
 
-    JavaParser.cactionJavadocFieldReferenceClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocFieldReferenceClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocFieldReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocFieldReference,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocFieldReference node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocFieldReference,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocFieldReference,ClassScope)");
+    }
 
 
     public boolean enter(JavadocImplicitTypeReference node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocImplicitTypeReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocImplicitTypeReference,BlockScope)");
 
-    JavaParser.cactionJavadocImplicitTypeReference(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocImplicitTypeReference(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocImplicitTypeReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocImplicitTypeReference,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocImplicitTypeReference node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocImplicitTypeReference,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocImplicitTypeReference,BlockScope)");
+    }
 
 
     public boolean enter(JavadocImplicitTypeReference node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocImplicitTypeReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocImplicitTypeReference,ClassScope)");
 
-    JavaParser.cactionJavadocImplicitTypeReferenceClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocImplicitTypeReferenceClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocImplicitTypeReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocImplicitTypeReference,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocImplicitTypeReference node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocImplicitTypeReference,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocImplicitTypeReference,ClassScope)");
+    }
 
 
     public boolean enter(JavadocMessageSend node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocMessageSend,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocMessageSend,BlockScope)");
 
-    JavaParser.cactionJavadocMessageSend(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocMessageSend(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocMessageSend,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocMessageSend,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocMessageSend node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocMessageSend,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocMessageSend,BlockScope)");
+    }
 
 
     public boolean enter(JavadocMessageSend node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocMessageSend,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocMessageSend,ClassScope)");
 
-    JavaParser.cactionJavadocMessageSendClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocMessageSendClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocMessageSend,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocMessageSend,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocMessageSend node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocMessageSend,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocMessageSend,ClassScope)");
+    }
 
 
     public boolean enter(JavadocQualifiedTypeReference node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocQualifiedTypeReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocQualifiedTypeReference,BlockScope)");
 
-    JavaParser.cactionJavadocQualifiedTypeReference(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocQualifiedTypeReference(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocQualifiedTypeReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocQualifiedTypeReference,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocQualifiedTypeReference node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocQualifiedTypeReference,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocQualifiedTypeReference,BlockScope)");
+    }
 
 
     public boolean enter(JavadocQualifiedTypeReference node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocQualifiedTypeReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocQualifiedTypeReference,ClassScope)");
 
-    JavaParser.cactionJavadocQualifiedTypeReferenceClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocQualifiedTypeReferenceClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocQualifiedTypeReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocQualifiedTypeReference,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocQualifiedTypeReference node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocQualifiedTypeReference,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocQualifiedTypeReference,ClassScope)");
+    }
 
 
     public boolean enter(JavadocReturnStatement node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocReturnStatement,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocReturnStatement,BlockScope)");
 
-    JavaParser.cactionJavadocReturnStatement(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocReturnStatement(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocReturnStatement,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocReturnStatement,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocReturnStatement node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocReturnStatement,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocReturnStatement,BlockScope)");
+    }
 
 
     public boolean enter(JavadocReturnStatement node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocReturnStatement,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocReturnStatement,ClassScope)");
 
-    JavaParser.cactionJavadocReturnStatementClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocReturnStatementClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocReturnStatement,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocReturnStatement,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocReturnStatement node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocReturnStatement,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocReturnStatement,ClassScope)");
+    }
 
 
     public boolean enter(JavadocSingleNameReference node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocSingleNameReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocSingleNameReference,BlockScope)");
 
-    JavaParser.cactionJavadocSingleNameReference(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocSingleNameReference(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocSingleNameReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocSingleNameReference,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocSingleNameReference node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocSingleNameReference,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocSingleNameReference,BlockScope)");
+    }
 
 
     public boolean enter(JavadocSingleNameReference node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocSingleNameReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocSingleNameReference,ClassScope)");
 
-    JavaParser.cactionJavadocSingleNameReferenceClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocSingleNameReferenceClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocSingleNameReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocSingleNameReference,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocSingleNameReference node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocSingleNameReference,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocSingleNameReference,ClassScope)");
+    }
 
 
     public boolean enter(JavadocSingleTypeReference node, BlockScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocSingleTypeReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocSingleTypeReference,BlockScope)");
 
-    JavaParser.cactionJavadocSingleTypeReference(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocSingleTypeReference(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocSingleTypeReference,BlockScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocSingleTypeReference,BlockScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocSingleTypeReference node, BlockScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocSingleTypeReference,BlockScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocSingleTypeReference,BlockScope)");
+    }
 
 
     public boolean enter(JavadocSingleTypeReference node, ClassScope scope) {
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Inside of enter (JavadocSingleTypeReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Inside of enter (JavadocSingleTypeReference,ClassScope)");
 
-    JavaParser.cactionJavadocSingleTypeReferenceClassScope(javaParserSupport.createJavaToken(node));
+        JavaParser.cactionJavadocSingleTypeReferenceClassScope(javaParserSupport.createJavaToken(node));
 
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving enter (JavadocSingleTypeReference,ClassScope)");
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving enter (JavadocSingleTypeReference,ClassScope)");
 
-    return true; // do nothing by node, keep traversing
-}
+        return true; // do nothing by node, keep traversing
+    }
 
     public void exit(JavadocSingleTypeReference node, ClassScope scope) {
         // do nothing  by default
-    if (javaParserSupport.verboseLevel > 0)
-    System.out.println("Leaving exit (JavadocSingleTypeReference,ClassScope)");
-}
+        if (javaParserSupport.verboseLevel > 0)
+            System.out.println("Leaving exit (JavadocSingleTypeReference,ClassScope)");
+    }
 */
 
     //**********************************************************
@@ -2413,10 +2413,10 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         //
 /*        
         if (node.genericTypeArguments != null) {
-        System.out.println();
-        System.out.println("*** No support yet for method type arguments");
-        System.exit(1);
-    }
+            System.out.println();
+            System.out.println("*** No support yet for method type arguments");
+            System.exit(1);
+        }
 */
 
         // 
@@ -2490,14 +2490,14 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         if (type_binding instanceof ParameterizedTypeBinding) {
 // TODO: Remove this !
 //System.out.println("Method " + new String(method_binding.selector) + " is a parameterized method"); 
-        ParameterizedTypeBinding parm_type_binding = (ParameterizedTypeBinding) type_binding;
-        if (parm_type_binding.original() instanceof BinaryTypeBinding) {
-        method_binding = ((ParameterizedMethodBinding) method_binding).original();
-        type_binding = parm_type_binding.original();
+            ParameterizedTypeBinding parm_type_binding = (ParameterizedTypeBinding) type_binding;
+            if (parm_type_binding.original() instanceof BinaryTypeBinding) {
+                method_binding = ((ParameterizedMethodBinding) method_binding).original();
+                type_binding = parm_type_binding.original();
 // TODO: Remove this !
 //System.out.println("Looking for Method " + new String(method_binding.selector) + " in raw type " + type_binding.debugName()); 
-    }
-    }
+            }
+        }
         
         //
         // If the method being invoked belongs to a class file (binary), retrieve the raw method signature from the class.
@@ -2505,39 +2505,39 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         if (type_binding instanceof BinaryTypeBinding) {
 // TODO: Remove this !
 //System.out.println("Processing Method " + new String(method_binding.selector) + " in raw type " + type_binding.debugName()); 
-        processRawParameters(method_binding);
-    }
+            processRawParameters(method_binding);
+        }
         else {
-        Class cls = javaParserSupport.findClass(type_binding);
-        assert(cls != null);
+            Class cls = javaParserSupport.findClass(type_binding);
+            assert(cls != null);
 
-        if (method_binding instanceof SyntheticMethodBinding) { // What is this !???
-        SyntheticMethodBinding synthetic_binding = (SyntheticMethodBinding) method_binding;
+            if (method_binding instanceof SyntheticMethodBinding) { // What is this !???
+                SyntheticMethodBinding synthetic_binding = (SyntheticMethodBinding) method_binding;
 
-        System.out.println();
-        System.out.println("*** No support yet for calls to method with synthetic binding");
-        System.exit(1);
-    }
+                System.out.println();
+                System.out.println("*** No support yet for calls to method with synthetic binding");
+                System.exit(1);
+            }
             
-        if (javaParserSupport.userTypeTable.containsKey(cls)) { // A user-defined method that I am currently processing?
+            if (javaParserSupport.userTypeTable.containsKey(cls)) { // A user-defined method that I am currently processing?
 // TODO: Remove this !
-        System.out.println("Processing original parameters for Method " + new String(method_binding.selector) + " declared in class " + method_binding.declaringClass.debugName());
-        if (method_binding.declaringClass instanceof ParameterizedTypeBinding) {
-        ParameterizedTypeBinding parm_type_binding = (ParameterizedTypeBinding) type_binding;
-        System.out.println("The original method is " + new String(method_binding.original().selector) + " declared in class " + method_binding.original().declaringClass.debugName());    
-    }
-        TypeBinding parameter_types[] = method_binding.parameters;
-        for (int i = 0; i < parameter_types.length; i++) {
-        TypeBinding parameter_type = parameter_types[i];
-        javaParserSupport.generateAndPushType(parameter_type, location);
-    }
-    }
-        else { // A method imported from a class ... even if it is a user-defined method.
+System.out.println("Processing original parameters for Method " + new String(method_binding.selector) + " declared in class " + method_binding.declaringClass.debugName());
+if (method_binding.declaringClass instanceof ParameterizedTypeBinding) {
+    ParameterizedTypeBinding parm_type_binding = (ParameterizedTypeBinding) type_binding;
+System.out.println("The original method is " + new String(method_binding.original().selector) + " declared in class " + method_binding.original().declaringClass.debugName());    
+}
+                TypeBinding parameter_types[] = method_binding.parameters;
+                for (int i = 0; i < parameter_types.length; i++) {
+                    TypeBinding parameter_type = parameter_types[i];
+                    javaParserSupport.generateAndPushType(parameter_type, location);
+                }
+            }
+            else { // A method imported from a class ... even if it is a user-defined method.
 // TODO: Remove this !
 //System.out.println("Processing raw parameters for imported user-defined Method: " + new String(method_binding.selector));             
-        processRawParameters(method_binding);
-    }
-    }
+                processRawParameters(method_binding);
+            }
+        }
 */
     
         method_binding = method_binding.original();
@@ -2558,12 +2558,12 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 // TODO: Remove this !
 /*
         else if (method_binding instanceof SyntheticMethodBinding) {
-        SyntheticMethodBinding synthetic_binding = (SyntheticMethodBinding) method_binding;
+            SyntheticMethodBinding synthetic_binding = (SyntheticMethodBinding) method_binding;
 
-        System.out.println();
-        System.out.println("*** No support yet for calls to method (" + new String(method_binding.selector) + " in type " + type_binding.debugName() +  ") with synthetic binding and \"purpose\" = " + synthetic_binding.purpose);
-        System.exit(1);
-    }
+            System.out.println();
+            System.out.println("*** No support yet for calls to method (" + new String(method_binding.selector) + " in type " + type_binding.debugName() +  ") with synthetic binding and \"purpose\" = " + synthetic_binding.purpose);
+            System.exit(1);
+        }
 */
         else {
             Class cls = javaParserSupport.findClass(type_binding);
@@ -2642,10 +2642,10 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         // TODO: Do something !!!
         //
         if (node.typeParameters != null) {
-        System.out.println();
-        System.out.println("*** No support yet for method type parameters");
-        System.exit(1);
-    }
+            System.out.println();
+            System.out.println("*** No support yet for method type parameters");
+            System.exit(1);
+        }
 */
             
         // Setup the function modifiers
@@ -2692,13 +2692,13 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         //
         /*
         if (node.javadoc != null) {
-        node.javadoc.traverse(this, node.scope);
-    }
+            node.javadoc.traverse(this, node.scope);
+        }
         if (node.annotations != null) {
-        int annotationsLength = node.annotations.length;
-        for (int i = 0; i < annotationsLength; i++)
-        node.annotations[i].traverse(this, node.scope);
-    }
+            int annotationsLength = node.annotations.length;
+            for (int i = 0; i < annotationsLength; i++)
+                node.annotations[i].traverse(this, node.scope);
+        }
         */
         if (node.typeParameters != null) {
             for (int i = 0; i < node.typeParameters.length; i++) {
@@ -2707,12 +2707,12 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         }
         /*
         if (node.returnType != null)
-        node.returnType.traverse(this, node.scope);
+            node.returnType.traverse(this, node.scope);
         if (node.arguments != null) {
-        int argumentLength = node.arguments.length;
-        for (int i = 0; i < argumentLength; i++)
-        node.arguments[i].traverse(this, node.scope);
-    }
+            int argumentLength = node.arguments.length;
+            for (int i = 0; i < argumentLength; i++)
+                node.arguments[i].traverse(this, node.scope);
+        }
         */
         if (node.thrownExceptions != null) {
             int thrownExceptionsLength = node.thrownExceptions.length;
@@ -2841,10 +2841,10 @@ class ecjASTVisitor extends ExtendedASTVisitor {
 /*
         StringBuffer strbuf = new StringBuffer();
         for (int i = 0; i < node.tokens.length; i++) {
-        strbuf.append(node.tokens[i]);
-        if (i + 1 < node.tokens.length)
-        strbuf.append(".");
-    }
+            strbuf.append(node.tokens[i]);
+            if (i + 1 < node.tokens.length)
+                strbuf.append(".");
+        }
         String qualifiedTypeName = new String(strbuf);
 */
         if (javaParserSupport.verboseLevel > 0)
@@ -2878,10 +2878,10 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         }
 
         JavaParser.cactionParameterizedTypeReferenceEnd(package_name,
-                type_name,
-                num_type_arguments,
-                node.dimensions(),
-                javaParserSupport.createJavaToken(node));
+                                                        type_name,
+                                                        num_type_arguments,
+                                                        node.dimensions(),
+                                                        javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving exit (ParameterizedQualifiedTypeReference, BlockScope)");
@@ -2932,10 +2932,10 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         }
 
         JavaParser.cactionParameterizedTypeReferenceEnd(package_name,
-                type_name,
-                num_type_arguments,
-                node.dimensions(),
-                javaParserSupport.createJavaToken(node));
+                                                        type_name,
+                                                        num_type_arguments,
+                                                        node.dimensions(),
+                                                        javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving exit (ParameterizedQualifiedTypeReference,BlockScope)");
@@ -2961,7 +2961,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         String name = new String(node.token);
 
         if (javaParserSupport.verboseLevel > 0)
-        System.out.println("At top of exit (ParameterizedSingleTypeReference,BlockScope) name = " + name);
+            System.out.println("At top of exit (ParameterizedSingleTypeReference,BlockScope) name = " + name);
 
         // We need to find the qualified name for the associated type name (it should be unique).
         // This has to be handled on the Java side...
@@ -2969,11 +2969,11 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         String qualifiedTypeName = node.resolvedType.debugName();
 
         if (javaParserSupport.verboseLevel > 0)
-        System.out.println("At top of exit (ParameterizedSingleTypeReference,BlockScope) qualifiedTypeName = " + qualifiedTypeName);
+            System.out.println("At top of exit (ParameterizedSingleTypeReference,BlockScope) qualifiedTypeName = " + qualifiedTypeName);
 
         JavaParser.cactionParameterizedSingleTypeReferenceEnd(qualifiedTypeName,
-        node.typeArguments == null ? 0 : node.typeArguments.length,
-        javaParserSupport.createJavaToken(node));
+                                                              node.typeArguments == null ? 0 : node.typeArguments.length,
+                                                              javaParserSupport.createJavaToken(node));
 
         // TODO: if this type is an array, take care of the dimensions !!!
 */
@@ -2987,10 +2987,10 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         String  type_name = javaParserSupport.getTypeName(node.resolvedType);
 
         JavaParser.cactionParameterizedTypeReferenceEnd(package_name,
-                type_name,
-                node.typeArguments.length,
-                node.dimensions(),
-                javaParserSupport.createJavaToken(node));
+                                                        type_name,
+                                                        node.typeArguments.length,
+                                                        node.dimensions(),
+                                                        javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving exit (ParameterizedSingleTypeReference,BlockScope)");
@@ -3024,10 +3024,10 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         String  type_name = javaParserSupport.getTypeName(node.resolvedType);
         
         JavaParser.cactionParameterizedTypeReferenceEnd(package_name,
-                type_name,
-                node.typeArguments.length,
-                node.dimensions(),
-                javaParserSupport.createJavaToken(node));
+                                                        type_name,
+                                                        node.typeArguments.length,
+                                                        node.dimensions(),
+                                                        javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving exit (ParameterizedSingleTypeReference,ClassScope)");
@@ -3108,10 +3108,10 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         }
         
         JavaParser.cactionQualifiedAllocationExpressionEnd(node.type != null, 
-                node.enclosingInstance != null,
-                node.arguments == null ? 0 : node.arguments.length,
-                node.anonymousType != null,
-                javaParserSupport.createJavaToken(node));
+                                                           node.enclosingInstance != null,
+                                                           node.arguments == null ? 0 : node.arguments.length,
+                                                           node.anonymousType != null,
+                                                           javaParserSupport.createJavaToken(node));
 
         if (javaParserSupport.verboseLevel > 0)
             System.out.println("Leaving exit (QualifiedAllocationExpression,BlockScope)");
@@ -3267,9 +3267,9 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         String  type_name = javaParserSupport.getTypeName(node.resolvedType);
 // TODO: Remove this !
 /*
-        System.out.println("***Processing type " + node.resolvedType.debugName() +
-        "; package = " + package_name +
-        "; type = " + type_name);
+System.out.println("***Processing type " + node.resolvedType.debugName() +
+                   "; package = " + package_name +
+                   "; type = " + type_name);
 */
         JavaParser.cactionTypeReference(package_name, type_name, javaParserSupport.createJavaToken(node));
 
@@ -3305,9 +3305,9 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         String  type_name = javaParserSupport.getTypeName(node.resolvedType);
 // TODO: Remove this !
 /*
-        System.out.println("***Processing type " + node.resolvedType.debugName() +
-        "; package = " + package_name +
-        "; type = " + type_name);
+System.out.println("***Processing type " + node.resolvedType.debugName() +
+                   "; package = " + package_name +
+                   "; type = " + type_name);
 */
         JavaParser.cactionTypeReference(package_name, type_name, javaParserSupport.createJavaToken(node));
 
@@ -3431,7 +3431,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
             if (binding instanceof TypeBinding) {
                 TypeBinding enclosing_binding = (TypeBinding) binding;
                 String package_name = javaParserSupport.getPackageName(enclosing_binding),
-                type_name = javaParserSupport.getTypeName(enclosing_binding);
+                       type_name = javaParserSupport.getTypeName(enclosing_binding);
                 JavaParser.cactionTypeParameterReference(package_name, type_name, -1 /* no method index */, type_parameter_name, javaParserSupport.createJavaToken(node));
             }
             else if (binding instanceof MethodBinding) {
@@ -3440,7 +3440,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
                 if (method_declaration != null) {
                     TypeBinding type_binding = method_binding.declaringClass;
                     String package_name = javaParserSupport.getPackageName(type_binding),
-                    type_name = javaParserSupport.getTypeName(type_binding);
+                           type_name = javaParserSupport.getTypeName(type_binding);
                     int method_index = javaParserSupport.classMemberTable.get(method_declaration);
                     JavaParser.cactionTypeParameterReference(package_name, type_name, method_index, type_parameter_name, javaParserSupport.createJavaToken(node));
                 }
@@ -3458,7 +3458,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         }
         else {
             String package_name = javaParserSupport.getPackageName(node.resolvedType),
-            type_name = javaParserSupport.getTypeName(node.resolvedType);
+                   type_name = javaParserSupport.getTypeName(node.resolvedType);
             JavaParser.cactionTypeReference(package_name, type_name, javaParserSupport.createJavaToken(node));
         }
 
@@ -3501,7 +3501,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
             if (binding instanceof TypeBinding) {
                 TypeBinding enclosing_binding = (TypeBinding) binding;
                 String package_name = javaParserSupport.getPackageName(enclosing_binding),
-                type_name = javaParserSupport.getTypeName(enclosing_binding);
+                       type_name = javaParserSupport.getTypeName(enclosing_binding);
                 JavaParser.cactionTypeParameterReference(package_name, type_name, -1 /* no method index */, type_parameter_name, javaParserSupport.createJavaToken(node));
             }
             else if (binding instanceof MethodBinding) {
@@ -3510,7 +3510,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
                 if (method_declaration != null) {
                     TypeBinding enclosing_type_binding = method_binding.declaringClass;
                     String package_name = javaParserSupport.getPackageName(enclosing_type_binding),
-                    type_name = javaParserSupport.getTypeName(enclosing_type_binding);
+                           type_name = javaParserSupport.getTypeName(enclosing_type_binding);
                     int method_index = javaParserSupport.classMemberTable.get(method_declaration);
                     JavaParser.cactionTypeParameterReference(package_name, type_name, method_index, type_parameter_name, javaParserSupport.createJavaToken(node));
                 }
@@ -3528,7 +3528,7 @@ class ecjASTVisitor extends ExtendedASTVisitor {
         }
         else { 
             String package_name = javaParserSupport.getPackageName(node.resolvedType),
-            type_name = javaParserSupport.getTypeName(node.resolvedType);
+                   type_name = javaParserSupport.getTypeName(node.resolvedType);
             JavaParser.cactionTypeReference(package_name, type_name, javaParserSupport.createJavaToken(node));
         }
           

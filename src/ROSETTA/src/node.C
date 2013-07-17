@@ -54,9 +54,6 @@ Grammar::setUpNodes ()
            ** SgOmpSharedClause
            ** SgOmpCopyInClause
            ** SgOmpLastprivateClause
-           ** SgOmpInpClause
-           ** SgOmpOutClause
-           ** SgOmpInoutClause
               // reduction, op : list
            *** SgOmpReductionClause
         */
@@ -689,7 +686,7 @@ Grammar::setUpNodes ()
      OmpMapClause.setDataPrototype("std::map<SgSymbol*,  std::vector < std::pair <SgExpression*, SgExpression*> > >", "array_dimensions", "",
                           NO_CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, NO_TRAVERSAL, NO_DELETE);
      
-     // depend (inout|in|out:variable_list) , a variable could be array type with additional dimension info, such as a[0:n][0:m]
+     // depend (inout|in|out:expression_list)
      OmpDependClause.setDataPrototype( "SgOmpClause::omp_depend_operator_enum", "operation", "=e_omp_depend_unknown",
                                        CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, NO_TRAVERSAL, NO_DELETE );
 

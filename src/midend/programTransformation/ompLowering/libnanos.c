@@ -446,10 +446,10 @@ int NANOS_get_num_threads( void )
 
 void NANOS_reduction( int n_reductions,
                       void ( ** all_threads_reduction )( void * out, void * in, int num_scalars ),
-                      void ( * single_thread_reduction )( void * data, /*void** globals, */nanos_ws_desc_t * wsd ), void * single_thread_data,
+                      void ( * func )( void * data, /*void** globals, */nanos_ws_desc_t * wsd ), void * data,
                       void ( ** copy_back )( int team_size, void * original, void * privates ),
                       void ( ** set_privates )( void * nanos_private, void ** global_data, int reduction_id, int thread ),
-                      void ** global_th_data, void ** global_data, long * global_data_size, int num_scalars,
+                      void ** global_th_data, void ** global_data, long * global_data_size,
                       nanos_ws_desc_t * wsd, const char * filename, int fileline )
 {
     nanos_err_t err;
@@ -485,7 +485,7 @@ void NANOS_reduction( int n_reductions,
             ( * ( result[i] ) ).vop = copy_back[i];
             ( * ( result[i] ) ).bop = all_threads_reduction[i];
             ( * ( result[i] ) ).element_size = global_data_size[i];
-            ( * ( result[i] ) ).num_scalars = num_scalars;
+            ( * ( result[i] ) ).num_scalars = 1;
             ( * ( result[i] ) ).cleanup = nanos_free0;
             err = nanos_register_reduction( result[i] );
             if( err != NANOS_OK )
@@ -513,7 +513,7 @@ void NANOS_reduction( int n_reductions,
     }
     
     // Execute the function containing the reduction
-    ( * single_thread_reduction )( single_thread_data, /*_global_, */wsd );
+    ( * func )( data, /*_global_, */wsd );
 
     // Point the 'privates' member to the actual private value computed in the reduction code
     // FIXME copy back data cannot be made at the end because 
