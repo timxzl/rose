@@ -675,7 +675,7 @@ static bool unpacked_symbol_is_reduction_symbol( std::string unpack_sym_name, co
 //     int _p_i = i;
 //     *sum = *sum + _p_i;
 // 3. And this function will create a new outlined function modifying the previous statements as follows:
-//     int (*g_th_sum)[256] = (int (*)[256])(((struct OUT__2__1527___data *)__out_argv) -> g_th_sum_p);
+//     int (*g_th_sum)[nanos_max_thread_num] = (int (*)[nanos_max_thread_num])(((struct OUT__2__1527___data *)__out_argv) -> g_th_sum_p);
 //     int i = (int )(((struct OUT__3__9808___data *)__out_argv) -> i);
 //     int _p_i = i;
 //     int _p_sum = 0;
@@ -731,7 +731,7 @@ static SgFunctionDeclaration * generateReductionFunction(
                 std::string new_unpack_name = "g_th_" + old_unpack_init_name->get_name( );
                 SgPointerType * unpack_sym_type = isSgPointerType( old_unpack_sym->get_type( ) );
                 ROSE_ASSERT( unpack_sym_type != NULL );
-                SgType * new_unpack_type = buildPointerType( buildArrayType( unpack_sym_type->get_base_type( ), buildIntVal( 256 ) ) );
+                SgType * new_unpack_type = buildPointerType( buildArrayType( unpack_sym_type->get_base_type( ), buildIntVal( nanos_max_thread_num ) ) );
                 // We use "__out_argv" as it is used in "variableHandling" method.
                 SgExpression * new_unpack_expr = buildArrowExp( buildCastExp( buildVarRefExp( "__out_argv", scope ),
                                                                               buildPointerType( struct_type ) ),

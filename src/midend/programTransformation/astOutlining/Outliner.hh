@@ -218,7 +218,7 @@ namespace Outliner
         ASTtools::VarSymSet_t& pdSyms, // variables must use pointer types (pointer dereferencing: pdf). The rest variables use pass-by-value
         SgScopeStatement* func_scope, // the scope of the outlined function, could be in another file
         bool nanos_ws = false, // indicates if we are generating the struct for a worksharing ( only usefull if Nanos RTL )
-        const ASTtools::VarSymSet_t& nanos_red_syms = ASTtools::VarSymSet_t( ) ); // variables that are a reduction symbol while using Nanos RTL
+        const ASTtools::VarSymSet_t& nanos_red_syms = ASTtools::VarSymSet_t( ) ); //set of reduction symbols ( only usefull if Nanos RTL )
 
     /*!\brief Create a non-member function
      */

@@ -18,6 +18,8 @@
 #include "OmpAttribute.h" //regenerate pragma from omp attribute
 
 #include "rose_config.h"
+
+#include "nanos_ompss.h"
 // =====================================================================
 
 using namespace std;
@@ -52,13 +54,12 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
         const ASTtools::VarSymSet_t& nanos_red_syms ) 
 {
     SgClassDeclaration* result = NULL;
+    
+    // GOMP and OMNI RTLs do not requiere of an structure when there is no parameter to be passed to the outlined function.
+    // On the contrary, NANOS methods always require an struct, so we build an structure with no member.
 #ifndef USE_ROSE_NANOS_OPENMP_LIBRARY   
     // no need to generate the declaration if no variables are to be passed
     if( syms.empty( ) ) 
-        /*!
-        * GOMP and OMNI RTLs do not requiere of an structure when there is no parameter to be passed to the outlined function.
-        * On the contrary, NANOS methods always require an struct, so we build an structure with no member.
-        */
         return result;
 #endif
     
@@ -83,13 +84,13 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
     // Sara Royuela: it is important that this member is the first in the struct
     // It is expected to be there in method 'generateLoopFunction'
-    if( nanos_ws )
-    {
-        string member_name = "wsd";
-        SgType* member_type = buildOpaqueType( "nanos_ws_info_loop_t", getGlobalScope( s ) );
-        SgVariableDeclaration * member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
-        appendStatement( member_decl, def_scope );
-    }
+//     if( nanos_ws )
+//     {
+//         string member_name = "wsd";
+//         SgType* member_type = buildOpaqueType( "nanos_ws_info_loop_t", getGlobalScope( s ) );
+//         SgVariableDeclaration * member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
+//         appendStatement( member_decl, def_scope );
+//     }
 #endif
 
     for( ASTtools::VarSymSet_t::const_iterator i = syms.begin( ); i != syms.end( ); ++i )
@@ -146,7 +147,7 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
         if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
         {
             member_name = "g_th_" + member_name;
-            member_type = buildPointerType( buildArrayType( non_typef_type, buildIntVal( 256 ) ) );
+            member_type = buildPointerType( buildArrayType( non_typef_type, buildIntVal( nanos_max_thread_num ) ) );
         }
 #endif
         
