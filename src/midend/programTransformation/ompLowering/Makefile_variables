@@ -1,5 +1,6 @@
 
 mptOmpLowering_la_sources=\
+	$(mptOmpLoweringPath)/nanos_lowering.cpp \
 	$(mptOmpLoweringPath)/omp_lowering.cpp
 
 # avoid using libtool for libxomp.a since it will be directly linked to executable
