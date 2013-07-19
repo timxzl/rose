@@ -32,18 +32,6 @@ static std::vector<SgVariableDeclaration*> per_block_declarations;
 
 #define ENABLE_XOMP 1  // Enable the middle layer (XOMP) of OpenMP runtime libraries
 
-void convertAndFilter (const SgInitializedNamePtrList input, ASTtools::VarSymSet_t& output)
-  {
-    for (SgInitializedNamePtrList::const_iterator iter =  input.begin(); iter != input.end(); iter++)
-    {
-      const SgInitializedName * iname = *iter;
-      SgVariableSymbol* symbol = isSgVariableSymbol(iname->get_symbol_from_symbol_table ()); 
-      ROSE_ASSERT (symbol != NULL);
-      if (! isSgClassType(symbol->get_type()))
-        output.insert(symbol);
-    }
-  }
-
   
 namespace OmpSupport
 {
@@ -725,41 +713,21 @@ static void insert_libxompf_h(SgNode* startNode)
 
 //TODO move to sageInterface advanced transformation ???
 //! Generate element-by-element assignment from a right-hand array to left_hand array variable. 
-//
 //e.g.  for int a[M][N], b[M][N],  a=b is implemented as follows:
-//
-//  int element_count = ...;
-//  int *a_ap = (int *)a;
-//  int *b_ap = (int *)b;
-//  int i;
-//  for (i=0;i<element_count; i++) 
-//    *(b_ap+i) = *(a_ap+i);
-//
 // Sara Royuela Apr 17, 2013: We must do a deep copy here, and need to take into acount Typedef types
-    //  int n_elems_dim_1 = ...;
-    //  int n_elems_dim_2 = ...;
 //  int ** a_ap = (int **)a;
 //  int ** b_ap = (int **)b;
 //  int i, j;
-//  for (i=0;i<element_count; i++) 
-//    for (j=0;j<element_count; j++)
+//  for (i=0;i<n_elems_dim_1; i++) 
+//    for (j=0;j<n_elems_dim_2; j++)
 //      b_ap[i][j] = a_ap[i][j];
 static void generateInitializingLoop( SgExpression * lhs, SgExpression * rhs, SgScopeStatement * scope )
 {
-        // Parameter validation
-                // Get LHS real type
-    SgType * lhs_type = lhs->get_type( );
-    while( isSgTypedefType( lhs_type ) )
-    {
-        lhs_type = isSgTypedefType( lhs_type )->get_base_type( );
-    }
+    // Get LHS real type
+    SgType * lhs_type = lhs->get_type( )->stripType( SgType::STRIP_TYPEDEF_TYPE );
     SgArrayType* lhs_array_type = isSgArrayType( lhs_type );
-                // Get RHS real type
-    SgType * rhs_type = rhs->get_type( );
-    while( isSgTypedefType( rhs_type ) )
-    {
-        rhs_type = isSgTypedefType( rhs_type )->get_base_type( );
-    }
+    // Get RHS real type
+    SgType * rhs_type = rhs->get_type( )->stripType( SgType::STRIP_TYPEDEF_TYPE );
     SgArrayType* rhs_array_type = isSgArrayType( rhs_type );
       
     if( lhs_array_type == NULL && rhs_array_type == NULL )
@@ -774,21 +742,21 @@ static void generateInitializingLoop( SgExpression * lhs, SgExpression * rhs, Sg
         ROSE_ASSERT( lhs_array_type );
         ROSE_ASSERT( rhs_array_type );
             
-            // Make sure two array are compatible: same dimension, bounds, and element types, etc.
+        // Make sure two array are compatible: same dimension, bounds, and element types, etc.
         ROSE_ASSERT( getElementType( lhs_array_type ) == getElementType( rhs_array_type ) );
         int dim_count = getDimensionCount( lhs_array_type );
         ROSE_ASSERT( dim_count == getDimensionCount( rhs_array_type ) );
         int element_count = getArrayElementCount( lhs_array_type ); 
         ROSE_ASSERT( element_count == ( int ) getArrayElementCount( rhs_array_type ) );
         
-            // The iterator
+        // The iterator
         std::string index_name = SageInterface::generateUniqueVariableName( scope, "i" );
         SgVariableDeclaration* decl_i = buildVariableDeclaration( index_name, buildIntType( ), /*init*/ NULL, scope );
         appendStatement( decl_i, scope );
 
-            // The actual loop: for (i=0;i<element_count; i++) 
+        // The actual loop: for (i=0;i<element_count; i++) 
         SgStatement* init_stmt = buildAssignStatement( buildVarRefExp( decl_i ), buildIntVal( 0 ) );
-        SgStatement* test_stmt = buildExprStatement( buildLessThanOp( buildVarRefExp( decl_i ), buildIntVal( element_count ) ) );
+        SgStatement* test_stmt = buildExprStatement( buildLessThanOp( buildVarRefExp( decl_i ), lhs_array_type->get_index( ) ) );
         SgExpression* incr_exp = buildPlusPlusOp( buildVarRefExp( decl_i ), SgUnaryOp::postfix );
         SgScopeStatement* loop_body = buildBasicBlock( );
         generateInitializingLoop( buildPntrArrRefExp( lhs, buildVarRefExp( index_name, scope ) ), 
@@ -816,6 +784,18 @@ SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_operand, SgE
     generateInitializingLoop( left_operand, right_operand, bb );
     
     return bb;
+}
+
+void convertAndFilter (const SgInitializedNamePtrList input, ASTtools::VarSymSet_t& output)
+{
+    for (SgInitializedNamePtrList::const_iterator iter =  input.begin(); iter != input.end(); iter++)
+    {
+        const SgInitializedName * iname = *iter;
+        SgVariableSymbol* symbol = isSgVariableSymbol(iname->get_symbol_from_symbol_table ()); 
+        ROSE_ASSERT (symbol != NULL);
+        if (! isSgClassType(symbol->get_type()))
+            output.insert(symbol);
+    }
 }
 
 #ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
@@ -1315,6 +1295,11 @@ SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_operand, SgE
 
 #else       // USE_ROSE_NANOS_OPENMP_LIBRARY
 
+    // Save preprocessing information
+    AttachedPreprocessingInfoType ppi_before, ppi_after, ppi_inside;
+    cutPreprocessingInfo( target, PreprocessingInfo::before, ppi_before );
+    cutPreprocessingInfo( target, PreprocessingInfo::after, ppi_after );
+    
     // Nanos requires different transformations:
     // - The code to be executed by each thread has to be outlined in a different function
     // - This function requieres some arguments (same as parallel / task)
@@ -1447,6 +1432,9 @@ SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_operand, SgE
      */
     SgExprStatement* s1 = buildFunctionCallStmt( "XOMP_loop_for_NANOS", buildVoidType( ), parameters, p_scope );
     SageInterface::replaceStatement( target, s1 , true );
+    
+    pastePreprocessingInfo( s1, PreprocessingInfo::before, ppi_before );
+    pastePreprocessingInfo( s1, PreprocessingInfo::after, ppi_after );
     
 #endif      // USE_ROSE_NANOS_OPENMP_LIBRARY
   } // end trans omp for

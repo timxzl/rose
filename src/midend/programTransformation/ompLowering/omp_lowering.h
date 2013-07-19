@@ -14,10 +14,6 @@
 #ifndef OMP_LOWERING_H
 #define OMP_LOWERING_H 
 
-//! Generate a symbol set from an initialized name list, 
-//filter out struct/class typed names
-void convertAndFilter (const SgInitializedNamePtrList input, ASTtools::VarSymSet_t& output);
-
 namespace OmpSupport
 {
 
@@ -194,12 +190,17 @@ namespace OmpSupport
   //! Collect threadprivate variables within the current project, return a set to avoid duplicated elements. No input parameters are needed since it finds match from memory pools
   std::set<SgInitializedName*> collectThreadprivateVariables();
 
+  SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_operand, SgExpression* right_operand );
+  
+  //! Generate a symbol set from an initialized name list, 
+  //filter out struct/class typed names
+  void convertAndFilter (const SgInitializedNamePtrList input, ASTtools::VarSymSet_t& output);
+  
   //! Special handling when trying to build and insert a variable declaration into a BB within Fortran OpenMP code
   SgVariableDeclaration * buildAndInsertDeclarationForOmp(const std::string &name, SgType *type, SgInitializer *varInit, SgBasicBlock *orig_scope);
   //! Find an enclosing parallel region or function definition's body
   SgBasicBlock* getEnclosingRegionOrFuncDefinition (SgNode *);
   
-  SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_operand, SgExpression* right_operand );
   
   namespace NanosLowering {
     

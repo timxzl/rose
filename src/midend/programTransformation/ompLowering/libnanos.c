@@ -143,7 +143,7 @@ void NANOS_parallel( void ( * func ) ( void * ), void * data, unsigned numThread
 
 static int task_id = 0;
 
-void NANOS_task( void ( * func ) ( void * ), void *data,
+void NANOS_task( void ( * func ) ( void * ), void *data, 
                  long data_size, long ( * get_data_align ) ( void ), 
                  void * empty_data, void ( * init_func ) ( void *, void * ),
                  bool if_clause, unsigned untied,
@@ -153,81 +153,90 @@ void NANOS_task( void ( * func ) ( void * ), void *data,
 {
     nanos_err_t err;
     
-    // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
-    int num_copies = 0;
-    // TODO Compute dimensions (for devices other than SMP)
-    int num_dimensions = 0;
-    // Compute device descriptor (at the moment, only SMP is supported)
-    int num_devices = 1;
-    // Compute dependencies
-    const unsigned int num_data_accesses = num_deps;
-    nanos_data_access_t dependences[num_data_accesses];
-    int i;
-    for( i = 0; i < num_data_accesses; ++i )
+    bool nanos_is_in_final;
+    err = nanos_in_final( &nanos_is_in_final );
+    if( nanos_is_in_final )
     {
-        int in = ( deps_dir[i] & ( e_dep_dir_in | e_dep_dir_inout ) );
-        int out = ( deps_dir[i] & ( e_dep_dir_out | e_dep_dir_inout ) );
-        nanos_access_type_internal_t flags = {
-            ( in != 0 ), // input
-            ( out != 0 ), // output
-            0 , // can rename
-            0 , // concurrent
-            0 , // commutative
-        };
-        nanos_data_access_t dep = { deps_data[i], flags, deps_n_dims[i], deps_dims[i], deps_offset[i] };
-        dependences[i] = dep;
-    }
-    
-    // Create the Device descriptor (at the moment, only SMP is supported)
-    nanos_smp_args_t _smp_args = { func };
-    char * task_name; 
-    asprintf( &task_name, "task_%d", task_id++ );
-    struct nanos_const_wd_definition nanos_wd_const_data = {
-        { { 0,          // mandatory creation
-            !untied,    // tied 
-            0, 0, 0, 0, 0, 0 },                     // properties 
-        ( *get_data_align )( ),                     // data alignment
-          num_copies, num_devices, num_dimensions,
-          task_name                                 // description
-        }, 
-        { { &nanos_smp_factory,                     // device description
-            &_smp_args }                            // outlined function
-        }
-    };
-    
-    // Compute properties of the WD: mandatory creation, priority, tiedness, real-time info and copy declarations
-    nanos_wd_dyn_props_t dyn_props;
-    dyn_props.tie_to = 0;
-    dyn_props.priority = 0;
-    dyn_props.flags.is_final = 0;
-
-    // Create the WD
-    nanos_wd_t wd = (nanos_wd_t) 0;
-    err = nanos_create_wd_compact( &wd, &nanos_wd_const_data.base, &dyn_props, 
-                                   data_size, ( void ** ) &empty_data,
-                                   nanos_current_wd( ), ( nanos_copy_data_t ** ) 0, 
-                                   ( nanos_region_dimension_internal_t ** ) 0 );
-    if( err != NANOS_OK ) 
-        nanos_handle_error( err );
-    
-    if( wd != ( void * ) 0 )
-    {   // Submit the task to the existing actual working group
-        // Initialize outlined data
-        (*init_func)(empty_data, data);
-
-        err = nanos_submit( wd, num_data_accesses, dependences, ( void * ) 0 );
-        if( err != NANOS_OK ) 
-            nanos_handle_error( err );
+        ( *func )( data );
     }
     else
-    { // The task must be run immediately
-        err = nanos_create_wd_and_run_compact( &nanos_wd_const_data.base, &dyn_props, 
-                                               data_size, data, num_data_accesses,
-                                               dependences, ( nanos_copy_data_t * ) 0, 
-                                               ( nanos_region_dimension_internal_t * ) 0, 
-                                               ( void ( * )( void *, void * ) ) 0 );
+    {
+        // Compute copy data (For SMP devices there are no copies. Just CUDA device requires copy data)
+        int num_copies = 0;
+        // TODO Compute dimensions (for devices other than SMP)
+        int num_dimensions = 0;
+        // Compute device descriptor (at the moment, only SMP is supported)
+        int num_devices = 1;
+        // Compute dependencies
+        const unsigned int num_data_accesses = num_deps;
+        nanos_data_access_t dependences[num_data_accesses];
+        int i;
+        for( i = 0; i < num_data_accesses; ++i )
+        {
+            int in = ( deps_dir[i] & ( e_dep_dir_in | e_dep_dir_inout ) );
+            int out = ( deps_dir[i] & ( e_dep_dir_out | e_dep_dir_inout ) );
+            nanos_access_type_internal_t flags = {
+                ( in != 0 ), // input
+                ( out != 0 ), // output
+                0 , // can rename
+                0 , // concurrent
+                0 , // commutative
+            };
+            nanos_data_access_t dep = { deps_data[i], flags, deps_n_dims[i], deps_dims[i], deps_offset[i] };
+            dependences[i] = dep;
+        }
+        
+        // Create the Device descriptor (at the moment, only SMP is supported)
+        nanos_smp_args_t _smp_args = { func };
+        char * task_name; 
+        asprintf( &task_name, "task_%d", task_id++ );
+        struct nanos_const_wd_definition nanos_wd_const_data = {
+            { { 0,          // mandatory creation
+                !untied,    // tied 
+                0, 0, 0, 0, 0, 0 },                     // properties 
+            ( *get_data_align )( ),                     // data alignment
+            num_copies, num_devices, num_dimensions,
+            task_name                                 // description
+            }, 
+            { { &nanos_smp_factory,                     // device description
+                &_smp_args }                            // outlined function
+            }
+        };
+        
+        // Compute properties of the WD: mandatory creation, priority, tiedness, real-time info and copy declarations
+        nanos_wd_dyn_props_t dyn_props;
+        dyn_props.tie_to = 0;
+        dyn_props.priority = 0;
+        dyn_props.flags.is_final = 0;
+    
+        // Create the WD
+        nanos_wd_t wd = (nanos_wd_t) 0;
+        err = nanos_create_wd_compact( &wd, &nanos_wd_const_data.base, &dyn_props, 
+                                    data_size, ( void ** ) &empty_data,
+                                    nanos_current_wd( ), ( nanos_copy_data_t ** ) 0, 
+                                    ( nanos_region_dimension_internal_t ** ) 0 );
         if( err != NANOS_OK ) 
             nanos_handle_error( err );
+        
+        if( wd != ( void * ) 0 )
+        {   // Submit the task to the existing actual working group
+            // Initialize outlined data
+            ( *init_func )( empty_data, data );
+    
+            err = nanos_submit( wd, num_data_accesses, dependences, ( void * ) 0 );
+            if( err != NANOS_OK ) 
+                nanos_handle_error( err );
+        }
+        else
+        { // The task must be run immediately
+            err = nanos_create_wd_and_run_compact( &nanos_wd_const_data.base, &dyn_props, 
+                                                data_size, data, num_data_accesses,
+                                                dependences, ( nanos_copy_data_t * ) 0, 
+                                                ( nanos_region_dimension_internal_t * ) 0, 
+                                                ( void ( * )( void *, void * ) ) 0 );
+            if( err != NANOS_OK ) 
+                nanos_handle_error( err );
+        }
     }
 }
 
@@ -504,7 +513,6 @@ void NANOS_reduction( int n_reductions,
 
 // ************************************************************************************ //
 // ******************** Nanos synchronization defines and methods ********************* //
-
 
 void NANOS_barrier( void )
 {

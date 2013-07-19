@@ -68,7 +68,7 @@ static SgFunctionDeclaration * generateWorksharingFunction(
 {
     ROSE_ASSERT( source && scope );
     ROSE_ASSERT( isSgGlobal( scope ) );
-    
+
     //step 1. Create function skeleton, 'func'.
     //---------------------------------------------------------------------------------------
     SgName func_name( func_name_str );
@@ -96,6 +96,10 @@ static SgFunctionDeclaration * generateWorksharingFunction(
     ROSE_ASSERT( func_body != NULL );
     ROSE_ASSERT( func_body->get_statements( ).empty( ) == true );
     SageInterface::moveStatementsBetweenBlocks( source, func_body );
+
+    AttachedPreprocessingInfoType ppi_before, ppi_after;
+    SageInterface::cutPreprocessingInfo( source, PreprocessingInfo::before, ppi_before );
+    SageInterface::cutPreprocessingInfo( source, PreprocessingInfo::after, ppi_after );
 
     //step 3: variable handling: create parameters, packing and unpacking statements and replace variables
     //---------------------------------------------------------------------------------------
@@ -155,28 +159,33 @@ static SgFunctionDeclaration * generateWorksharingFunction(
         SgExpression * loop_upper = buildDotExp( buildVarRefExp( nanos_item_loop ), buildOpaqueVarRefExp( "upper", while_body ) );
         SageInterface::setLoopLowerBound( target_loop, loop_lower );
         SageInterface::setLoopUpperBound( target_loop, loop_upper );
+        SageInterface::pastePreprocessingInfo( target_loop, PreprocessingInfo::before, ppi_before );
+        SageInterface::pastePreprocessingInfo( target_loop, PreprocessingInfo::after, ppi_after );
         SageInterface::appendStatement( target_loop, while_body );
     
         // Copy back statementsmust be inserted if we are in the last iteration
         //     if( nanos_item_loop.last ) {
         //         /* copy back statements */
         //     }
-        SgStatement * copy_back_cond = buildExprStatement( buildDotExp( buildVarRefExp( nanos_item_loop ), 
-                                                                        buildOpaqueVarRefExp( "last", func_body ) ) );
-        SgBasicBlock * copy_back_stmts = buildBasicBlock( );
-        for( std::set<SgInitializedName *>::iterator it = lastprivateSyms.begin( ); it != lastprivateSyms.end( ); ++it )
+        if( !lastprivateSyms.empty( ) )
         {
-            SgInitializedName * orig_var = *it;
-            ROSE_ASSERT( *it != NULL );
-            std::string private_name = "_p_" + orig_var->get_name( );   // Lastprivates are always passed to the outlined function as pointer
-    
-            // We savely dereference this pointer because Nanos passes all Lastprivate variables by pointer
-            SgStatement * copy_back_stmt = buildAssignStatement( buildVarRefExp( orig_var, while_body ),
-                                                                 buildVarRefExp( private_name, while_body ) );
-            appendStatement( copy_back_stmt, copy_back_stmts );
+            SgStatement * copy_back_cond = buildExprStatement( buildDotExp( buildVarRefExp( nanos_item_loop ), 
+                                                                            buildOpaqueVarRefExp( "last", func_body ) ) );
+            SgBasicBlock * copy_back_stmts = buildBasicBlock( );
+            for( std::set<SgInitializedName *>::iterator it = lastprivateSyms.begin( ); it != lastprivateSyms.end( ); ++it )
+            {
+                SgInitializedName * orig_var = *it;
+                ROSE_ASSERT( *it != NULL );
+                std::string private_name = "_p_" + orig_var->get_name( );   // Lastprivates are always passed to the outlined function as pointer
+        
+                // We savely dereference this pointer because Nanos passes all Lastprivate variables by pointer
+                SgStatement * copy_back_stmt = buildAssignStatement( buildVarRefExp( orig_var, while_body ),
+                                                                    buildVarRefExp( private_name, while_body ) );
+                appendStatement( copy_back_stmt, copy_back_stmts );
+            }
+            SgStatement * copy_back_if_stmt = buildIfStmt( copy_back_cond, copy_back_stmts, NULL );
+            while_body->append_statement( copy_back_if_stmt );
         }
-        SgStatement * copy_back_if_stmt = buildIfStmt( copy_back_cond, copy_back_stmts, NULL );
-        while_body->append_statement( copy_back_if_stmt );
 
         SgStatement * next_item_call = buildFunctionCallStmt( "nanos_worksharing_next_item", nanos_err_type, nanos_next_item_params, func_body );
         while_body->append_statement( next_item_call );
@@ -222,6 +231,8 @@ static SgFunctionDeclaration * generateWorksharingFunction(
         }
         
         SgForStatement * for_loop = buildForStatement( for_init, for_test, for_incr, switch_stmt );
+        SageInterface::pastePreprocessingInfo( for_loop, PreprocessingInfo::before, ppi_before );
+        SageInterface::pastePreprocessingInfo( for_loop, PreprocessingInfo::after, ppi_after );
         SgStatement * next_item_call = buildFunctionCallStmt( "nanos_worksharing_next_item", nanos_err_type, nanos_next_item_params, func_body );
         while_body->append_statement( for_loop_it );
         while_body->append_statement( for_loop );
