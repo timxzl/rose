@@ -22,34 +22,7 @@ NANOS_PATH= @nanos_omp_runtime_library_path@
 
 # Put test codes without main() entry here
 # They will be compiled only, not executed.
-if WITH_NANOS_OPENMP_LIB
 C_TESTCODES_REQUIRED_TO_COMPILE = \
-	alignment.c \
-	dijkstra_open_mp.c \
-	dynamicChunk.c \
-	endif.c \
-	endif3.c \
-	full_verify.c \
-	init.c \
-	lastprivateOrphaned.c \
-	linebreak.c \
-	master.c \
-	md_open_mp.c \
-	nowait.c \
-	ompfor5.c \
-	private-duplicate.c \
-	single2.c \
-	sizeof.c \
-	staticChunk.c \
-	task_orphaned.c \
-	task_underIf.c \
-	task_array.c \
-	task_array2.c \
-	task_wait.c \
-	task_wait2.c \
-	task_untied4.c \
-	twoRegions.c
-else
 	alignment.c \
 	dijkstra_open_mp.c \
 	dynamicChunk.c \
@@ -77,7 +50,6 @@ else
 	task_wait2.c \
 	task_untied4.c \
 	twoRegions.c
-endif
 
 if WITH_NANOS_OPENMP_LIB
 #No GPU support in Nanos
@@ -96,11 +68,14 @@ endif
 # They will be compiled and executed when a RTL library path is set
 
 if WITH_NANOS_OPENMP_LIB
-# Tests failing with Nanos are temporaily removed: nestedpar1.c ompfor4.c (Nanos bug in slicer implementation), parallel-reduction.c,
-#   parallel-reduction2.c, parallelsections.c, reduction-classic.c, task_untied2 ( Nanos bug, mcc sometimes fails too ), section.c, firstprivate.c
+# Tests failing with Nanos are temporaily removed: 
+# nanos bug: task_untied2.c (it fails only sometimes))
+# involving reductions: firstprivate.c, lockarray.c, parallel-reduction.c, parallel-reduction2.c, parallelsections.c, parallelfor.c
+#                       reduction.c, reduction2.c, reduction-classic.c, section.c, subteam2.c
 C_TESTCODES_REQUIRED_TO_RUN = \
 	3loops.c \
 	array_init.c \
+	array_init_2.c \
 	atomic.c \
 	barrier.c \
 	critical.c \
@@ -108,6 +83,8 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	empty.c \
 	falsesharing.c \
 	firstlastprivate.c \
+	firstPrivateArray.c \
+	firstPrivateArray_2.c \
 	flush.c \
 	get_max_threads.c \
 	hello-1.c \
@@ -126,6 +103,7 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	ompfor.c \
 	ompfor2.c \
 	ompfor3.c \
+	ompfor4.c \
 	ompfor-default.c \
 	ompfor-decremental.c \
 	ompfor-static.c \
@@ -145,6 +123,7 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	subteam.c \
 	spmd1.c \
 	task_largenumber.c \
+	task_outlining.c \
 	task_untied.c \
 	task_untied3.c
 else
@@ -173,10 +152,10 @@ C_TESTCODES_REQUIRED_TO_RUN = \
 	lastprivate0.c \
 	lockarray.c \
 	loop1.c \
-	nestedpar.c \
-	nestedpar1.c \
 	masterSingle.c \
 	multiple_return.c \
+	nestedpar.c \
+	nestedpar1.c \
 	ordered.c \
 	ordered2.c \
 	omp1.c \
