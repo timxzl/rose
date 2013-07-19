@@ -3,7 +3,6 @@
 #include "sageBuilder.h"
 #include "Outliner.hh"
 
-#include "nanos_ompss.h"
 #include "omp_lowering.h"
 
 using namespace std;
@@ -13,32 +12,61 @@ using namespace SageBuilder;
 namespace OmpSupport {
 namespace NanosLowering {
 
-//! Create a function named 'func_name_str' containing an OpenMP loop to be executed with Nanos
+//! Create a function named 'func_name_str' containing an OpenMP worksharing (loop or section) to be executed with Nanos
 // (Inspired in generateFunction method)
-// For an input 's' such as:
-//    int i;
-//    for (i = 0; i <= 9; i += 1) {
-//        a[i] = (i * 2);
+// Example 1: 'source' is the block statement associated with an OpenMP loop directive
+//  For an input 's' such as:
+//      int i;
+//      for (i = 0; i <= 9; i += 1) {
+//          a[i] = (i * 2);
+//      }
+//  The outlined function body 'func_body' will be:
+//      nanos_ws_item_loop_t nanos_item_loop;
+//      err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
+//      if( err != 0 /*NANOS_OK*/ )
+//          nanos_handle_error( err );
+//      int _p_i;
+//      while( nanos_item_loop.execute ) {
+//          for( _p_i = nanos_item_loop.lower; _p_i <= nanos_item_loop.upper; ++_p_i ) {
+//              a[_p_i] = (_p_i * 2);
+//          }
+//          if( nanos_item_loop.last )
+//              /* copy back statements */
+//          err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
+//      }
+// Example 2: 'source' is the block statement associated with an OpenMP sections directive
+//  For an input 's' such as:
+//      #pragma omp sections
+//          #pragma omp section
+//              i = 1;
+//          #pragma omp section
+//              i = 2
+//  The outlined function body 'func_body' will be:
+//      nanos_ws_item_loop_t nanos_item_loop;
+//      nanos_err_t nanos_err = nanos_worksharing_next_item(wsd,((void **)(&nanos_item_loop)));
+//      if (nanos_err != 0) 
+//          nanos_handle_error(nanos_err);
+//      while(nanos_item_loop.execute) {
+//          int nanos_item_iter;
+//          for (nanos_item_iter = nanos_item_loop.lower; nanos_item_iter <= nanos_item_loop.upper; nanos_item_iter++) 
+//              switch(nanos_item_iter) {
+//                  case 0: _p_i = 1;
+//                          break;
+//                  case 1: _p_i = 2;
+//                          /* copy back statements */
+//                          break; 
+//            }
+//        nanos_worksharing_next_item(wsd,((void **)(&nanos_item_loop)));
 //    }
-// The outlined function body 'func_body' will be:
-//    nanos_ws_item_loop_t nanos_item_loop;
-//    err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
-//    if( err != 0 /*NANOS_OK*/ )
-//        nanos_handle_error( err );
-//    int _p_i;
-//    while( nanos_item_loop.execute ) {
-//        for( _p_i = nanos_item_loop.lower; _p_i <= nanos_item_loop.upper; ++_p_i ) {
-//            a[_p_i] = (_p_i * 2);
-//        }
-//        err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
-//    }
-static SgFunctionDeclaration * generateLoopFunction( 
-        SgBasicBlock* s, const string& func_name_str,
+static SgFunctionDeclaration * generateWorksharingFunction(
+        SgBasicBlock* source, const string& func_name_str,
         ASTtools::VarSymSet_t& syms, ASTtools::VarSymSet_t& pdSyms,
+        std::set<SgInitializedName *> lastprivateSyms,
         SgClassDeclaration* struct_decl, SgScopeStatement* scope,
-        std::set<SgVariableDeclaration *>& unpacking_stmts )
+        std::set<SgVariableDeclaration *>& unpacking_stmts,
+        worksharing_type_enum ws_type )
 {
-    ROSE_ASSERT( s && scope );
+    ROSE_ASSERT( source && scope );
     ROSE_ASSERT( isSgGlobal( scope ) );
     
     //step 1. Create function skeleton, 'func'.
@@ -67,16 +95,11 @@ static SgFunctionDeclaration * generateLoopFunction(
     SgBasicBlock* func_body = func->get_definition( )->get_body( );
     ROSE_ASSERT( func_body != NULL );
     ROSE_ASSERT( func_body->get_statements( ).empty( ) == true );
-    SageInterface::moveStatementsBetweenBlocks( s, func_body );
+    SageInterface::moveStatementsBetweenBlocks( source, func_body );
 
     //step 3: variable handling: create parameters, packing and unpacking statements and replace variables
     //---------------------------------------------------------------------------------------
-    // Source:                                      Target:
-    //     int i;                                       int _p_i;
-    //     for (i = 0; i <= 9; i += 1)                  for (_p_i = 0; _p_i <= 9; _p_i += 1)
-    //         a[i] = (i * 2);                              a[_p_i] = (_p_i * 2);
-    std::set<SgInitializedName *> restoreVars;
-    unpacking_stmts = Outliner::variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
+    unpacking_stmts = Outliner::variableHandling( syms, pdSyms, lastprivateSyms, struct_decl, func );
     ROSE_ASSERT( func != NULL );
 
     if( Outliner::useNewFile )
@@ -122,21 +145,95 @@ static SgFunctionDeclaration * generateLoopFunction(
     SgStatement * while_cond =  buildExprStatement( buildDotExp( buildVarRefExp( nanos_item_loop ), 
                                                                  buildOpaqueVarRefExp( "execute", func_body ) ) );
     SgBasicBlock * while_body = buildBasicBlock( );
+    if( ws_type == e_ws_loop )
+    {
+        Rose_STL_Container<SgNode *> for_list = NodeQuery::querySubTree( func_body, V_SgForStatement );
+        ROSE_ASSERT( !for_list.empty( ) );
+        SgStatement * source_loop = isSgForStatement( for_list[0] );
+        SgForStatement * target_loop = isSgForStatement( SageInterface::copyStatement( source_loop ) );
+        SgExpression * loop_lower = buildDotExp( buildVarRefExp( nanos_item_loop ), buildOpaqueVarRefExp( "lower", while_body ) );
+        SgExpression * loop_upper = buildDotExp( buildVarRefExp( nanos_item_loop ), buildOpaqueVarRefExp( "upper", while_body ) );
+        SageInterface::setLoopLowerBound( target_loop, loop_lower );
+        SageInterface::setLoopUpperBound( target_loop, loop_upper );
+        SageInterface::appendStatement( target_loop, while_body );
+    
+        // Copy back statementsmust be inserted if we are in the last iteration
+        //     if( nanos_item_loop.last ) {
+        //         /* copy back statements */
+        //     }
+        SgStatement * copy_back_cond = buildExprStatement( buildDotExp( buildVarRefExp( nanos_item_loop ), 
+                                                                        buildOpaqueVarRefExp( "last", func_body ) ) );
+        SgBasicBlock * copy_back_stmts = buildBasicBlock( );
+        for( std::set<SgInitializedName *>::iterator it = lastprivateSyms.begin( ); it != lastprivateSyms.end( ); ++it )
+        {
+            SgInitializedName * orig_var = *it;
+            ROSE_ASSERT( *it != NULL );
+            std::string private_name = "_p_" + orig_var->get_name( );   // Lastprivates are always passed to the outlined function as pointer
+    
+            // We savely dereference this pointer because Nanos passes all Lastprivate variables by pointer
+            SgStatement * copy_back_stmt = buildAssignStatement( buildVarRefExp( orig_var, while_body ),
+                                                                 buildVarRefExp( private_name, while_body ) );
+            appendStatement( copy_back_stmt, copy_back_stmts );
+        }
+        SgStatement * copy_back_if_stmt = buildIfStmt( copy_back_cond, copy_back_stmts, NULL );
+        while_body->append_statement( copy_back_if_stmt );
 
-    Rose_STL_Container<SgNode *> for_list = NodeQuery::querySubTree( func_body, V_SgForStatement );
-    ROSE_ASSERT( !for_list.empty( ) );
-    SgStatement * source_loop = isSgForStatement( for_list[0] );
-    SgForStatement * target_loop = isSgForStatement( SageInterface::copyStatement( source_loop ) );
-    SgExpression * loop_lower = buildDotExp( buildVarRefExp( nanos_item_loop ), buildOpaqueVarRefExp( "lower", while_body ) );
-    SgExpression * loop_upper = buildDotExp( buildVarRefExp( nanos_item_loop ), buildOpaqueVarRefExp( "upper", while_body ) );
-    SageInterface::setLoopLowerBound( target_loop, loop_lower );
-    SageInterface::setLoopUpperBound( target_loop, loop_upper );
-    SageInterface::appendStatement( target_loop, while_body );
+        SgStatement * next_item_call = buildFunctionCallStmt( "nanos_worksharing_next_item", nanos_err_type, nanos_next_item_params, func_body );
+        while_body->append_statement( next_item_call );
+        SgWhileStmt * nanos_while = buildWhileStmt( while_cond, while_body );
+        SageInterface::replaceStatement( source_loop, nanos_while );
+    }
+    else if( ws_type == e_ws_sections )
+    {
+        SgVariableDeclaration * for_loop_it = buildVariableDeclaration( "nanos_item_iter", buildIntType( ), NULL, while_body );
+        SgStatement * for_init = buildAssignStatement( buildVarRefExp( for_loop_it ), 
+                                                    buildDotExp( buildVarRefExp( nanos_item_loop ), buildOpaqueVarRefExp( "lower", while_body ) ) );
+        SgStatement * for_test = buildExprStatement( buildLessOrEqualOp( buildVarRefExp( for_loop_it ), 
+                                                                        buildDotExp( buildVarRefExp( nanos_item_loop ), 
+                                                                                    buildOpaqueVarRefExp( "upper", while_body ) ) ) );
+        SgExpression * for_incr = buildPlusPlusOp( buildVarRefExp( for_loop_it ), SgUnaryOp::postfix );
 
-    SgStatement * next_item_call = buildFunctionCallStmt( "nanos_worksharing_next_item", nanos_err_type, nanos_next_item_params, func_body );
-    while_body->append_statement( next_item_call );
-    SgWhileStmt * nanos_while = buildWhileStmt( while_cond, while_body );
-    SageInterface::replaceStatement( source_loop, nanos_while );
+        SgSwitchStatement * switch_stmt = buildSwitchStatement(  buildVarRefExp( for_loop_it ), buildBasicBlock( ) );
+        Rose_STL_Container<SgNode *> section_list = NodeQuery::querySubTree( source, V_SgOmpSectionStatement );
+        int section_count = section_list.size( );
+        for( int i = 0; i < section_count; i++ )
+        {
+            SgBasicBlock * case_block = buildBasicBlock( isSgOmpSectionStatement( section_list[i] )->get_body( ) );
+            
+            // The lexically last section must contain the copy back statements ( lastprivate variables )
+            if( i == section_count - 1 )
+            {
+                for( std::set<SgInitializedName *>::iterator it = lastprivateSyms.begin( ); it != lastprivateSyms.end( ); ++it )
+                {
+                    SgInitializedName * orig_var = *it;
+                    ROSE_ASSERT( *it != NULL );
+                    std::string private_name = "_p_" + orig_var->get_name( );   // Lastprivates are always passed to the outlined function as pointer
+            
+                    // We savely dereference this pointer because Nanos passes all Lastprivate variables by pointer
+                    SgStatement * copy_back_stmt = buildAssignStatement( buildVarRefExp( orig_var, case_block ),
+                                                                        buildVarRefExp( private_name, case_block ) );
+                    appendStatement( copy_back_stmt, case_block );
+                }
+            }
+            appendStatement( buildBreakStmt( ), case_block );
+            SgCaseOptionStmt * option_stmt = buildCaseOptionStmt( buildIntVal( i ), case_block );
+            
+            switch_stmt->append_case( option_stmt );
+        }
+        
+        SgForStatement * for_loop = buildForStatement( for_init, for_test, for_incr, switch_stmt );
+        SgStatement * next_item_call = buildFunctionCallStmt( "nanos_worksharing_next_item", nanos_err_type, nanos_next_item_params, func_body );
+        while_body->append_statement( for_loop_it );
+        while_body->append_statement( for_loop );
+        while_body->append_statement( next_item_call );
+        SgWhileStmt * nanos_while = buildWhileStmt( while_cond, while_body );
+        SageInterface::replaceStatement( source, nanos_while );
+    }
+    else
+    {
+        printf( "Unexpected Worksharing type '%d' while lowering Nanos Worksharing\n", ws_type );
+        ROSE_ABORT( );
+    }
 
     //step 4: parameters checking
     //---------------------------------------------------------------------------------------
@@ -156,20 +253,20 @@ static SgFunctionDeclaration * generateLoopFunction(
 
 //! A helper function to generate explicit function for omp loop 
 //! Inspired in method 'generateOutlinedTask'
-SgFunctionDeclaration* generateOutlinedLoop( 
-        SgOmpForStatement * source, std::string & wrapper_name, 
+SgFunctionDeclaration* generateOutlinedWorksharing( 
+        SgOmpClauseBodyStatement * source, std::string & wrapper_name, 
         ASTtools::VarSymSet_t& syms, ASTtools::VarSymSet_t& pdSyms3, 
-        SgClassDeclaration * & struct_decl )
+        SgClassDeclaration * & struct_decl, worksharing_type_enum ws_type )
 {
     // Check the parameters
     ROSE_ASSERT( source != NULL );
-    SgForStatement * for_body =  isSgForStatement( source->get_body( ) );
-    ROSE_ASSERT( for_body != NULL );
+    SgStatement * body =  isSgStatement( source->get_body( ) );
+    ROSE_ASSERT( body != NULL );
     
     // Initialize outliner 
     Outliner::useParameterWrapper = true; 
     Outliner::useStructureWrapper = true;
-    SgBasicBlock* body_block = Outliner::preprocess( for_body );
+    SgBasicBlock * body_block = Outliner::preprocess( body );
     
     // Variable handling is done after Outliner::preprocess() to ensure a basic block for the body,
     // but before calling the actual outlining.
@@ -178,7 +275,7 @@ SgFunctionDeclaration* generateOutlinedLoop(
     transOmpVariables( source, body_block );
     
     string func_name = Outliner::generateFuncName( source );
-    SgGlobal* g_scope = SageInterface::getGlobalScope( body_block );
+    SgGlobal * g_scope = SageInterface::getGlobalScope( body_block );
     ROSE_ASSERT( g_scope != NULL );
     
     // This step is less useful for private, firstprivate, and reduction variables
@@ -195,7 +292,16 @@ SgFunctionDeclaration* generateOutlinedLoop(
     set_union( syms.begin( ), syms.end(),
                red_syms.begin( ), red_syms.end( ),
                std::inserter( syms, syms.begin( ) ) );
-    
+    // Lastprivate variables have to be passed by pointer to allow the copy back in the outlined function
+    ASTtools::VarSymSet_t lp_syms;
+    SgInitializedNamePtrList lp_vars = collectClauseVariables( source, V_SgOmpLastprivateClause );
+    convertAndFilter( lp_vars, lp_syms );
+    set_union( syms.begin( ), syms.end(),
+               lp_syms.begin( ), lp_syms.end( ),
+               std::inserter( syms, syms.begin( ) ) );
+    std::set<SgInitializedName *> lp_var_set;
+    lp_var_set.insert( lp_vars.begin( ), lp_vars.end( ) );
+
     // Assume all parameters need to be passed by reference/pointers first
     ASTtools::VarSymSet_t pSyms, fpSyms,reductionSyms, pdSyms;
     std::copy( syms.begin( ), syms.end( ), std::inserter( pdSyms, pdSyms.begin( ) ) );
@@ -218,41 +324,30 @@ SgFunctionDeclaration* generateOutlinedLoop(
                     p_syms.begin( ), p_syms.end( ),
                     std::inserter( pdSyms3, pdSyms3.begin( ) ) );
     
-    // lastprivate and reduction variables cannot be excluded  since write access to their shared copies
-    
     // Add sizes of array variables when those are also variables
-    ASTtools::VarSymSet_t new_syms;
-    for (ASTtools::VarSymSet_t::const_iterator i = syms.begin (); i != syms.end (); ++i)
+    ASTtools::VarSymSet_t old_syms = syms;
+    for( ASTtools::VarSymSet_t::const_iterator i = old_syms.begin( ); i != old_syms.end( ); ++i )
     {
-        SgType* i_type = (*i)->get_declaration()->get_type();
-    
-        while (isSgArrayType(i_type))
+        SgType * i_type = (*i)->get_declaration( )->get_type( );
+        while( isSgArrayType( i_type ) )
         {
-            // Get most significant dimension
-            SgExpression* index = ((SgArrayType*) i_type)->get_index();
-        
+            SgExpression* index = isSgArrayType( i_type )->get_index( );
+            
             // Get the variables used to compute the dimension
             // FIXME We insert a new statement and delete it afterwards in order to use "collectVars" function
             //       Think about implementing an specific function for expressions
             ASTtools::VarSymSet_t a_syms, a_pSyms;
-            SgExprStatement* index_stmt = buildExprStatement(index);
-            appendStatement(index_stmt, body_block);
-            Outliner::collectVars(index_stmt, a_syms);
-            SageInterface::removeStatement(index_stmt);
-            for(ASTtools::VarSymSet_t::iterator j = a_syms.begin(); j != a_syms.end(); ++j)
+            SgExprStatement* index_stmt = buildExprStatement( index );
+            appendStatement( index_stmt, body_block );
+            Outliner::collectVars( index_stmt, a_syms );
+            SageInterface::removeStatement( index_stmt );
+            for(ASTtools::VarSymSet_t::iterator j = a_syms.begin( ); j != a_syms.end( ); ++j)
             {
-                const SgVariableSymbol* s = *j;
-                new_syms.insert(s);   // If the symbol is not in the symbol list, it is added
+                syms.insert( *j );
             }
             
-            // Advance over the type
             i_type = ((SgArrayType*) i_type)->get_base_type();
         }
-    }
-    for (ASTtools::VarSymSet_t::const_iterator i = new_syms.begin (); i != new_syms.end (); ++i)
-    {
-        const SgVariableSymbol* s = *i;
-        syms.insert(s);
     }
     
     // Data structure used to wrap parameters
@@ -261,8 +356,8 @@ SgFunctionDeclaration* generateOutlinedLoop(
     
     // Generate the outlined function
     std::set<SgVariableDeclaration *> unpacking_stmts;
-    SgFunctionDeclaration * result = generateLoopFunction( body_block, func_name, syms, pdSyms3,
-                                                           struct_decl, g_scope, unpacking_stmts );
+    SgFunctionDeclaration * result = generateWorksharingFunction( body_block, func_name, syms, pdSyms3, lp_var_set,
+                                                                  struct_decl, g_scope, unpacking_stmts, ws_type );
     ROSE_ASSERT( result != NULL );
     
     Outliner::insert( result, g_scope, body_block );
@@ -282,336 +377,6 @@ SgFunctionDeclaration* generateOutlinedLoop(
     
     ASTtools::VarSymSet_t redution_syms;
     wrapper_name = Outliner::generatePackingStatements( source, syms, pdSyms3, struct_decl, redution_syms );
-    
-    return result;
-}
-
-//! Create a function named 'func_name_str' containing an OpenMP sections to be executed with Nanos
-// (Inspired in generateFunction method)
-// For an input 's' such as:
-//    #pragma omp sections
-//        #pragma omp section
-//            i = 1;
-//        #pragma omp section
-//            i = 2
-// The outlined function body 'func_body' will be:
-//    // typedef struct {
-//    //     int   lower;      // loop item lower bound
-//    //     int   upper;      // loop item upper bound
-//    //     bool  execute;    // is a valid loop item?
-//    //     bool  last;       // is the last loop item?
-//    // } nanos_ws_item_loop_t;
-//    nanos_ws_item_loop_t nanos_item_loop;
-//    nanos_err_t nanos_err = nanos_worksharing_next_item(wsd,((void **)(&nanos_item_loop)));
-//    if (nanos_err != 0) 
-//        nanos_handle_error(nanos_err);
-//    while(nanos_item_loop.execute) {
-//        int nanos_item_iter;
-//        for (nanos_item_iter = nanos_item_loop.lower; nanos_item_iter <= nanos_item_loop.upper; nanos_item_iter++) 
-//            switch(nanos_item_iter) {
-//                case 0:
-//                    _p_i = 1;
-//                    break;
-//                case 1:
-//                    _p_i = 2;
-//                    break; 
-//            }
-//        nanos_worksharing_next_item(wsd,((void **)(&nanos_item_loop)));
-//    }
-static SgFunctionDeclaration * generateSectionsFunction( 
-        SgBasicBlock* s, const std::string& func_name_str,
-        const ASTtools::VarSymSet_t& syms, const ASTtools::VarSymSet_t& pdSyms,
-        const std::set<SgInitializedName *>& restoreVars,       // last private variables that must be restored
-        SgClassDeclaration* struct_decl, SgScopeStatement* scope, 
-        std::set<SgVariableDeclaration *>& unpacking_stmts )
-{
-    ROSE_ASSERT( s && scope );
-    ROSE_ASSERT( isSgGlobal( scope ) );
-    
-    //step 1. Create function skeleton, 'func'.
-    //---------------------------------------------------------------------------------------
-    SgFunctionParameterList* parameterList = buildFunctionParameterList( );
-    SgFunctionDeclaration* func = Outliner::createFuncSkeleton( func_name_str, buildVoidType( ), parameterList, scope );
-    ROSE_ASSERT( func );
-    if( SageInterface::is_Cxx_language( ) || is_mixed_C_and_Cxx_language( ) )
-    {   // Enable C code to call this outlined function making the function 'extern "C"'
-        func->get_declarationModifier( ).get_storageModifier( ).setExtern( );
-        func->set_linkage( "C" );
-    }
-    
-    //step 2. Create the function body
-    //---------------------------------------------------------------------------------------
-    SgBasicBlock * func_body = func->get_definition( )->get_body( );
-    ROSE_ASSERT( func_body != NULL );
-    
-    // copy all statements from 's' until we find the sections block: local declarations
-    SgStatementPtrList & stmt_list = s->get_statements( );
-    SgStatementPtrList::iterator it = stmt_list.begin( );
-    while( !isSgOmpSectionStatement( *it ) )
-    {
-        appendStatement( SageInterface::copyStatement( *it ), func_body );
-        ++it;
-    }
-    ROSE_ASSERT( isSgOmpSectionStatement( *it ) );
-    
-    // Create the Nanos worksharing that will iterate over the sections
-    //     nanos_ws_item_loop_t nanos_item_loop;
-    //     err = nanos_worksharing_next_item( wsd, ( void ** ) &nanos_item_loop );
-    //     if( err != 0 /*NANOS_OK*/ )
-    //         nanos_handle_error( err );
-    SgType * nanos_item_loop_type = buildOpaqueType( "nanos_ws_item_loop_t", func_body );   // We do not create the type because we dont want it to cast to 'struct'
-    SgVariableDeclaration* nanos_item_loop = buildVariableDeclaration( "nanos_item_loop", nanos_item_loop_type, NULL, func_body );
-    SgExprListExp * nanos_next_item_params = buildExprListExp( buildOpaqueVarRefExp( "wsd", func_body ),
-                                                               buildCastExp( buildAddressOfOp( buildVarRefExp( nanos_item_loop ) ),
-                                                                             buildPointerType( buildPointerType( buildVoidType( ) ) ) ) );
-    SgType * nanos_err_type = buildOpaqueType( "nanos_err_t", func_body );
-    SgFunctionCallExp * nanos_next_item_call = buildFunctionCallExp( "nanos_worksharing_next_item", nanos_err_type, nanos_next_item_params, func_body );
-    SgInitializer * nanos_next_item_init = buildAssignInitializer( nanos_next_item_call, nanos_err_type );
-    SgVariableDeclaration * nanos_next_item_error = buildVariableDeclaration( "nanos_err", nanos_err_type, nanos_next_item_init, func_body );
-    SgStatement * nanos_handle_error = buildFunctionCallStmt( "nanos_handle_error", buildVoidType( ), 
-                                                              buildExprListExp( buildVarRefExp( nanos_next_item_error ) ), func_body );
-    SgStatement * nanos_next_item_check_result = buildIfStmt( buildNotEqualOp( buildVarRefExp( nanos_next_item_error ), buildIntVal( 0 ) ),
-                                                              nanos_handle_error, NULL );
-    appendStatement( nanos_item_loop, func_body );
-    appendStatement( nanos_next_item_error, func_body );
-    appendStatement( nanos_next_item_check_result, func_body );
-    
-    // Nanos worksharing iteraton
-    //    while( nanos_item_loop.execute ) {
-    //        int i;
-    //        for( i = nanos_item_loop.lower; i <= nanos_item_loop.upper; ++i ) {
-    //            switch( index ) {
-    //                case 0: /*code from section 0*/
-    //                case 1: /*code from section 1*/
-    //                ...
-    //            }
-    //        }
-    //        err = nanos_worksharing_next_item( data->wsd, ( void ** ) &nanos_item_loop );
-    //    }
-    SgStatement * while_cond =  buildExprStatement( buildDotExp( buildVarRefExp( nanos_item_loop ), 
-                                                                 buildOpaqueVarRefExp( "execute", func_body ) ) );
-    SgBasicBlock * while_body = buildBasicBlock( );
-    SgVariableDeclaration * for_loop_it = buildVariableDeclaration( "nanos_item_iter", buildIntType( ), NULL, while_body );
-    SgStatement * for_init = buildAssignStatement( buildVarRefExp( for_loop_it ), 
-                                                   buildDotExp( buildVarRefExp( nanos_item_loop ), buildOpaqueVarRefExp( "lower", while_body ) ) );
-    SgStatement * for_test = buildExprStatement( buildLessOrEqualOp( buildVarRefExp( for_loop_it ), 
-                                                                     buildDotExp( buildVarRefExp( nanos_item_loop ), 
-                                                                                  buildOpaqueVarRefExp( "upper", while_body ) ) ) );
-    SgExpression * for_incr = buildPlusPlusOp( buildVarRefExp( for_loop_it ), SgUnaryOp::postfix );
-    
-    SgSwitchStatement * switch_stmt = buildSwitchStatement(  buildVarRefExp( for_loop_it ), buildBasicBlock( ) );
-    Rose_STL_Container<SgNode *> section_list = NodeQuery::querySubTree( s, V_SgOmpSectionStatement );
-    int section_count = section_list.size( );
-    for( int i = 0; i < section_count; i++ )
-    {
-        SgBasicBlock * case_block = buildBasicBlock( isSgOmpSectionStatement( section_list[i] )->get_body( ) );
-        
-        // The lexically last section must contain the copy back statements ( lastprivate variables )
-        if( i == section_count - 1 )
-        {
-            for( std::set<SgInitializedName *>::iterator it = restoreVars.begin( ); it != restoreVars.end( ); ++it )
-            {
-                SgInitializedName * orig_var = *it;
-                ROSE_ASSERT( *it != NULL );
-                std::string private_name = "_p_" + orig_var->get_name( );   // Lastprivates are always passed to the outlined function as pointer
-        
-                // We savely dereference this pointer because Nanos passes all Lastprivate variables by pointer
-                SgStatement * copy_back_stmt = buildAssignStatement( buildVarRefExp( orig_var, case_block ),
-                                                                     buildVarRefExp( private_name, case_block ) );
-                appendStatement( copy_back_stmt, case_block );
-            }
-        }
-        appendStatement( buildBreakStmt( ), case_block );
-        SgCaseOptionStmt * option_stmt = buildCaseOptionStmt( buildIntVal( i ), case_block );
-        
-        switch_stmt->append_case( option_stmt );
-    }
-    
-    SgForStatement * for_loop = buildForStatement( for_init, for_test, for_incr, switch_stmt );
-    SgStatement * next_item_call = buildFunctionCallStmt( "nanos_worksharing_next_item", nanos_err_type, nanos_next_item_params, func_body );
-    while_body->append_statement( for_loop_it );
-    while_body->append_statement( for_loop );
-    while_body->append_statement( next_item_call );
-    SgWhileStmt * nanos_while = buildWhileStmt( while_cond, while_body );
-    appendStatement( nanos_while, func_body );
-    
-    if( Outliner::useNewFile )
-        ASTtools::setSourcePositionAtRootAndAllChildrenAsTransformation( func_body );
-    
-    //step 3: variable handling: create parameters, packing and unpacking statements and replace variables
-    //---------------------------------------------------------------------------------------
-    unpacking_stmts = Outliner::variableHandling( syms, pdSyms, restoreVars, struct_decl, func );
-    
-    //step 4: parameters checking
-    //---------------------------------------------------------------------------------------
-    // Member 'wsd' is only needed when there is a reduction performed sections construct
-    // But we add it always to match the header of the Nanos sections method
-    SgFunctionParameterList * params = func->get_parameterList( );
-    SgInitializedName * wsd_param = buildInitializedName( "wsd", buildPointerType( buildOpaqueType( "nanos_ws_desc_t", func_body ) ) );
-    SageInterface::appendArg( params, wsd_param );
-    func->set_type( buildFunctionType( func->get_type()->get_return_type( ), 
-                    buildFunctionParameterTypeList( params ) ) );
-    
-    // Retest this...
-    ROSE_ASSERT( func_body->get_parent( ) == func->get_definition( ) );
-    ROSE_ASSERT( scope->lookup_function_symbol( func->get_name( ) ) );
-    
-    return func;
-}
-
-//! A helper function to generate explicit section
-//! Inspired in method 'generateOutlinedTask'
-SgFunctionDeclaration* generateOutlinedSections( SgNode * node, std::string & wrapper_name, ASTtools::VarSymSet_t & syms, 
-                                                 std::set<SgInitializedName *> & readOnlyVars, ASTtools::VarSymSet_t & pdSyms3, 
-                                                 SgClassDeclaration * & struct_decl )
-{
-    ROSE_ASSERT( node != NULL );
-    SgOmpClauseBodyStatement * target = isSgOmpClauseBodyStatement( node );
-    ROSE_ASSERT( target != NULL );
-    
-    SgOmpSectionsStatement* omp_sections = isSgOmpSectionsStatement( node );
-    ROSE_ASSERT( omp_sections != NULL );
-    SgStatement * sections_body =  omp_sections->get_body( );
-    ROSE_ASSERT( sections_body != NULL );
-    
-    // Initialize outliner 
-    Outliner::useParameterWrapper = true; 
-    Outliner::useStructureWrapper = true;
-    SgBasicBlock* body_block = Outliner::preprocess( sections_body );
-        
-    // Variable handling is done after Outliner::preprocess() to ensure a basic block for the body,
-    // but before calling the actual outlining.
-    // This simplifies the outlining since firstprivate, private variables are replaced 
-    // with their local copies before outliner is used 
-    transOmpVariables( target, body_block );
-    
-    std::string func_name = Outliner::generateFuncName( target );
-    SgGlobal* g_scope = SageInterface::getGlobalScope( node );
-    ROSE_ASSERT( g_scope != NULL );
-    
-    // This step is less useful for private, firstprivate, and reduction variables
-    // since they are already handled by transOmpVariables(). 
-    Outliner::collectVars( body_block, syms );
-    
-    std::set<SgInitializedName *> restoreVars;
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-    // We have to add the reduction symbols to the 'syms' list
-    // because they have been considered firstprivate during "transOmpVariables"
-    // and Nanos avoids the copyBack statement ( it is performed transparently ) 
-    // that allows 'collectVars' to take into account these symbols
-    ASTtools::VarSymSet_t red_syms;
-    SgInitializedNamePtrList red_vars = collectClauseVariables( target, V_SgOmpReductionClause );
-    convertAndFilter( red_vars, red_syms );
-    set_union( syms.begin( ), syms.end(),
-               red_syms.begin( ), red_syms.end( ),
-               std::inserter( syms, syms.begin( ) ) );
-    // Lastprivate variables have to be passed by pointer to allow the copy back in the outlined function
-    ASTtools::VarSymSet_t lp_syms;
-    SgInitializedNamePtrList lp_vars = collectClauseVariables( target, V_SgOmpLastprivateClause );
-    convertAndFilter( lp_vars, lp_syms );
-    set_union( syms.begin( ), syms.end(),
-               lp_syms.begin( ), lp_syms.end( ),
-               std::inserter( syms, syms.begin( ) ) );
-    
-    // Lastprivate variables must be copied back after sections execution, so we use restoreVars to store them
-    restoreVars.insert( lp_vars.begin( ), lp_vars.end( ) );
-#endif
-    
-    // Assume all parameters need to be passed by reference/pointers first
-    ASTtools::VarSymSet_t pSyms, fpSyms,reductionSyms, pdSyms;
-    std::copy( syms.begin( ), syms.end( ), std::inserter( pdSyms, pdSyms.begin( ) ) );
-    
-    // Exclude firstprivate variables: they are read only in fact
-    // TODO keep class typed variables!!! even if they are firstprivate or private!! 
-    SgInitializedNamePtrList fp_vars = collectClauseVariables( target, V_SgOmpFirstprivateClause );
-    ASTtools::VarSymSet_t fp_syms, pdSyms2;
-    convertAndFilter( fp_vars, fp_syms );
-    set_difference( pdSyms.begin( ), pdSyms.end( ),
-                    fp_syms.begin( ), fp_syms.end( ),
-                    std::inserter( pdSyms2, pdSyms2.begin( ) ) );
-    
-    // Similarly , exclude private variable, also read only
-    SgInitializedNamePtrList p_vars = collectClauseVariables( target, V_SgOmpPrivateClause );
-    ASTtools::VarSymSet_t p_syms; //, pdSyms3;
-    convertAndFilter( p_vars, p_syms );
-    //TODO keep class typed variables!!! even if they are firstprivate or private!! 
-    set_difference( pdSyms2.begin( ), pdSyms2.end( ),
-                    p_syms.begin( ), p_syms.end( ),
-                    std::inserter( pdSyms3, pdSyms3.begin( ) ) );
-
-    // Add sizes of array variables when those are also variables
-    ASTtools::VarSymSet_t new_syms;
-    for (ASTtools::VarSymSet_t::const_iterator i = syms.begin (); i != syms.end (); ++i)
-    {
-        SgType* i_type = (*i)->get_declaration()->get_type();
-    
-        while (isSgArrayType(i_type))
-        {
-            // Get most significant dimension
-            SgExpression* index = ((SgArrayType*) i_type)->get_index();
-        
-            // Get the variables used to compute the dimension
-            // FIXME We insert a new statement and delete it afterwards in order to use "collectVars" function
-            //       Think about implementing an specific function for expressions
-            ASTtools::VarSymSet_t a_syms, a_pSyms;
-            SgExprStatement* index_stmt = buildExprStatement(index);
-            appendStatement(index_stmt, body_block);
-            Outliner::collectVars(index_stmt, a_syms);
-            SageInterface::removeStatement(index_stmt);
-            for(ASTtools::VarSymSet_t::iterator j = a_syms.begin(); j != a_syms.end(); ++j)
-            {
-                const SgVariableSymbol* s = *j;
-                new_syms.insert(s);   // If the symbol is not in the symbol list, it is added
-            }
-            
-            // Advance over the type
-            i_type = ((SgArrayType*) i_type)->get_base_type();
-        }
-    }
-    for (ASTtools::VarSymSet_t::const_iterator i = new_syms.begin (); i != new_syms.end (); ++i)
-    {
-        const SgVariableSymbol* s = *i;
-        syms.insert(s);
-    }
-    
-    // Data structure used to wrap parameters
-    struct_decl = Outliner::generateParameterStructureDeclaration( body_block, func_name, syms, pdSyms3, g_scope );
-    
-    SgFunctionDeclaration * result;
-
-    //Generate the outlined function
-    /* Parameter list
-        SgBasicBlock* s,  // block to be outlined
-        const string& func_name_str, // function name
-        const ASTtools::VarSymSet_t& syms, // parameter list for all variables to be passed around
-        const ASTtools::VarSymSet_t& pdSyms, // variables must use pointer dereferencing (pass-by-reference)
-        const ASTtools::VarSymSet_t& psyms, // private or dead variables (not live-in, not live-out)
-        SgClassDeclaration* struct_decl,  // an optional wrapper structure for parameters
-        Depending on the internal flag, unpacking/unwrapping statements are generated inside the outlined function to use wrapper parameters.
-     */
-    std::set<SgVariableDeclaration *> unpacking_stmts;
-    result = generateSectionsFunction( body_block, func_name, syms, pdSyms3, restoreVars, struct_decl, g_scope, unpacking_stmts );
-    ROSE_ASSERT( result != NULL );
-    
-    Outliner::insert( result, g_scope, body_block );
-    
-    if( result->get_definingDeclaration( ) != NULL )
-        SageInterface::setStatic( result->get_definingDeclaration( ) );
-    if( result->get_firstNondefiningDeclaration( ) != NULL )
-        SageInterface::setStatic( result->get_firstNondefiningDeclaration( ) );
-    
-    // We have to check here whether there is a reduction clause
-    // Nanos outlines reductions in a different way than other RTLs
-    // Whereas gomp and omni do the transformation in transOmpVariables 
-    if( hasClause( target, V_SgOmpReductionClause ) )
-    {
-        // Modify the code inside the sections function in order to perform the reduction
-        NanosLowering::generate_nanos_reduction( result, target, struct_decl, func_name, syms, pdSyms3, unpacking_stmts );
-    }
-    
-    // Generate packing statements
-    // must pass 'target', not 'body_block' to get the right scope in which the declarations are inserted
-    wrapper_name = Outliner::generatePackingStatements( target, syms, pdSyms3, struct_decl );
     
     return result;
 }

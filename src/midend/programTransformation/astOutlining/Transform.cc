@@ -20,6 +20,7 @@
 #include "rose_config.h"
 
 #include "nanos_ompss.h"
+
 // =====================================================================
 
 using namespace std;
@@ -629,7 +630,8 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
   string wrapper_name= generateFuncArgName(target); //"__out_argv";
 
 #ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
-// Nanos always requires the struct
+  // GOMP and OMNI RTLs do not requiere of an structure when there is no parameter to be passed to the outlined function.
+  // On the contrary, NANOS methods always require an struct, so we build an structure with no member.
   if (var_count==0) 
     return wrapper_name;
 #endif

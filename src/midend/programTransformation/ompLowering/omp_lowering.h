@@ -2,6 +2,8 @@
 #include <ASTtools.hh>
 //#include "sage3basic.h"
 
+#include "nanos_ompss.h"
+
 /*!
  * Translation (directive lowering) support for OpenMP 3.0 C/C++
  *
@@ -201,34 +203,16 @@ namespace OmpSupport
   
   namespace NanosLowering {
     
-    // -------------------------------------------------------------- //
-    // ------------------------ LOOP METHODS ------------------------ //
+    //! Outlines a function containing an OpenMP worksharing (loop or sections) and includes the Nanos calls to execute it in parallel
+    SgFunctionDeclaration* generateOutlinedWorksharing( SgOmpClauseBodyStatement * source, std::string & wrapper_name, 
+                                                        ASTtools::VarSymSet_t& syms, ASTtools::VarSymSet_t& pdSyms3, 
+                                                        SgClassDeclaration * & struct_decl, worksharing_type_enum ws_type );
     
-    //! A helper function to generate explicit task for omp loop
-    //! Inspired in method 'generateOutlinedTask' and only used when Nanos OpenMP RTL is configured
-    SgFunctionDeclaration* generateOutlinedLoop( SgOmpForStatement* source, std::string& wrapper_name, 
-                                                 ASTtools::VarSymSet_t& syms, ASTtools::VarSymSet_t& pdSyms3, 
-                                                 SgClassDeclaration*& struct_decl );
-    
-    // -------------------------------------------------------------- //
-    // ---------------------- SECTIONS METHODS ---------------------- //
-    
-    //! A helper function to generate explicit task for omp section
-    //! Inspired in method 'generateOutlinedTask' and only used when Nanos OpenMP RTL is configured
-    SgFunctionDeclaration* generateOutlinedSections( SgNode * source, std::string & wrapper_name, ASTtools::VarSymSet_t& syms, 
-                                                     std::set<SgInitializedName *> & readOnlyVars, ASTtools::VarSymSet_t& pdSyms3, 
-                                                     SgClassDeclaration * & struct_decl );
-    
-    // -------------------------------------------------------------- //
-    // ---------------------- REDUCTION METHODS --------------------- //
-    
+    //! Outlines a function containing an OpenMP and includes the Nanos calls to execute it in parallel
     void generate_nanos_reduction( SgFunctionDeclaration * func,
                                    SgOmpClauseBodyStatement * target, SgClassDeclaration*& struct_decl, std::string func_name,
                                    ASTtools::VarSymSet_t syms, ASTtools::VarSymSet_t pdSyms, 
                                    std::set<SgVariableDeclaration *> unpacking_stmts );
-    
-    // -------------------------------------------------------------- //
-    // ----------------------- COMMON METHODS ----------------------- //
     
     //! Create an empty object with type the struct to be passed to an OpenMP outlined function in Nanos
     //! Returns an expression containing the new object

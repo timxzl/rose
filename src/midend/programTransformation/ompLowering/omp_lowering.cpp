@@ -4,7 +4,6 @@
 #include "sageBuilder.h"
 #include "Outliner.hh"
 
-#include "nanos_ompss.h"
 #include "rose_config.h"
 
 using namespace std;
@@ -1399,8 +1398,7 @@ SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_operand, SgE
     SgExpression * param_stride = SageInterface::copyExpression( orig_stride );
     
     // this function will generate the outlined function and the struct to be passed as argument
-    SgFunctionDeclaration* outlined_func = 
-            NanosLowering::generateOutlinedLoop( target1, wrapper_name, syms, pdSyms3, struct_decl );
+    SgFunctionDeclaration* outlined_func = NanosLowering::generateOutlinedWorksharing( target1, wrapper_name, syms, pdSyms3, struct_decl, e_ws_loop );
 
     // step 4.Generate the call to the XOMP routine that wraps Nanos call
     SgExprListExp* parameters  = NULL;
@@ -3073,9 +3071,8 @@ std::map <SgVariableSymbol *, bool> collectVariableAppearance (SgNode* root)
     std::string wrapper_name;
     ASTtools::VarSymSet_t syms;
     ASTtools::VarSymSet_t pdSyms3; // store all variables which should be passed by reference
-    std::set<SgInitializedName*> readOnlyVars; // not used since OpenMP provides all variable controlling details already. side effect analysis is essentially not being used.
     SgClassDeclaration* struct_decl = NULL;
-    SgFunctionDeclaration* outlined_func = NanosLowering::generateOutlinedSections( node, wrapper_name, syms, readOnlyVars, pdSyms3, struct_decl );
+    SgFunctionDeclaration* outlined_func = NanosLowering::generateOutlinedWorksharing( target, wrapper_name, syms, pdSyms3, struct_decl, e_ws_sections );
     
     // Replace the sections code by the call to the Nanos RTL Sections routine
     /*extern void XOMP_sections_for_NANOS (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
@@ -4017,7 +4014,6 @@ static void insertOmpLastprivateCopyBackStmts(SgStatement* ompStmt, vector <SgSt
   SgStatement* save_stmt = NULL;
   if (isSgOmpForStatement(ompStmt))
   {
-#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
     ROSE_ASSERT (orig_loop_upper != NULL);
     Rose_STL_Container <SgNode*> loops = NodeQuery::querySubTree (bb1, V_SgForStatement);
     ROSE_ASSERT (loops.size() != 0); // there must be 1 for loop under SgOmpForStatement
@@ -4061,14 +4057,10 @@ static void insertOmpLastprivateCopyBackStmts(SgStatement* ompStmt, vector <SgSt
     if_cond_stmt = buildExprStatement(buildAndOp(buildNotEqualOp(buildVarRefExp(loop_index, bb1), copyExpression(loop_lower)), if_cond)) ;
     SgStatement* true_body = buildAssignStatement(buildVarRefExp(orig_var, bb1), buildVarRefExp(local_decl));
     save_stmt = buildIfStmt(if_cond_stmt, true_body, NULL);
-#else       //USE_ROSE_NANOS_OPENMP_LIBRARY
-    save_stmt = buildAssignStatement(buildVarRefExp(orig_var, bb1), buildVarRefExp(local_decl));
-#endif
     end_stmt_list.push_back(save_stmt);
   }
   else if (isSgOmpSectionsStatement(ompStmt))
   {
-#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
     ROSE_ASSERT (orig_loop_upper != NULL);
     Rose_STL_Container <SgNode*> while_stmts = NodeQuery::querySubTree (bb1, V_SgWhileStmt);
     ROSE_ASSERT  (while_stmts.size()!=0);
@@ -4090,11 +4082,6 @@ static void insertOmpLastprivateCopyBackStmts(SgStatement* ompStmt, vector <SgSt
     SgStatement* true_body = buildAssignStatement(buildVarRefExp(orig_var, bb1), buildVarRefExp(local_decl));
     save_stmt = buildIfStmt(if_cond_stmt, true_body, NULL);
     end_stmt_list.push_back(save_stmt);
-#else       // USE_ROSE_NANOS_OPENMP_LIBRARY
-    // NANOS substitutes the code of the sections
-    // This function is called from transOmpVariables, when the transformation is not yet performed
-    // For that, we insert manually the copy back statatements after the transformation 
-#endif
   }
   else  
   {
@@ -4555,9 +4542,14 @@ static void insertInnerThreadBlockReduction(SgOmpClause::omp_reduction_operator_
       // step 3. Save the value back for lastprivate and reduction
       if (isInClauseVariableList(orig_var, clause_stmt, V_SgOmpLastprivateClause))
       {
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
         insertOmpLastprivateCopyBackStmts (ompStmt, end_stmt_list, bb1, orig_var, local_decl, orig_loop_upper);
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-        // Lastprivate variables in Nanos must be propagated as Type * lp_var.
+#else
+        // For Nanos the code in a Loop or a Sections is tranformed into a iteration over a worksharing object
+        // Because of this transformation , we cannot introduce the copy back statments now, before the transformation is performed
+        // We will insert manually the copy back statatements after the transformation 
+    
+        // Lastprivate variables in Nanos must be propagated as Type * lp_var to allow the copy back in the outlined function
         // Since the variable is passed as pointer, the unpacking statement must use *lp_var, instead of lp_var
         var_set.insert( orig_symbol );
 #endif
