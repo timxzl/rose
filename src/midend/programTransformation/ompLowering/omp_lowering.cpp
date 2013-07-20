@@ -32,18 +32,6 @@ static std::vector<SgVariableDeclaration*> per_block_declarations;
 
 #define ENABLE_XOMP 1  // Enable the middle layer (XOMP) of OpenMP runtime libraries
 
-void convertAndFilter (const SgInitializedNamePtrList input, ASTtools::VarSymSet_t& output)
-  {
-    for (SgInitializedNamePtrList::const_iterator iter =  input.begin(); iter != input.end(); iter++)
-    {
-      const SgInitializedName * iname = *iter;
-      SgVariableSymbol* symbol = isSgVariableSymbol(iname->get_symbol_from_symbol_table ()); 
-      ROSE_ASSERT (symbol != NULL);
-      if (! isSgClassType(symbol->get_type()))
-        output.insert(symbol);
-    }
-  }
-
   
 namespace OmpSupport
 {
@@ -796,6 +784,18 @@ SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_operand, SgE
     generateInitializingLoop( left_operand, right_operand, bb );
     
     return bb;
+}
+
+void convertAndFilter (const SgInitializedNamePtrList input, ASTtools::VarSymSet_t& output)
+{
+    for (SgInitializedNamePtrList::const_iterator iter =  input.begin(); iter != input.end(); iter++)
+    {
+        const SgInitializedName * iname = *iter;
+        SgVariableSymbol* symbol = isSgVariableSymbol(iname->get_symbol_from_symbol_table ()); 
+        ROSE_ASSERT (symbol != NULL);
+        if (! isSgClassType(symbol->get_type()))
+            output.insert(symbol);
+    }
 }
 
 #ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
