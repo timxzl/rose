@@ -45,18 +45,6 @@ using namespace OmpSupport;
   }
 #endif
 
-static void convertAndFilter (const SgInitializedNamePtrList input, ASTtools::VarSymSet_t& output)
-  {
-    for (SgInitializedNamePtrList::const_iterator iter =  input.begin(); iter != input.end(); iter++)
-    {
-      const SgInitializedName * iname = *iter;
-      SgVariableSymbol* symbol = isSgVariableSymbol(iname->get_symbol_from_symbol_table ()); 
-      ROSE_ASSERT (symbol != NULL);
-      if (! isSgClassType(symbol->get_type()))
-        output.insert(symbol);
-    }
-  }
-
 
 //! A helper function to generate implicit or explicit task for either omp parallel or omp task
 // It calls the ROSE AST outliner internally. 
