@@ -1,5 +1,4 @@
 #include "astQuery.h"
-#include <ASTtools.hh>
 //#include "sage3basic.h"
 
 #include "nanos_ompss.h"
@@ -194,7 +193,7 @@ namespace OmpSupport
   
   //! Generate a symbol set from an initialized name list, 
   //filter out struct/class typed names
-  void convertAndFilter (const SgInitializedNamePtrList input, ASTtools::VarSymSet_t& output);
+  void convertAndFilter (const SgInitializedNamePtrList input, std::set<const SgVariableSymbol*>& output);
   
   //! Special handling when trying to build and insert a variable declaration into a BB within Fortran OpenMP code
   SgVariableDeclaration * buildAndInsertDeclarationForOmp(const std::string &name, SgType *type, SgInitializer *varInit, SgBasicBlock *orig_scope);
@@ -206,14 +205,14 @@ namespace OmpSupport
     
     //! Outlines a function containing an OpenMP worksharing (loop or sections) and includes the Nanos calls to execute it in parallel
     SgFunctionDeclaration* generateOutlinedWorksharing( SgOmpClauseBodyStatement * source, std::string & wrapper_name, 
-                                                        ASTtools::VarSymSet_t& syms, ASTtools::VarSymSet_t& pdSyms3, 
+                                                        std::set<const SgVariableSymbol*>& syms, std::set<const SgVariableSymbol*>& pdSyms3, 
                                                         SgClassDeclaration * & struct_decl, worksharing_type_enum ws_type );
     
     //! Outlines a function containing an OpenMP and includes the Nanos calls to execute it in parallel
     void generate_nanos_reduction( SgFunctionDeclaration * func,
                                    SgOmpClauseBodyStatement * target, SgClassDeclaration*& struct_decl, std::string func_name,
-                                   ASTtools::VarSymSet_t syms, ASTtools::VarSymSet_t pdSyms, 
-                                   std::set<SgVariableDeclaration *> unpacking_stmts );
+                                   std::set<const SgVariableSymbol*> syms, std::set<const SgVariableSymbol*> pdSyms, 
+                                   std::set<SgVariableDeclaration*> unpacking_stmts );
     
     //! Create an empty object with type the struct to be passed to an OpenMP outlined function in Nanos
     //! Returns an expression containing the new object
