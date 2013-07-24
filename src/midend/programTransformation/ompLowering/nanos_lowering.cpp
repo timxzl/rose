@@ -1240,10 +1240,6 @@ SgExpression* build_nanos_get_alignof( SgStatement* ancestor, std::string& wrapp
     SgBasicBlock* func_body = func_def->get_definition( )->get_body( );
     ROSE_ASSERT( func_body != NULL );
     SgSymbol* struct_sym = struct_decl->search_for_symbol_from_symbol_table( );
-    // FIXME: We should use here:
-    // AstUnparseAttribute* code = new AstUnparseAttribute("__alignof__(struct " + struct_sym->get_name() + ");", AstUnparseAttribute::e_inside);
-    // ROSE_ASSERT(code != NULL);
-    // func_body->addNewAttribute("alignof", code);
     attachArbitraryText( func_body, "  return __alignof__(struct " + struct_sym->get_name() + ");", PreprocessingInfo::inside );
     
     // Build the definition and insert it before the englobing funtion of the original OpenMP pragma
@@ -1398,16 +1394,17 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
         SgExpression* dep_exp = *dep;
         SgExprListExp * dep_dims_initializers = buildExprListExp( );
         
-        // Get the list of array access, if exist
+        // Get the list of array access, if exists
         SgExprListExp * array_accesses_l = buildExprListExp( );
-        SgExpression * dep_exp_tmp = dep_exp;
+        SgExpression * dep_exp_tmp = ( ( (isSgShapeExpression( dep_exp ) != NULL) ) ?  isSgShapeExpression( dep_exp )->get_rhs_operand( ) : dep_exp );
         while( isSgPntrArrRefExp( dep_exp_tmp ) )
         {
             array_accesses_l->prepend_expression( isSgPntrArrRefExp( dep_exp_tmp )->get_rhs_operand( ) );
             dep_exp_tmp = isSgPntrArrRefExp( dep_exp_tmp )->get_lhs_operand( );
         }
+        SgExpressionPtrList array_accesses = array_accesses_l->get_expressions( );
         
-        // Get the size of dimensions, if exist
+        // Compute the dimensions from the type of the base symbol and possible shaping expressions
         SgExprListExp * array_dims_l = buildExprListExp( );
         unsigned int n_dims = 0;
         if( isSgShapeExpression( dep_exp ) )
@@ -1415,54 +1412,62 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
             array_dims_l = isSgExprListExp( isSgShapeExpression( dep_exp )->get_lhs_operand( ) );
             n_dims = array_dims_l->get_expressions( ).size( );
         }
-        // After reshaping, we can have array type with the
-        {
-            SgVariableSymbol * base_sym = get_dependecy_base_symbol_exp( *dep )->get_symbol( );
-            SgType * dep_type_tmp = base_sym->get_type( )->stripType( SgType::STRIP_POINTER_TYPE | SgType::STRIP_TYPEDEF_TYPE );
-            while( isSgArrayType( dep_type_tmp ) )
-            {
-                n_dims++;
-                array_dims_l->append_expression( isSgArrayType( dep_type_tmp )->get_index( ) );
-                dep_type_tmp = isSgArrayType( dep_type_tmp )->get_base_type( );
-            }
-            if( isSgPointerType( dep_type_tmp ) )
-            {
-                std::cerr << "Dependencies in a variable of pointer type without specifying a size are not supported" << std::endl;
-                ROSE_ABORT( );
-            }
-        }
-        
-        SgExpressionPtrList array_accesses = array_accesses_l->get_expressions( );
         SgExpressionPtrList array_dims = array_dims_l->get_expressions( );
-        if( array_dims.size( ) < array_accesses.size( ) )
+        SgVariableSymbol * base_sym = get_dependecy_base_symbol_exp( *dep )->get_symbol( );
+        SgType * dep_type_tmp = base_sym->get_type( )->stripType( SgType::STRIP_TYPEDEF_TYPE );
+        dep_exp_tmp = ( ( (isSgShapeExpression( dep_exp ) != NULL) ) ?  isSgShapeExpression( dep_exp )->get_rhs_operand( ) : dep_exp );
+        int n_pntr_type = 0, n_arr_type = 0, n_shape_expr = n_dims;
+        while( isSgArrayType( dep_type_tmp ) || isSgPointerType( dep_type_tmp ) )
         {
-            for( unsigned int i = array_dims.size( ); i < array_accesses.size(); ++i )
-            {
-                SgExpression * access = array_accesses[array_accesses.size() - i];
-                SgExpression * dim_size;
-                if( isSgArraySectionExp( access ) )
+            if( isSgPointerType( dep_type_tmp ) )
+            {   // We need a shaping expression to recover the size, or, otherwise, an arry section
+                n_pntr_type++;
+                if( n_pntr_type > n_shape_expr )
                 {
-                    dim_size = isSgArraySectionExp( access )->get_length( );
+                    if( ( isSgPntrArrRefExp( dep_exp_tmp ) == NULL ) || 
+                        ( ( isSgPntrArrRefExp( dep_exp_tmp ) != NULL ) && ( isSgArraySectionExp( isSgPntrArrRefExp( dep_exp_tmp )->get_rhs_operand( ) ) == NULL ) ) )
+                    {
+                        std::string message = "Dependencies in a variable of pointer type without specifying a size are not supported. Add shaping expression to dependency " + ( *dep )->unparseToString( );
+                        ROSE_ABORT( message.c_str( ) );
+                    }
+                    else
+                    {
+                        n_dims++;
+                        SgArraySectionExp * current_section = isSgArraySectionExp( array_accesses[n_pntr_type - 1] );
+                        SgExpression * accessed_size = isSgArraySectionExp( isSgPntrArrRefExp( dep_exp_tmp )->get_rhs_operand( ) )->get_length( );
+                        array_dims_l->append_expression( accessed_size );
+                        dep_exp_tmp = isSgPntrArrRefExp( dep_exp_tmp )->get_lhs_operand( );
+                    }
+                }
+                // else we already have the size of this dimension from the shape expressions
+                dep_type_tmp = isSgPointerType( dep_type_tmp )->get_base_type( );
+            }
+            else
+            {
+                n_arr_type++;
+                if( n_arr_type <= n_shape_expr )
+                {   // Check that dimension corresponds to the one specified in the reshaping
+                    if( isSgArrayType( dep_type_tmp )->get_index( ) != array_dims[n_arr_type - 1] )
+                    {
+                        std::string message = "Size specified in a shape expression " + ( *dep )->unparseToString( ) + " does not match with the size of the array it refers to ";
+                        ROSE_ABORT( message.c_str( ) );
+                    }
                 }
                 else
-                {
-                    dim_size = buildIntVal( 1 );
+                {   // Get the dimension size
+                    n_dims++;
+                    array_dims_l->append_expression( isSgArrayType( dep_type_tmp )->get_index( ) );
+                    dep_type_tmp = isSgArrayType( dep_type_tmp )->get_base_type( );
                 }
-                array_dims_l->prepend_expression( dim_size );
-                n_dims++;
             }
-            array_dims = array_dims_l->get_expressions( );
         }
-        else if( array_dims.size( ) > array_accesses.size( ) )
-        {
-            for( unsigned int i = array_accesses.size( ); i < array_dims.size(); ++i )
-            {
-                array_accesses_l->prepend_expression( array_dims[i] );
-            }
-            array_accesses = array_accesses_l->get_expressions( );
-        }
-        ROSE_ASSERT( array_dims.size( ) == array_accesses.size( ) );
-        
+        array_dims = array_dims_l->get_expressions( );
+
+        // Check the results of computing dimension size and array accesses
+        int n_acc = array_accesses.size( );
+        ROSE_ASSERT( n_dims >= n_acc );
+
+        // Generate the initialization expressions out of the computed information
         SgType * dep_base_type = dep_exp->get_type( )->stripType( SgType::STRIP_POINTER_TYPE | SgType::STRIP_ARRAY_TYPE | SgType::STRIP_TYPEDEF_TYPE );
         SgExpression * dim_size, * lower_bound, * length;
         if( n_dims == 0 )
@@ -1478,32 +1483,39 @@ void build_nanos_dependencies_dimension_array( std::string & all_dims_name, std:
         }
         else
         {
+            SgExpression * last_dim_size;   // For the last dimension, the size of the dependence depens on the kind of access:
+                                            // - scalars: 1
+                                            // - arrays:     - element access: dimension size
+                                            //               - array section: dimension of the section
             for( unsigned int i = 0; i < n_dims; ++i )
             {
-                if( i < array_accesses.size( ) )
+                if( i < ( n_dims - n_acc ) )
+                {   // No access, the whole dimension is a dependence
+                    lower_bound = buildIntVal( 0 );
+                    length = array_dims[i];
+                    last_dim_size = length;
+                }
+                else
                 {   // Only the accessed region becomes dependence
-                    SgExpression * current_access = array_accesses[i];
+                    SgExpression * current_access = array_accesses[i - ( n_dims - n_acc )];
                     if( isSgArraySectionExp( current_access ) )
                     {   // A section is defined for the current dimension
                         lower_bound = isSgArraySectionExp( current_access )->get_lower_bound( );
                         length = isSgArraySectionExp( current_access )->get_length( );
+                        last_dim_size = length;
                     }
                     else
                     {   // Single element access
                         lower_bound = current_access;
                         length = buildIntVal( 1 );
+                        last_dim_size = array_dims[i];
                     }
-                }
-                else
-                {   // No access, the whole dimension is a dependence
-                    lower_bound = buildIntVal( 0 );
-                    length = buildSubtractOp( array_dims[i], buildIntVal( 1 ) );
                 }
                 
                 if( i < n_dims - 1 )
                 {   // Dimensions other thant the least significant one are expressed in units
                     dep_dims_initializers->prepend_expression( buildAggregateInitializer (
-                            buildExprListExp( buildAssignInitializer( array_dims[i] ), 
+                            buildExprListExp( buildAssignInitializer( last_dim_size ), 
                                             buildAssignInitializer( lower_bound ), 
                                             buildAssignInitializer( length ) ) ) );
                 }
