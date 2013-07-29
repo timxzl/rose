@@ -247,12 +247,18 @@ void gatherReferences( const Rose_STL_Container< SgNode* >& expr, Rose_STL_Conta
     ROSE_ASSERT(file != NULL);    
     SgGlobal* globalscope = file->get_globalScope() ; //isSgGlobal(*i);
     ROSE_ASSERT (globalscope != NULL);
-    // Headers must be included before the preprocessing information to avoid variable name conflics between macro definitions and the header variables 
+    // Sara Royuela : we need nanos header to be included before any other preprocessing info (i.e.: #define)
+    //                to definition of global variables interfere with variables used in Nanos headers    
 #ifdef ENABLE_XOMP
     SageInterface::insertHeader("libxomp.h",PreprocessingInfo::before,false,globalscope);
 
     if (enable_accelerator)  // include inlined CUDA device codes
       SageInterface::insertHeader("xomp_cuda_lib_inlined.cu",PreprocessingInfo::after,false,globalscope);
+    
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+    SageInterface::insertHeader("libnanos.h",PreprocessingInfo::before,false,globalscope);
+#endif
+ 
 #else    
     if (rtl_type == e_omni)
       SageInterface::insertHeader("ompcLib.h",PreprocessingInfo::after,false,globalscope);
@@ -260,8 +266,6 @@ void gatherReferences( const Rose_STL_Container< SgNode* >& expr, Rose_STL_Conta
       SageInterface::insertHeader("libgomp_g.h",PreprocessingInfo::after,false,globalscope);
     else if (rtl_type == e_nanos)
     {
-       // Sara Royuela : we need nanos header to be included before any other preprocessing info (i.e.: #define)
-       //                to definition of global variables interfere with variables used in Nanos headers    
       SageInterface::insertHeader("libnanos.h", PreprocessingInfo::before,false,globalscope);
     }
     else
