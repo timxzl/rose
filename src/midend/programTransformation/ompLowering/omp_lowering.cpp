@@ -2904,7 +2904,8 @@ std::map <SgVariableSymbol *, bool> collectVariableAppearance (SgNode* root)
     ROSE_ASSERT(g_scope != NULL);
 
     std::set< SgInitializedName *> restoreVars;
-    SgFunctionDeclaration* result = Outliner::generateFunction(body_block, func_name, all_syms, addressOf_syms, restoreVars, NULL, g_scope);
+    std::set<SgVariableDeclaration *> unpacking_stmts;
+    SgFunctionDeclaration* result = Outliner::generateFunction(body_block, func_name, all_syms, addressOf_syms, restoreVars, NULL, g_scope, unpacking_stmts);
     result->get_functionModifier().setCudaKernel(); // add __global__ modifier
      // This one is not desired. It inserts the function to the end and prepend a prototype
     // Outliner::insert(result, g_scope, body_block); 
