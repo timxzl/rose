@@ -19,8 +19,6 @@
 
 #include "rose_config.h"
 
-#include "nanos_ompss.h"
-
 // =====================================================================
 
 using namespace std;
