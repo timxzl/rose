@@ -50,19 +50,13 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
         const std::string& func_name_str, // the name for the outlined function, we generate the name of struct based on this.
         const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
         ASTtools::VarSymSet_t& symsUsingAddress, // variables whose addresses are stored into the struct 
-        SgScopeStatement* func_scope, // the scope of the outlined function, could be different from s's global scope
-        bool nanos_ws,
-        const ASTtools::VarSymSet_t& nanos_red_syms ) 
+        SgScopeStatement* func_scope ) // the scope of the outlined function, could be different from s's global scope 
 {
     SgClassDeclaration* result = NULL;
     
-    // GOMP and OMNI RTLs do not requiere of an structure when there is no parameter to be passed to the outlined function.
-    // On the contrary, NANOS methods always require an struct, so we build an structure with no member.
-#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY   
     // no need to generate the declaration if no variables are to be passed
     if( syms.empty( ) ) 
         return result;
-#endif
     
     ROSE_ASSERT( s != NULL );
     ROSE_ASSERT( func_scope != NULL );
@@ -81,18 +75,6 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
     ROSE_ASSERT( def != NULL ); 
     SgScopeStatement* def_scope = isSgScopeStatement( def );
     ROSE_ASSERT( def_scope != NULL ); 
-
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-    // Sara Royuela: it is important that this member is the first in the struct
-    // It is expected to be there in method 'generateLoopFunction'
-//     if( nanos_ws )
-//     {
-//         string member_name = "wsd";
-//         SgType* member_type = buildOpaqueType( "nanos_ws_info_loop_t", getGlobalScope( s ) );
-//         SgVariableDeclaration * member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
-//         appendStatement( member_decl, def_scope );
-//     }
-#endif
 
     for( ASTtools::VarSymSet_t::const_iterator i = syms.begin( ); i != syms.end( ); ++i )
     { 
@@ -142,15 +124,6 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
         {   // First dimension is passed by pointer for all array symbols that are parameters
             member_type = buildPointerType( isSgArrayType( non_typef_type )->get_base_type( ) );
         }
-        
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-        // Force name and type of Nanos reduction symbols
-        if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
-        {
-            member_name = "g_th_" + member_name;
-            member_type = buildPointerType( buildArrayType( non_typef_type, buildIntVal( nanos_max_thread_num ) ) );
-        }
-#endif
         
         SgVariableDeclaration *member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
         appendStatement( member_decl, def_scope );
@@ -563,7 +536,7 @@ Outliner::outlineBlock (SgBasicBlock* s, const string& func_name_str)
  *            __out_argv.c[__i0__] = c[__i0__];
  *        __out_argv.d_p = ((void *)(&d));                  -> shared dynamic array
  */
-static SgStatement* build_array_packing_statement( SgExpression * lhs, SgExpression * & rhs, SgStatement * target )
+SgStatement* Outliner::build_array_packing_statement( SgExpression * lhs, SgExpression * & rhs, SgStatement * target )
 {
     SgScopeStatement * scope = target->get_scope( );
     
@@ -621,20 +594,17 @@ static SgStatement* build_array_packing_statement( SgExpression * lhs, SgExpress
  */
 std::string Outliner::generatePackingStatements( SgStatement* target, 
                                                  const ASTtools::VarSymSet_t & syms, const ASTtools::VarSymSet_t & pdsyms,
-                                                 SgClassDeclaration* struct_decl /* = NULL */, 
-                                                 const ASTtools::VarSymSet_t & nanos_red_syms /*= NULL*/ )
+                                                 SgClassDeclaration* struct_decl /* = NULL */ )
 {
 
   int var_count = syms.size();
   int counter=0;
   string wrapper_name= generateFuncArgName(target); //"__out_argv";
 
-#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
   // GOMP and OMNI RTLs do not requiere of an structure when there is no parameter to be passed to the outlined function.
   // On the contrary, NANOS methods always require an struct, so we build an structure with no member.
   if (var_count==0) 
     return wrapper_name;
-#endif
   
   SgScopeStatement* cur_scope = target->get_scope();
   ROSE_ASSERT( cur_scope != NULL);
@@ -679,43 +649,18 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
       //  __out_argv1__1527__.i = i;
       //  __out_argv1__1527__.sum_p = &sum;
       // Sara Royuela, Dec 12, 2012: Third type when LHS is an array, we must copy each position.
-      // Sara Royuela, Apr 30, 2013: Fourth type when packing variable that is a reduction symbol for Nanos RTL 
-      //                             These variables will always be pointers 
       SgInitializedName* i_name = (*i)->get_declaration();
       SgVariableSymbol * i_symbol = const_cast<SgVariableSymbol *>(*i);
       //SgType* i_type = i_symbol->get_type();
        string member_name= i_name->get_name ().str ();
 //     cout<<"Debug: Outliner::generatePackingStatements() symbol to be packed:"<<member_name<<endl;  
       
-      bool is_nanos_reduction_sym = false;
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-      if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
+      rhs = buildVarRefExp(i_symbol);
+      if (pdsyms.find(i_symbol) != pdsyms.end()) // pointer type
       {
-          member_name = "g_th_" + member_name + "_p";
-          rhs = buildAddressOfOp( buildVarRefExp( "g_th_" + i_name->get_name( ), cur_scope ) ); 
-          is_nanos_reduction_sym = true;
-      }
-#endif
-      if( !is_nanos_reduction_sym )
-      {
-          rhs = buildVarRefExp(i_symbol);
-          if (pdsyms.find(i_symbol) != pdsyms.end()) // pointer type
-          {
-              member_name = member_name+"_p";
-              // member_type = buildPointerType(member_type);
-#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-              if( !nanos_red_syms.empty( ) )
-              {   // Nanos reduction process outlines two times the same code:
-                  //    -1. Outline of the directive that contains the reduction
-                  //    -2. Outline a wraper to perform the reduction and re-outline the previous function
-                  // Because of that, members of the structure parameter to the outlined function 
-                  // that are not the reduction symbols but still shared, are converted to pointer two times.
-                  // So we dereference the parameter to keep the correct type.
-                  rhs = buildPointerDerefExp( rhs );
-              }
-#endif
-              rhs = buildAddressOfOp(rhs); 
-          }
+          member_name = member_name+"_p";
+          // member_type = buildPointerType(member_type);
+          rhs = buildAddressOfOp(rhs); 
       }
       lhs = buildDotExp ( buildVarRefExp(out_argv), buildVarRefExp (member_name, class_def));
       

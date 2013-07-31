@@ -203,6 +203,28 @@ namespace OmpSupport
   
   namespace NanosLowering {
     
+    /*!\brief Generate a struct declaration to wrap all variables to be passed to the outlined function
+     * There are two ways to wrap a variable: Using its value vs. Using its address (pointer type)
+     *
+     * This function will also insert the declaration inside the global scope point right before the outlining target
+     * If the scope of the outlined function is different, a declaration will also be inserted there. 
+     */
+    ROSE_DLL_API
+    SgClassDeclaration* generateParameterStructureDeclarationNanos( SgBasicBlock* s, // the outlining target
+                                                                    const std::string& func_name_str, // the name for the outlined function, we generate the name of struct based on this.
+                                                                    const std::set<const SgVariableSymbol*>& syms, // variables to be passed as parameters
+                                                                    const std::set<const SgVariableSymbol*>& pdSyms, // variables must use pointer types (pointer dereferencing: pdf). The rest variables use pass-by-value
+                                                                    SgScopeStatement* func_scope, // the scope of the outlined function, could be in another file
+                                                                    const std::set<const SgVariableSymbol*>& nanos_red_syms ); //set of reduction symbols ( only usefull if Nanos RTL )   
+      
+    //! Generate packing (wrapping) statements for the variables to be passed 
+    ROSE_DLL_API
+    std::string generatePackingStatementsNanos( SgStatement * target, 
+                                                const std::set<const SgVariableSymbol*>& syms,
+                                                const std::set<const SgVariableSymbol*>& pdsyms,
+                                                SgClassDeclaration * struct_decl,
+                                                const std::set<const SgVariableSymbol*>& redution_syms );
+    
     //! Outlines a function containing an OpenMP worksharing (loop or sections) and includes the Nanos calls to execute it in parallel
     SgFunctionDeclaration* generateOutlinedWorksharing( SgOmpClauseBodyStatement * source, std::string & wrapper_name, 
                                                         std::set<const SgVariableSymbol*>& syms, std::set<const SgVariableSymbol*>& pdSyms3, 

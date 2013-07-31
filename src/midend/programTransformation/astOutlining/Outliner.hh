@@ -216,9 +216,7 @@ namespace Outliner
         const std::string& func_name_str, // the name for the outlined function, we generate the name of struct based on this.
         const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
         ASTtools::VarSymSet_t& pdSyms, // variables must use pointer types (pointer dereferencing: pdf). The rest variables use pass-by-value
-        SgScopeStatement* func_scope, // the scope of the outlined function, could be in another file
-        bool nanos_ws = false, // indicates if we are generating the struct for a worksharing ( only usefull if Nanos RTL )
-        const ASTtools::VarSymSet_t& nanos_red_syms = ASTtools::VarSymSet_t( ) ); //set of reduction symbols ( only usefull if Nanos RTL )
+        SgScopeStatement* func_scope); // the scope of the outlined function, could be in another file
 
     /*!\brief Create a non-member function
      */
@@ -306,14 +304,16 @@ namespace Outliner
                       SgScopeStatement* scope,
                       std::set<SgVariableDeclaration *>& unpack_stmts);   // Used only when Nanos OpenMP RTL
 
+    ROSE_DLL_API
+            SgStatement* build_array_packing_statement( SgExpression * lhs, SgExpression * & rhs, SgStatement * target );
+    
      //! Generate packing (wrapping) statements for the variables to be passed 
      //return the unique wrapper parameter for the outlined function
      //target is the outlining target
     ROSE_DLL_API
     std::string generatePackingStatements( SgStatement * target, 
                                            const ASTtools::VarSymSet_t & syms, const ASTtools::VarSymSet_t & pdsyms, 
-                                           SgClassDeclaration * struct_decl = NULL,  
-                                           const ASTtools::VarSymSet_t & redution_syms = ASTtools::VarSymSet_t( ) );
+                                           SgClassDeclaration * struct_decl = NULL );
 
     /*!
      *  \brief Inserts an outlined-function declaration into global scope.

@@ -12,6 +12,260 @@ using namespace SageBuilder;
 namespace OmpSupport {
 namespace NanosLowering {
 
+// ! create a struct to contain data members for variables to be passed as parameters
+// A wrapper struct for variables passed to the outlined function
+// Each variable (e.g a) has two choices
+//   1. store the value of a:  the same type representation in the struct
+//   2. store the address of a:  pointer type of a
+SgClassDeclaration* generateParameterStructureDeclarationNanos(
+        SgBasicBlock* s, // the outlining target
+        const std::string& func_name_str, // the name for the outlined function, we generate the name of struct based on this.
+        const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
+        const ASTtools::VarSymSet_t& symsUsingAddress, // variables whose addresses are stored into the struct 
+        SgScopeStatement* func_scope, // the scope of the outlined function, could be different from s's global scope
+        const ASTtools::VarSymSet_t& nanos_red_syms ) 
+{
+    SgClassDeclaration* result = NULL;
+    
+    ROSE_ASSERT( s != NULL );
+    ROSE_ASSERT( func_scope != NULL );
+    // this declaration will later on be inserted right before the outlining target calling the outlined function
+    ROSE_ASSERT( isSgGlobal( func_scope ) != NULL );
+    string decl_name = func_name_str+"_data";
+    
+    result = buildStructDeclaration( decl_name, getGlobalScope( s ) );
+    //  result ->setForward(); // cannot do this!! it becomes prototype
+    //  if (result->get_firstNondefiningDeclaration()  )
+    //   ROSE_ASSERT(isSgClassDeclaration(result->get_firstNondefiningDeclaration())->isForward() == true);
+    //   cout<<"Debug Outliner::generateParameterStructureDeclaration(): struct address ="<<result <<" firstNondefining address ="<<result->get_firstNondefiningDeclaration()<<endl;
+
+    // insert member variable declarations to it
+    SgClassDefinition *def = result->get_definition( );
+    ROSE_ASSERT( def != NULL ); 
+    SgScopeStatement* def_scope = isSgScopeStatement( def );
+    ROSE_ASSERT( def_scope != NULL ); 
+
+    for( ASTtools::VarSymSet_t::const_iterator i = syms.begin( ); i != syms.end( ); ++i )
+    { 
+        const SgInitializedName* i_name = (*i)->get_declaration( );
+        ROSE_ASSERT( i_name );
+        const SgVariableSymbol* i_symbol = isSgVariableSymbol( i_name->get_symbol_from_symbol_table( ) );
+        ROSE_ASSERT( i_symbol != NULL );
+        string member_name = i_name->get_name( ).str( );
+        SgType* member_type = i_name->get_type( ) ;
+        // use pointer type or its original type?
+        SgType * non_typef_type = member_type->stripType( SgType::STRIP_TYPEDEF_TYPE );
+        if (symsUsingAddress.find(i_symbol) != symsUsingAddress.end())
+        {
+            member_name = member_name+"_p";
+            
+            // member_type = buildPointerType(member_type);
+            // Liao, 10/26/2009
+            // We use void* instead of type* to ease the handling of C++ class pointers wrapped into the data structure
+            // Using void* can avoid adding a forward class declaration  which is needed for classA * 
+            // It also simplifies unparsing: unparsing the use of classA* has some complications. 
+            // The downside is that type casting is needed for setting and using the pointer typed values
+            if( isSgArrayType( non_typef_type ) != NULL )
+            {   // Sara, 05/10/2013
+                // An array type here means that the memory was statically allocated.
+                // In this case we need the array to be allocated in the struct
+                if( isSgFunctionDefinition( i_symbol->get_scope( ) ) )
+                {   // When the variable is a parameter (function definition scope), the first dimension is passed by pointer
+                    member_type = buildPointerType( buildPointerType( isSgArrayType( non_typef_type )->get_base_type( ) ) );
+                }
+                else
+                {   // Otherwise, all dimensions remain
+                    member_type = buildPointerType( member_type );
+                }
+            }
+            else if( isSgArrayType( non_typef_type->stripType( SgType::STRIP_POINTER_TYPE ) ) )
+            {   // Shared array which first dimension is expressed as a pointerbuildPointerType( non_typef_type->get_base_type( ) )
+                // int (*c1)[10] = calloc(sizeof(int), 10 * 10);
+                // #pragma omp task shared(c1)
+                member_type = buildPointerType( non_typef_type );
+            }
+            else
+            {   // Scalars, Pointers, Structures
+                member_type = buildPointerType( buildVoidType( ) );
+            }
+        }
+        else if( ( isSgArrayType( non_typef_type ) ) && ( isSgFunctionDefinition( i_symbol->get_scope( ) ) ) )
+        {   // First dimension is passed by pointer for all array symbols that are parameters
+            member_type = buildPointerType( isSgArrayType( non_typef_type )->get_base_type( ) );
+        }
+        
+        // Force name and type of Nanos reduction symbols
+        if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
+        {
+            member_name = "g_th_" + member_name;
+            member_type = buildPointerType( buildArrayType( non_typef_type, buildIntVal( nanos_max_thread_num ) ) );
+        }
+        
+        SgVariableDeclaration *member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
+        appendStatement( member_decl, def_scope );
+    }
+
+    // insert it before the s, but must be in a global scope
+    // s might be within a class, namespace, etc. we need to find its ancestor scope
+    SgNode* global_scoped_ancestor = getEnclosingFunctionDefinition( s, false ); 
+    while( !isSgGlobal( global_scoped_ancestor->get_parent( ) ) ) 
+    // use get_parent() instead of get_scope() since a function definition node's scope is global while its parent is its function declaration
+    {
+        global_scoped_ancestor = global_scoped_ancestor->get_parent( );
+    }
+    //  cout<<"global_scoped_ancestor class_name: "<<global_scoped_ancestor->class_name()<<endl; 
+    ROSE_ASSERT( isSgStatement( global_scoped_ancestor ) );
+    insertStatementBefore( isSgStatement( global_scoped_ancestor ), result ); 
+    moveUpPreprocessingInfo( result, isSgStatement( global_scoped_ancestor ) );
+    
+    if( global_scoped_ancestor->get_parent( ) != func_scope )
+    {   //TODO 
+        cout << "Outliner::generateParameterStructureDeclaration() separated file case is not yet handled." << endl;
+        ROSE_ASSERT( false );
+    }
+    return result;
+}
+
+/* For a set of variables to be passed into the outlined function, 
+ * generate the following statements before the call of the outlined function
+ * used when useParameterWrapper is set to true
+     void * __out_argv[2];
+    *(__out_argv +0)=(void*)(&var1);// better form: __out_argv[0]=(void*)(&var1);
+    *(__out_argv +1)=(void*)(&var2); //__out_argv[1]=(void*)(&var2);
+ * return the name for the array parameter used to wrap all pointer parameters
+ *
+ * if Outliner::useStructureWrapper is true, we wrap parameters into a structure instead of an array.
+ * In this case, we need to know the structure type's name and parameters passed by pointers
+ *  struct OUT__1__8228___data __out_argv1__1527__; 
+ *  __out_argv1__1527__.i = i;
+ *  __out_argv1__1527__.j = j;
+ *  __out_argv1__1527__.sum_p = &sum; 
+ *
+ * Nanos extra packing statements: wsd.lower, wsd.upper, wsd.step, wsd.chunk
+ */
+std::string generatePackingStatementsNanos( SgStatement* target, 
+                                            const ASTtools::VarSymSet_t & syms, const ASTtools::VarSymSet_t & pdsyms,
+                                            SgClassDeclaration* struct_decl /* = NULL */, 
+                                            const ASTtools::VarSymSet_t & nanos_red_syms /*= NULL*/ )
+{
+
+  int var_count = syms.size();
+  int counter=0;
+  string wrapper_name= Outliner::generateFuncArgName(target); //"__out_argv";
+  
+  SgScopeStatement* cur_scope = target->get_scope();
+  ROSE_ASSERT( cur_scope != NULL);
+
+  // void * __out_argv[count];
+  SgType* my_type = NULL; 
+
+  if (Outliner::useStructureWrapper)
+  {
+    ROSE_ASSERT (struct_decl != NULL);
+    my_type = struct_decl->get_type();
+  }
+  else // default case for parameter wrapping is to use an array of pointers
+  { 
+    SgType* pointer_type = buildPointerType(buildVoidType()); 
+    my_type = buildArrayType(pointer_type, buildIntVal(var_count));
+  }
+
+  SgVariableDeclaration* out_argv = buildVariableDeclaration(wrapper_name, my_type, NULL,cur_scope);
+
+  // Since we have moved the outlined block to be the outlined function's body, and removed it 
+  // from its location in the original location where it was outlined, we can't insert new 
+  // statements relative to "target".
+  SageInterface::insertStatementBefore(target, out_argv);
+
+  SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()) ; 
+  ROSE_ASSERT (class_def != NULL);
+
+  SgVariableSymbol * wrapper_symbol = getFirstVarSym(out_argv);
+  ROSE_ASSERT(wrapper_symbol->get_parent() != NULL);
+  //  cout<<"Inserting wrapper declaration ...."<<wrapper_symbol->get_name().getString()<<endl;
+  for (ASTtools::VarSymSet_t::reverse_iterator i = syms.rbegin ();
+      i != syms.rend (); ++i)
+  {
+    SgExpression * lhs = NULL;
+    SgExpression * rhs = NULL;
+    SgStatement * assignment = NULL;
+    if (Outliner::useStructureWrapper)
+    {
+      // if use a struct to wrap parameters
+      // two kinds of field: original type v.s. pointer type to the original type
+      //  __out_argv1__1527__.i = i;
+      //  __out_argv1__1527__.sum_p = &sum;
+      // Sara Royuela, Dec 12, 2012: Third type when LHS is an array, we must copy each position.
+      // Sara Royuela, Apr 30, 2013: Fourth type when packing variable that is a reduction symbol for Nanos RTL 
+      //                             These variables will always be pointers 
+      SgInitializedName* i_name = (*i)->get_declaration();
+      SgVariableSymbol * i_symbol = const_cast<SgVariableSymbol *>(*i);
+      //SgType* i_type = i_symbol->get_type();
+       string member_name= i_name->get_name ().str ();
+//     cout<<"Debug: Outliner::generatePackingStatements() symbol to be packed:"<<member_name<<endl;  
+      
+      bool is_nanos_reduction_sym = false;
+      if( nanos_red_syms.find( i_symbol ) != nanos_red_syms.end( ) )
+      {
+          member_name = "g_th_" + member_name + "_p";
+          rhs = buildAddressOfOp( buildVarRefExp( "g_th_" + i_name->get_name( ), cur_scope ) ); 
+          is_nanos_reduction_sym = true;
+      }
+
+      if( !is_nanos_reduction_sym )
+      {
+          rhs = buildVarRefExp(i_symbol);
+          if (pdsyms.find(i_symbol) != pdsyms.end()) // pointer type
+          {
+              member_name = member_name+"_p";
+              // member_type = buildPointerType(member_type);
+              if( !nanos_red_syms.empty( ) )
+              {   // Nanos reduction process outlines two times the same code:
+                  //    -1. Outline of the directive that contains the reduction
+                  //    -2. Outline a wraper to perform the reduction and re-outline the previous function
+                  // Because of that, members of the structure parameter to the outlined function 
+                  // that are not the reduction symbols but still shared, are converted to pointer two times.
+                  // So we dereference the parameter to keep the correct type.
+                  rhs = buildPointerDerefExp( rhs );
+              }
+              rhs = buildAddressOfOp(rhs); 
+          }
+      }
+      lhs = buildDotExp ( buildVarRefExp(out_argv), buildVarRefExp (member_name, class_def));
+      
+      SgType * lhs_type = lhs->get_type()->stripType( SgType::STRIP_TYPEDEF_TYPE );
+      if( pdsyms.find(i_symbol) != pdsyms.end() )   // only pointer members with type void* need cast
+      {
+        if( isSgPointerType( lhs_type) != NULL )
+            if( isSgTypeVoid( isSgPointerType( lhs_type )->get_base_type( ) ) != NULL )
+                rhs = buildCastExp( rhs, buildPointerType(buildVoidType())); 
+      }
+      if( pdsyms.find(i_symbol) == pdsyms.end() && isSgArrayType( lhs_type ) )
+      {   // Copy each position of the array
+          assignment = Outliner::build_array_packing_statement( lhs, rhs, target );
+      }
+      else
+      {
+          assignment = buildAssignStatement( lhs, rhs );
+      }
+    }
+    else
+    // Default case: array of pointers, e.g.,  *(__out_argv +0)=(void*)(&var1);
+    {
+      lhs = buildPntrArrRefExp(buildVarRefExp(wrapper_symbol),buildIntVal(counter));
+      counter++;
+      SgVarRefExp* rhsvar = buildVarRefExp((*i)->get_declaration(),cur_scope);
+      rhs = buildCastExp( buildAddressOfOp(rhsvar), buildPointerType(buildVoidType()), SgCastExp::e_C_style_cast);
+      
+      assignment = buildAssignStatement(lhs,rhs);
+    }
+    
+    SageInterface::insertStatementBefore( target, assignment );
+  }
+  
+  return wrapper_name; 
+}
+
 //! Create a function named 'func_name_str' containing an OpenMP worksharing (loop or section) to be executed with Nanos
 // (Inspired in generateFunction method)
 // Example 1: 'source' is the block statement associated with an OpenMP loop directive
@@ -362,8 +616,8 @@ SgFunctionDeclaration* generateOutlinedWorksharing(
     }
     
     // Data structure used to wrap parameters
-    struct_decl = Outliner::generateParameterStructureDeclaration( body_block, func_name, syms, pdSyms3, 
-                                                                   g_scope, /*nanos_ws*/ true );
+    ASTtools::VarSymSet_t reduction_syms; 
+    struct_decl = NanosLowering::generateParameterStructureDeclarationNanos( body_block, func_name, syms, pdSyms3, g_scope, reduction_syms );
     
     // Generate the outlined function
     std::set<SgVariableDeclaration *> unpacking_stmts;
@@ -386,8 +640,7 @@ SgFunctionDeclaration* generateOutlinedWorksharing(
         generate_nanos_reduction( result, source, struct_decl, func_name, syms, pdSyms3, unpacking_stmts );
     }
     
-    ASTtools::VarSymSet_t redution_syms;
-    wrapper_name = Outliner::generatePackingStatements( source, syms, pdSyms3, struct_decl, redution_syms );
+    wrapper_name = NanosLowering::generatePackingStatementsNanos( source, syms, pdSyms3, struct_decl, reduction_syms );
     
     return result;
 }
@@ -723,8 +976,8 @@ static void generateReductionWrapperFunction(
     ASTtools::VarSymSet_t reduction_pdSyms;
     reduction_pdSyms.insert( pdSyms.begin( ), pdSyms.end( ) );
     reduction_pdSyms.insert( reduction_syms.begin( ), reduction_syms.end( ) );
-    std::string reduction_wrapper_name = Outliner::generatePackingStatements( global_data_array, syms, pdSyms,
-                                                                              struct_decl, reduction_syms );
+    std::string reduction_wrapper_name = NanosLowering::generatePackingStatementsNanos( global_data_array, syms, pdSyms,
+                                                                                        struct_decl, reduction_syms );
     
     // 2. Create the function that computes the reduction of each thread partial reduction
     //    There will be one function per reduction
@@ -1050,8 +1303,8 @@ void generate_nanos_reduction( SgFunctionDeclaration * func,
     SgBasicBlock * reduction_code = func->get_definition( )->get_body( );
     // Create the new outlined function
     SgClassDeclaration * reduction_struct_decl = 
-            Outliner::generateParameterStructureDeclaration( reduction_code, reduction_func_name, syms, pdSyms, 
-                                                             g_scope, /*nanos_ws*/ '0', reduction_syms );
+            NanosLowering::generateParameterStructureDeclarationNanos( reduction_code, reduction_func_name, syms, pdSyms, 
+                                                                       g_scope, reduction_syms );
     SgBasicBlock * outlined_reduction_body = func->get_definition( )->get_body( );
     SgFunctionDeclaration * reduction = 
             generateReductionFunction( outlined_reduction_body, reduction_func_name, 

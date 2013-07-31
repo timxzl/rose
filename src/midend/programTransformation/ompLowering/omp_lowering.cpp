@@ -1779,10 +1779,17 @@ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_n
     }
 
     // data structure used to wrap parameters
+    ASTtools::VarSymSet_t reduction_syms;
     if (SageInterface::is_Fortran_language())
         struct_decl = NULL; // We cannot use structure for Fortran
     else 
+    {
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+        struct_decl = NanosLowering::generateParameterStructureDeclarationNanos( body_block, func_name, syms, pdSyms3, g_scope, reduction_syms );
+#else
         struct_decl = Outliner::generateParameterStructureDeclaration (body_block, func_name, syms, pdSyms3, g_scope);
+#endif
+    }
     // ROSE_ASSERT (struct_decl != NULL); // can be NULL if no parameters to be passed
 
     //Generate the outlined function
@@ -1870,7 +1877,11 @@ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_n
     // must pass target , not body_block to get the right scope in which the declarations are inserted
     if (!SageInterface::is_Fortran_language())
     {    
-        wrapper_name= Outliner::generatePackingStatements(target, syms, pdSyms3, struct_decl);    
+#ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+        wrapper_name= NanosLowering::generatePackingStatementsNanos(target, syms, pdSyms3, struct_decl, reduction_syms);
+#else
+        wrapper_name= Outliner::generatePackingStatements(target, syms, pdSyms3, struct_decl);
+#endif
     }
     ROSE_ASSERT (result != NULL);
   
