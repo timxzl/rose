@@ -553,14 +553,14 @@ SgFunctionDeclaration* generateOutlinedWorksharing(
     // That allows 'collectVars' to take into account these symbols
     ASTtools::VarSymSet_t red_syms;
     SgInitializedNamePtrList red_vars = collectClauseVariables( source, V_SgOmpReductionClause );
-    convertAndFilter( red_vars, red_syms );
+    getSymbolfromInitName( red_vars, red_syms );
     set_union( syms.begin( ), syms.end(),
                red_syms.begin( ), red_syms.end( ),
                std::inserter( syms, syms.begin( ) ) );
     // Lastprivate variables have to be passed by pointer to allow the copy back in the outlined function
     ASTtools::VarSymSet_t lp_syms;
     SgInitializedNamePtrList lp_vars = collectClauseVariables( source, V_SgOmpLastprivateClause );
-    convertAndFilter( lp_vars, lp_syms );
+    getSymbolfromInitName( lp_vars, lp_syms );
     set_union( syms.begin( ), syms.end(),
                lp_syms.begin( ), lp_syms.end( ),
                std::inserter( syms, syms.begin( ) ) );
@@ -575,7 +575,7 @@ SgFunctionDeclaration* generateOutlinedWorksharing(
     // TODO keep class typed variables!!!  even if they are firstprivate or private!! 
     SgInitializedNamePtrList fp_vars = collectClauseVariables( source, V_SgOmpFirstprivateClause );
     ASTtools::VarSymSet_t fp_syms, pdSyms2;
-    convertAndFilter( fp_vars, fp_syms );
+    getSymbolfromInitName( fp_vars, fp_syms );
     set_difference( pdSyms.begin( ), pdSyms.end( ),
                     fp_syms.begin( ), fp_syms.end( ),
                     std::inserter( pdSyms2, pdSyms2.begin( ) ) );
@@ -583,7 +583,7 @@ SgFunctionDeclaration* generateOutlinedWorksharing(
     // Similarly , exclude private variable, also read only
     SgInitializedNamePtrList p_vars = collectClauseVariables( source, V_SgOmpPrivateClause );
     ASTtools::VarSymSet_t p_syms; //, pdSyms3;
-    convertAndFilter( p_vars, p_syms );
+    getSymbolfromInitName( p_vars, p_syms );
     //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
     set_difference( pdSyms2.begin( ), pdSyms2.end( ),
                     p_syms.begin( ), p_syms.end( ),
@@ -1297,7 +1297,7 @@ void generate_nanos_reduction( SgFunctionDeclaration * func,
     VariantVector vvt = VariantVector( V_SgOmpReductionClause );
     SgInitializedNamePtrList reduction_vars = collectClauseVariables( target, vvt );
     ASTtools::VarSymSet_t reduction_syms;
-    convertAndFilter( reduction_vars, reduction_syms );
+    getSymbolfromInitName( reduction_vars, reduction_syms );
     syms.insert( reduction_syms.begin( ), reduction_syms.end( ) );
     pdSyms.insert( reduction_syms.begin( ), reduction_syms.end( ) );
     SgBasicBlock * reduction_code = func->get_definition( )->get_body( );

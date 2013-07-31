@@ -785,7 +785,7 @@ SgBasicBlock* generateArrayAssignmentStatements( SgExpression* left_operand, SgE
     return bb;
 }
 
-void convertAndFilter (const SgInitializedNamePtrList input, ASTtools::VarSymSet_t& output)
+void getSymbolfromInitName (const SgInitializedNamePtrList input, ASTtools::VarSymSet_t& output)
 {
     for (SgInitializedNamePtrList::const_iterator iter =  input.begin(); iter != input.end(); iter++)
     {
@@ -1698,7 +1698,7 @@ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_n
     // that allows 'collectVars' to take into account these symbols
     ASTtools::VarSymSet_t red_syms;
     SgInitializedNamePtrList red_vars = collectClauseVariables( target, V_SgOmpReductionClause );
-    convertAndFilter( red_vars, red_syms );
+    getSymbolfromInitName( red_vars, red_syms );
     set_union( syms.begin( ), syms.end(),
                red_syms.begin( ), red_syms.end( ),
                std::inserter( syms, syms.begin( ) ) );
@@ -1711,7 +1711,7 @@ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_n
     //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
     SgInitializedNamePtrList fp_vars = collectClauseVariables (target, V_SgOmpFirstprivateClause);
     ASTtools::VarSymSet_t fp_syms, pdSyms2;
-    convertAndFilter (fp_vars, fp_syms);
+    getSymbolfromInitName (fp_vars, fp_syms);
     set_difference (pdSyms.begin(), pdSyms.end(),
         fp_syms.begin(), fp_syms.end(),
         std::inserter(pdSyms2, pdSyms2.begin()));
@@ -1722,7 +1722,7 @@ SgFunctionDeclaration* generateOutlinedTask(SgNode* node, std::string& wrapper_n
     // TODO: is this necessary? private variables should  be handled already in transOmpVariables(). So Outliner::collectVars() will not collect them at all!
     SgInitializedNamePtrList p_vars = collectClauseVariables (target, V_SgOmpPrivateClause);
     ASTtools::VarSymSet_t p_syms; //, pdSyms3;
-    convertAndFilter (p_vars, p_syms);
+    getSymbolfromInitName (p_vars, p_syms);
     //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
     set_difference (pdSyms2.begin(), pdSyms2.end(),
         p_syms.begin(), p_syms.end(),

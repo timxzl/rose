@@ -193,7 +193,7 @@ namespace OmpSupport
   
   //! Generate a symbol set from an initialized name list, 
   //filter out struct/class typed names
-  void convertAndFilter (const SgInitializedNamePtrList input, std::set<const SgVariableSymbol*>& output);
+  void getSymbolfromInitName (const SgInitializedNamePtrList input, std::set<const SgVariableSymbol*>& output);
   
   //! Special handling when trying to build and insert a variable declaration into a BB within Fortran OpenMP code
   SgVariableDeclaration * buildAndInsertDeclarationForOmp(const std::string &name, SgType *type, SgInitializer *varInit, SgBasicBlock *orig_scope);
