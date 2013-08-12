@@ -2158,7 +2158,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
     // * init_func: function that initialized 'empty_data' with the values of the members in 'data'
     s1 = buildFunctionCallStmt("XOMP_parallel_for_NANOS", buildVoidType(), parameters, p_scope); 
     SageInterface::replaceStatement(target, s1 , true);
-
+    
 #else
 
     if (SageInterface::is_Fortran_language())
@@ -2181,8 +2181,7 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
         parameters = buildExprListExp(buildFunctionRefExp(outlined_func), parameter2, ifClauseValue,    numThreadsSpecified);
     }
     ROSE_ASSERT (parameters != NULL);
-#endif      // USE_ROSE_NANOS_OPENMP_LIBRARY
-
+    
 #ifdef ENABLE_XOMP
     // extern void XOMP_parallel_start (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified);
     // * func: pointer to a function which will be run in parallel
@@ -2205,6 +2204,8 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
 //    SgExprStatement * s1 = buildFunctionCallStmt("GOMP_parallel_start", buildVoidType(), parameters, p_scope); 
 //    SageInterface::insertStatementBefore(func_call, s1);
 #endif      // ENABLE_XOMP
+    
+#endif      // USE_ROSE_NANOS_OPENMP_LIBRARY
 
     // Keep preprocessing information
     // I have to use cut-paste instead of direct move since 
