@@ -10,19 +10,6 @@ using namespace SageInterface;
 using namespace SageBuilder;
 
 #define ENABLE_XOMP 1  // Enable the middle layer (XOMP) of OpenMP runtime libraries
-  //! Generate a symbol set from an initialized name list, 
-  //filter out struct/class typed names
-static void convertAndFilter (const SgInitializedNamePtrList input, ASTtools::VarSymSet_t& output)
-  {
-    for (SgInitializedNamePtrList::const_iterator iter =  input.begin(); iter != input.end(); iter++)
-    {
-      const SgInitializedName * iname = *iter;
-      SgVariableSymbol* symbol = isSgVariableSymbol(iname->get_symbol_from_symbol_table ()); 
-      ROSE_ASSERT (symbol != NULL);
-      if (! isSgClassType(symbol->get_type()))
-        output.insert(symbol);
-    }
-  }
 
 namespace OmpSupport
 { 

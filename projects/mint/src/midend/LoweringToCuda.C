@@ -108,7 +108,7 @@ LoweringToCuda::generateOutlinedTask(SgNode* node, ASTtools::VarSymSet_t& devSym
   //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
   SgInitializedNamePtrList fp_vars = collectClauseVariables (target, V_SgOmpFirstprivateClause);
   ASTtools::VarSymSet_t fp_syms, pdSyms2;
-  convertAndFilter (fp_vars, fp_syms);
+  getSymbolfromInitName (fp_vars, fp_syms);
   set_difference (pdSyms.begin(), pdSyms.end(),
       fp_syms.begin(), fp_syms.end(),
       std::inserter(pdSyms2, pdSyms2.begin()));
@@ -116,7 +116,7 @@ LoweringToCuda::generateOutlinedTask(SgNode* node, ASTtools::VarSymSet_t& devSym
   // Similarly , exclude private variable, also read only
  SgInitializedNamePtrList p_vars = collectClauseVariables (target, V_SgOmpPrivateClause);
  ASTtools::VarSymSet_t p_syms, pdSyms3;
- convertAndFilter (p_vars, p_syms);
+ getSymbolfromInitName (p_vars, p_syms);
   //TODO keep class typed variables!!!  even if they are firstprivate or private!! 
   set_difference (pdSyms2.begin(), pdSyms2.end(),
       p_syms.begin(), p_syms.end(),
