@@ -2096,100 +2096,115 @@ static SgStatement* findLastDeclarationStatement(SgScopeStatement * scope)
         parameter2 =  buildAddressOfOp(buildVarRefExp(wrapper_name, p_scope));
     }
 
-#ifdef ENABLE_XOMP
-
 #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
-        /*!
-        * Initialize the team that will execute the parallel region.
-        *    nanos_team_t _nanos_team = (nanos_team_t)0;
-        *
-        * This must be done in the global scope because different functions need access to the team:
-        * 1) The outlined function, requieres to set the current team as the implicit team to run it: 
-        *    nanos_omp_set_implicit(nanos_current_wd());
-        * 2) The NANOS parallel function, initiates and finalizes the team.
-        */
-        SgFunctionDefinition* englobing_function = getEnclosingFunctionDefinition(node, false);
-        SgNode* global_scoped_ancestor = (SgNode*) englobing_function;
-        while (!isSgGlobal(global_scoped_ancestor->get_parent())) 
-            // use get_parent() instead of get_scope() since a function definition node's scope is global while its parent is its function declaration
+    /*!
+     * Initialize the team that will execute the parallel region.
+     *    nanos_team_t _nanos_team = (nanos_team_t)0;
+     *
+     * This must be done in the global scope because different functions need access to the team:
+     * 1) The outlined function, requieres to set the current team as the implicit team to run it: 
+     *    nanos_omp_set_implicit(nanos_current_wd());
+     * 2) The NANOS parallel function, initiates and finalizes the team.
+     */
+    SgFunctionDefinition* englobing_function = getEnclosingFunctionDefinition(node, false);
+    SgNode* global_scoped_ancestor = (SgNode*) englobing_function;
+    while (!isSgGlobal(global_scoped_ancestor->get_parent())) 
+        // use get_parent() instead of get_scope() since a function definition node's scope is global while its parent is its function declaration
+    {
+        global_scoped_ancestor = global_scoped_ancestor->get_parent();
+    }
+    ROSE_ASSERT (isSgStatement(global_scoped_ancestor));
+    SgStatement* ancestor_st = isSgStatement(global_scoped_ancestor);
+    SgScopeStatement* ancestor_sc = ancestor_st->get_scope();
+    ROSE_ASSERT (ancestor_sc != NULL);
+      
+    /*!
+     * Nanos requieres an specific XOMP wrapper with some extra parameters
+     * 1) The size of the data structure to be passed to the outlined function
+     * 2) The alignment of the data structure to be passed to the outlined function
+     * 3) A function that returns an empty data structure with the type of the structure to be passed as parameter to the outlined function
+     * 4) A function that initializes an empty structure with the values of an initialized structure
+     * 5) The nanos_team_t that will execute the parallel region
+     */
+    
+    // Size and alignment of the data struct containing the parameters to the outlined function
+    SgVarRefExp * data_ref = buildVarRefExp(wrapper_name, p_scope);
+    ROSE_ASSERT (data_ref != NULL);
+    SgType * data_type = data_ref->get_type();
+    SgExpression * parameter_arg_size =  buildSizeOfOp(data_type);
+    SgExpression * parameter_arg_align = NanosLowering::build_nanos_get_alignof(ancestor_st, wrapper_name, struct_decl);
+    
+    // Empty struct with the same type as the struct containing the parameters to the outlined function
+    SgExpression* parameter_get_empty_st = NanosLowering::build_nanos_get_empty_struct(ancestor_st, p_scope, struct_decl->get_type(), wrapper_name);
+    
+    // Function that initializes the empty struct
+    SgExpression* parameter_init_func = NanosLowering::build_nanos_init_arguments_struct_function(ancestor_st, wrapper_name,  struct_decl );
+    
+    // Parameters to the NANOS function call
+    parameters = buildExprListExp(buildFunctionRefExp(outlined_func), parameter2, ifClauseValue, numThreadsSpecified, 
+                                    parameter_arg_size, parameter_arg_align, parameter_get_empty_st, parameter_init_func);
+        
+        
+    // extern void XOMP_parallel_start_for_NANOS (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
+    //                                            long arg_size, long arg_align, void *empty_data, void (* init_func) (void *, void *), void* nanos_team);
+    // * func: pointer to a function which will be run in parallel
+    // * data: pointer to a data segment which will be used as the arguments of func
+    // * ifClauseValue: set to if-clause-expression if if-clause exists, or default is 1.
+    // * numThreadsSpecified: set to the expression of num_threads clause if the clause exists, or default is 0
+    // * arg_size: size of the data segment used as argument of 'func'
+    // * arg_align: alignment of the data segment used as argument of 'func'
+    // * empty_data: pointer to a data segment with the same type as 'data', but empty.
+    //               'empty_data' is used to initialize the team, and 'data' is used to fill the empty struct after the team initialization
+    // * init_func: function that initialized 'empty_data' with the values of the members in 'data'
+    s1 = buildFunctionCallStmt("XOMP_parallel_for_NANOS", buildVoidType(), parameters, p_scope); 
+    SageInterface::replaceStatement(target, s1 , true);
+
+#else
+
+    if (SageInterface::is_Fortran_language())
+    {   // The parameter list for Fortran is little bit different from C/C++'s XOMP interface 
+        // since we are forced to pass variables one by one in the parameter list to support Fortran 77
+        // void xomp_parallel_start (void (*func) (void *), unsigned * ifClauseValue, unsigned* numThread, int * argcount, ...)
+        //e.g. xomp_parallel_start(OUT__1__1527__,0,2,S,K)
+        SgExpression * parameter4 = buildIntVal (pdSyms3.size()); //TODO double check if pdSyms3 is the right set of variables to be passed
+        parameters = buildExprListExp(buildFunctionRefExp(outlined_func), ifClauseValue, numThreadsSpecified, parameter4);
+
+        ASTtools::VarSymSet_t::iterator iter = pdSyms3.begin();
+        for (; iter!=pdSyms3.end(); iter++)
         {
-            global_scoped_ancestor = global_scoped_ancestor->get_parent();
+            const SgVariableSymbol * sb = *iter;
+            appendExpression (parameters, buildVarRefExp(const_cast<SgVariableSymbol *>(sb)));
         }
-        ROSE_ASSERT (isSgStatement(global_scoped_ancestor));
-        SgStatement* ancestor_st = isSgStatement(global_scoped_ancestor);
-        SgScopeStatement* ancestor_sc = ancestor_st->get_scope();
-        ROSE_ASSERT (ancestor_sc != NULL);
-      
-        /*!
-        * Nanos requieres an specific XOMP wrapper with some extra parameters
-        * 1) The size of the data structure to be passed to the outlined function
-        * 2) The alignment of the data structure to be passed to the outlined function
-        * 3) A function that returns an empty data structure with the type of the structure to be passed as parameter to the outlined function
-        * 4) A function that initializes an empty structure with the values of an initialized structure
-        * 5) The nanos_team_t that will execute the parallel region
-        */
-        
-        // Size and alignment of the data struct containing the parameters to the outlined function
-        SgVarRefExp * data_ref = buildVarRefExp(wrapper_name, p_scope);
-        ROSE_ASSERT (data_ref != NULL);
-        SgType * data_type = data_ref->get_type();
-        SgExpression * parameter_arg_size =  buildSizeOfOp(data_type);
-        SgExpression * parameter_arg_align = NanosLowering::build_nanos_get_alignof(ancestor_st, wrapper_name, struct_decl);
-      
-        // Empty struct with the same type as the struct containing the parameters to the outlined function
-        SgExpression* parameter_get_empty_st = NanosLowering::build_nanos_get_empty_struct(ancestor_st, p_scope, struct_decl->get_type(), wrapper_name);
-        
-        // Function that initializes the empty struct
-        SgExpression* parameter_init_func = NanosLowering::build_nanos_init_arguments_struct_function(ancestor_st, wrapper_name,  struct_decl );
-        
-        // Parameters to the NANOS function call
-        parameters = buildExprListExp(buildFunctionRefExp(outlined_func), parameter2, ifClauseValue, numThreadsSpecified, 
-                                        parameter_arg_size, parameter_arg_align, parameter_get_empty_st, parameter_init_func);
-        
-        
-        // extern void XOMP_parallel_start_for_NANOS (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified,
-        //                                            long arg_size, long arg_align, void *empty_data, void (* init_func) (void *, void *), void* nanos_team);
-        // * func: pointer to a function which will be run in parallel
-        // * data: pointer to a data segment which will be used as the arguments of func
-        // * ifClauseValue: set to if-clause-expression if if-clause exists, or default is 1.
-        // * numThreadsSpecified: set to the expression of num_threads clause if the clause exists, or default is 0
-        // * arg_size: size of the data segment used as argument of 'func'
-        // * arg_align: alignment of the data segment used as argument of 'func'
-        // * empty_data: pointer to a data segment with the same type as 'data', but empty.
-        //               'empty_data' is used to initialize the team, and 'data' is used to fill the empty struct after the team initialization
-        // * init_func: function that initialized 'empty_data' with the values of the members in 'data'
-        s1 = buildFunctionCallStmt("XOMP_parallel_for_NANOS", buildVoidType(), parameters, p_scope); 
-        SageInterface::replaceStatement(target, s1 , true);
-              
-#else
-      parameters = buildExprListExp(buildFunctionRefExp(outlined_func), parameter2, ifClauseValue, numThreadsSpecified);
-      ROSE_ASSERT (parameters != NULL);
-      
-      // extern void XOMP_parallel_start (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified);
-      // * func: pointer to a function which will be run in parallel
-      // * data: pointer to a data segment which will be used as the arguments of func
-      // * ifClauseValue: set to if-clause-expression if if-clause exists, or default is 1.
-      // * numThreadsSpecified: set to the expression of num_threads clause if the clause exists, or default is 0
-      // Liao 3/11/2013, additional file location info, at least for C/C++  for now
-      if (!SageInterface::is_Fortran_language())
-      {
-          string file_name = target->get_startOfConstruct()->get_filenameString();
-          int line = target->get_startOfConstruct()->get_line();
-          parameters->append_expression(buildStringVal(file_name));
-          parameters->append_expression(buildIntVal(line));
-      }
-
-      s1 = buildFunctionCallStmt("XOMP_parallel_start", buildVoidType(), parameters, p_scope); 
-      SageInterface::replaceStatement(target, s1 , true);
+    }
+    else
+    {
+        parameters = buildExprListExp(buildFunctionRefExp(outlined_func), parameter2, ifClauseValue,    numThreadsSpecified);
+    }
+    ROSE_ASSERT (parameters != NULL);
 #endif      // USE_ROSE_NANOS_OPENMP_LIBRARY
-    
-    
-#else
-   ROSE_ASSERT (false); //This portion of code should never be used anymore. Kept for reference only.
-//    SgExprStatement * s1 = buildFunctionCallStmt("GOMP_parallel_start", buildVoidType(), parameters, p_scope); 
-//    SageInterface::insertStatementBefore(func_call, s1); 
-#endif      // ENABLE_XOMP
 
+#ifdef ENABLE_XOMP
+    // extern void XOMP_parallel_start (void (*func) (void *), void *data, unsigned ifClauseValue, unsigned numThreadsSpecified);
+    // * func: pointer to a function which will be run in parallel
+    // * data: pointer to a data segment which will be used as the arguments of func
+    // * ifClauseValue: set to if-clause-expression if if-clause exists, or default is 1.
+    // * numThreadsSpecified: set to the expression of num_threads clause if the clause exists, or default is 0
+    // Liao 3/11/2013, additional file location info, at least for C/C++  for now
+    if (!SageInterface::is_Fortran_language())
+    {
+        string file_name = target->get_startOfConstruct()->get_filenameString();
+        int line = target->get_startOfConstruct()->get_line();
+        parameters->append_expression(buildStringVal(file_name));
+        parameters->append_expression(buildIntVal(line));
+    }
+
+    s1 = buildFunctionCallStmt("XOMP_parallel_start", buildVoidType(), parameters, p_scope); 
+    SageInterface::replaceStatement(target, s1 , true);
+#else
+    ROSE_ASSERT (false); //This portion of code should never be used anymore. Kept for reference only.
+//    SgExprStatement * s1 = buildFunctionCallStmt("GOMP_parallel_start", buildVoidType(), parameters, p_scope); 
+//    SageInterface::insertStatementBefore(func_call, s1);
+#endif      // ENABLE_XOMP
 
     // Keep preprocessing information
     // I have to use cut-paste instead of direct move since 
