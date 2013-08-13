@@ -4549,7 +4549,6 @@ int SgProject::link ( const std::vector<std::string>& argv, std::string linkerNa
            string nanos_lib_path(NANOS_OPENMP_LIB_PATH);
            ROSE_ASSERT (nanos_lib_path.size() != 0);
            linkingCommand.push_back("-L"+nanos_lib_path+"/performance");
-           linkingCommand.push_back("-lnanox-ss");
            linkingCommand.push_back("-lnanox-omp");
            linkingCommand.push_back("-lnanox-c");
            linkingCommand.push_back("-lnanox");
