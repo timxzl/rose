@@ -628,9 +628,6 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
   // statements relative to "target".
   SageInterface::insertStatementBefore(target, out_argv);
 
-  SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()) ; 
-  ROSE_ASSERT (class_def != NULL);
-
   SgVariableSymbol * wrapper_symbol = getFirstVarSym(out_argv);
   ROSE_ASSERT(wrapper_symbol->get_parent() != NULL);
   //  cout<<"Inserting wrapper declaration ...."<<wrapper_symbol->get_name().getString()<<endl;
@@ -660,6 +657,8 @@ std::string Outliner::generatePackingStatements( SgStatement* target,
           // member_type = buildPointerType(member_type);
           rhs = buildAddressOfOp(rhs); 
       }
+      SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()) ; 
+      ROSE_ASSERT (class_def != NULL);
       lhs = buildDotExp ( buildVarRefExp(out_argv), buildVarRefExp (member_name, class_def));
       
       SgType * lhs_type = lhs->get_type()->stripType( SgType::STRIP_TYPEDEF_TYPE );
