@@ -668,7 +668,6 @@ ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/astOutlining/If.cc
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/astOutlining/Transform.cc
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/astOutlining/GenerateCall.cc
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/ompLowering/nanos_lowering.cpp
-${CMAKE_SOURCE_DIR}/src/midend/programTransformation/ompLowering/libnanos.c
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/ompLowering/omp_lowering.cpp
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/ompLowering/xomp.c
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/astInlining/isPotentiallyModified.C

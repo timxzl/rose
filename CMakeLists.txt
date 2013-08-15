@@ -593,6 +593,9 @@ find_library(with-dwarf dwarf
 find_library(with-gomp_omp_runtime_library gomp_omp
   DOC "Specify the prefix where GOMP Runtime System is installed")
 
+find_library(with-nanos_omp_runtime_library nanox-omp nanox-c nanox
+  DOC "Specify the prefix where NANOS Runtime System is installed")
+
 find_path(with-GraphViz_include graphviz.h
   DOC "Specify the prefix where GraphViz include files are installed")
 
