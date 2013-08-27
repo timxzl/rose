@@ -1416,6 +1416,14 @@ namespace sg
         Dispatcher::dispatch(rv, assume_sage_type<SgCAFCoExpression>(*n));
         break;
 
+      case V_SgShapeExpression:
+        Dispatcher::dispatch(rv, assume_sage_type<SgShapeExpression>(*n));
+        break;
+        
+      case V_SgArraySectionExp:
+        Dispatcher::dispatch(rv, assume_sage_type<SgArraySectionExp>(*n));
+        break;
+        
       case V_SgDesignatedInitializer:
         Dispatcher::dispatch(rv, assume_sage_type<SgDesignatedInitializer>(*n));
         break;

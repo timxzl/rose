@@ -183,6 +183,10 @@ Grammar::setUpExpressions ()
      NEW_TERMINAL_MACRO (StringConversion,          "StringConversion",              "STR_CONV" );
      NEW_TERMINAL_MACRO (YieldExpression,           "YieldExpression",               "YIELD_EXP" );
 
+   // Sara Royuela ( 6/5/13 ) Add support for C++ expression extensions
+     NEW_TERMINAL_MACRO (ArraySectionExp,           "ArraySectionExp",               "ARRAY_SECTION_EXP");
+     NEW_TERMINAL_MACRO (ShapeExpression,           "ShapeExpression",               "SHAPE_EXPRESSION" );
+     
 #if USE_FORTRAN_IR_NODES
   // Intrisic function are just like other functions, but explicitly marked to be intrinsic.
   // DQ (2/2/2006): Support for Fortran IR nodes (contributed by Rice)
@@ -258,7 +262,8 @@ Grammar::setUpExpressions ()
           BitXorOp       | BitAndOp         | BitOrOp         | CommaOpExp       | LshiftOp      | RshiftOp       |
           PntrArrRefExp  | ScopeOp          | AssignOp        | ExponentiationOp | JavaUnsignedRshiftOp |
           ConcatenationOp | PointerAssignOp | UserDefinedBinaryOp | CompoundAssignOp | MembershipOp     |
-          NonMembershipOp | IsOp            | IsNotOp,
+          NonMembershipOp | IsOp            | IsNotOp         | /* Sara Royuela (6/5/13): C++ expression extensions */ 
+          ShapeExpression,
           "BinaryOp","BINARY_EXPRESSION", false);
 
      NEW_NONTERMINAL_MACRO (NaryOp,
@@ -293,7 +298,8 @@ Grammar::setUpExpressions ()
           CudaKernelCallExp   | CudaKernelExecConfig    |  /* TV (04/22/2010): CUDA support */
           LambdaRefExp        | DictionaryExp           | KeyDatumPair             |
           Comprehension       | ListComprehension       | SetComprehension    | DictionaryComprehension | NaryOp |
-          StringConversion    | YieldExpression,
+          StringConversion    | YieldExpression         | /* Sara Royuela (6/5/13): C++ expression extensions */ 
+          ArraySectionExp,
           "Expression","ExpressionTag", false);
 
   // ***********************************************************************
@@ -675,6 +681,8 @@ Grammar::setUpExpressions ()
      UserDefinedUnaryOp.setFunctionSource  ( "SOURCE_EMPTY_POST_CONSTRUCTION_INITIALIZATION", "../Grammar/Expression.code" );
      UserDefinedBinaryOp.setFunctionSource ( "SOURCE_EMPTY_POST_CONSTRUCTION_INITIALIZATION", "../Grammar/Expression.code" );
 
+     ShapeExpression.setFunctionSource     ( "SOURCE_EMPTY_POST_CONSTRUCTION_INITIALIZATION", "../Grammar/Expression.code" );
+     
   // DQ (2/27/2005): We want to post_construction_initialization to call set_type so we don't want 
   // and empty function here plus I have added a set_type function for DotStarOp.
   // Bugfix (2/27/2001) Generate this empty function instead of one with a call to an empty setType() function
@@ -854,6 +862,10 @@ Grammar::setUpExpressions ()
      CudaKernelExecConfig.editSubstitute ( "PRECEDENCE_VALUE", " 0" );
      CudaKernelCallExp.editSubstitute ( "PRECEDENCE_VALUE", " 0" );
 
+  // Sara Royuela (6/5/13): C++ expression extensions
+     ArraySectionExp.editSubstitute ( "PRECEDENCE_VALUE", "16" );
+     ShapeExpression.editSubstitute ( "PRECEDENCE_VALUE", "15" );
+     
      LambdaRefExp.editSubstitute ( "PRECEDENCE_VALUE", " 0" );
 
      UnaryOp.setFunctionPrototype ( "HEADER_GET_NEXT_EXPRESSION", "../Grammar/Expression.code" );
@@ -1980,6 +1992,17 @@ Grammar::setUpExpressions ()
              CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, DEF_TRAVERSAL, NO_DELETE);
 
 
+  // Sara Royuela (6/5/13): C++ expression extensions
+     ArraySectionExp.setFunctionPrototype ( "HEADER_ARRAY_SECTION_EXP","../Grammar/Expression.code" );
+     ArraySectionExp.setFunctionSource    ( "SOURCE_ARRAY_SECTION_EXP","../Grammar/Expression.code" );
+     ArraySectionExp.setDataPrototype     ( "SgExpression*", "lower_bound", "= NULL",
+                                            CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, DEF_TRAVERSAL, NO_DELETE);
+     ArraySectionExp.setDataPrototype     ( "SgExpression*", "length"     , "= NULL",
+                                            CONSTRUCTOR_PARAMETER, BUILD_ACCESS_FUNCTIONS, DEF_TRAVERSAL, NO_DELETE);
+     
+     ShapeExpression.setFunctionPrototype ( "HEADER_SHAPE_EXPRESSION", "../Grammar/Expression.code" );
+     ShapeExpression.setFunctionSource    ( "SOURCE_SHAPE_EXPRESSION","../Grammar/Expression.code" );        
+     
      // ***********************************************************************
      // ***********************************************************************
      //                       Source Code Declaration

@@ -8,6 +8,7 @@ SgAllocateStatement
 SgAndAssignOp
 SgAndOp
 SgArithmeticIfStatement
+SgArraySectionExp
 SgArrayType
 SgArrowExp
 SgArrowStarOp
@@ -493,6 +494,7 @@ SgOmpBarrierStatement
 SgOmpCriticalStatement
 SgOmpClauseBodyStatement
 SgOmpBodyStatement
+SgOmpDependClause
 SgOmpDoStatement
 SgOmpFlushStatement
 SgOmpForStatement
@@ -514,6 +516,7 @@ SgOmpCopyinClause
 SgOmpCopyprivateClause
 SgOmpDefaultClause
 SgOmpExpressionClause
+SgOmpExpressionsClause
 SgOmpFirstprivateClause
 SgOmpIfClause
 SgOmpDeviceClause
@@ -570,6 +573,7 @@ SgScopeOp
 SgScopeStatement
 SgSequenceStatement
 SgSetComprehension
+SgShapeExpression
 SgShortVal
 SgSizeOfOp
 SgJavaInstanceOfOp

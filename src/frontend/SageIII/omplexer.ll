@@ -117,6 +117,8 @@ in              {return cond_return ( IN ); }
 out             {return cond_return ( OUT ); }
 inout           {return cond_return ( INOUT ); }
 
+depend          { return cond_return ( DEPEND ); }
+
 "="             { return('='); }
 "("             { return ('('); }
 ")"             { return (')'); }

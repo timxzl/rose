@@ -1,5 +1,6 @@
 
 mptOmpLowering_la_sources=\
+	$(mptOmpLoweringPath)/nanos_lowering.cpp \
 	$(mptOmpLoweringPath)/omp_lowering.cpp
 
 # avoid using libtool for libxomp.a since it will be directly linked to executable
@@ -10,6 +11,7 @@ mptOmpLowering_lib_ltlibraries=\
 libxomp_la_LDFLAGS = -static
 
 libxomp_la_SOURCES=\
+	$(mptOmpLoweringPath)/libnanos.c \
 	$(mptOmpLoweringPath)/xomp.c \
 	$(mptOmpLoweringPath)/run_me_callers.inc \
 	$(mptOmpLoweringPath)/run_me_defs.inc \
@@ -17,7 +19,15 @@ libxomp_la_SOURCES=\
 	$(mptOmpLoweringPath)/run_me_task_defs.inc
 
 mptOmpLowering_includeHeaders=\
+	$(mptOmpLoweringPath)/nanos_ompss.h \
 	$(mptOmpLoweringPath)/omp_lowering.h \
+	$(mptOmpLoweringPath)/nanos_error.h \
+	$(mptOmpLoweringPath)/nanos_version.h \
+	$(mptOmpLoweringPath)/nanos-int.h \
+	$(mptOmpLoweringPath)/nanos_reduction.h \
+	$(mptOmpLoweringPath)/nanos.h \
+	$(mptOmpLoweringPath)/nanos_omp.h \
+	$(mptOmpLoweringPath)/libnanos.h \
 	$(mptOmpLoweringPath)/libgomp_g.h \
 	$(mptOmpLoweringPath)/libompc.h \
 	$(mptOmpLoweringPath)/libxomp.h \

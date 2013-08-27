@@ -7,7 +7,7 @@ include_directories(${KDE4_INCLUDES} ${KDE4_INCLUDE_DIR} ${QT_INCLUDES} )
 
 ########### install files ###############
 
-install(FILES  omp_lowering.h libgomp_g.h DESTINATION ${INCLUDE_INSTALL_DIR})
+install(FILES  omp_lowering.h libgomp_g.h libompc.h DESTINATION ${INCLUDE_INSTALL_DIR})
 
 
 

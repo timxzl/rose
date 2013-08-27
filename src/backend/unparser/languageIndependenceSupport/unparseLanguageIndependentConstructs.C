@@ -3376,11 +3376,11 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
   SgVarRefExpPtrList::iterator p = c->get_variables().begin();
   while ( p != c->get_variables().end() )
   {
-    SgInitializedName* init_name = (*p)->get_symbol()->get_declaration();           
-    SgName tmp_name  = init_name->get_name();
-    curprint( tmp_name.str());
     SgVariableSymbol * sym  = (*p)->get_symbol();
     ROSE_ASSERT (sym != NULL);
+    SgInitializedName* init_name = sym->get_declaration();           
+    SgName tmp_name  = init_name->get_name();
+    curprint( tmp_name.str());
     if (is_map)
     {
       std::vector<std::pair<SgExpression*, SgExpression*> > bounds = dims[sym];
@@ -3421,6 +3421,35 @@ void UnparseLanguageIndependentConstructs::unparseOmpVariablesClause(SgOmpClause
   curprint(string(")"));
 }
 
+static std::string dependOperatorToString(SgOmpClause::omp_depend_operator_enum ro)
+{
+    string result;
+    switch (ro)
+    {
+        case SgOmpClause::e_omp_depend_inout: 
+        {
+            result = "inout";
+            break;
+        }
+        case SgOmpClause::e_omp_depend_in: 
+        {
+            result = "in";
+            break;
+        }
+        case SgOmpClause::e_omp_depend_out:   
+        {
+            result = "out";
+            break;
+        }
+        default:
+        {
+            cerr<<"Error: unhandled operator type MapOperatorToString():"<< ro <<endl;
+            ROSE_ASSERT(false);
+        }
+    }
+    return result;
+}
+
 void UnparseLanguageIndependentConstructs::unparseOmpExpressionClause(SgOmpClause* clause, SgUnparse_Info& info)
 {
   ROSE_ASSERT(clause != NULL);
@@ -3453,6 +3482,39 @@ void UnparseLanguageIndependentConstructs::unparseOmpExpressionClause(SgOmpClaus
 
   curprint(string(")"));
 }      
+
+void UnparseLanguageIndependentConstructs::unparseOmpExpressionsClause(SgOmpClause* clause, SgUnparse_Info& info)
+{
+    ROSE_ASSERT(clause != NULL);
+    SgOmpExpressionsClause* c = isSgOmpExpressionsClause(clause);
+    ROSE_ASSERT(c != NULL);
+    if(isSgOmpDependClause(c))
+    {    
+        curprint(string(" depend("));
+        curprint(dependOperatorToString(isSgOmpDependClause(c)->get_operation()));
+        curprint(string(" : "));
+    }
+    else
+    {
+        cerr<<"Unhandled OpenMP clause type in UnparseLanguageIndependentConstructs::unparseOmpExpressionsClause():"<<clause->class_name()<<endl;
+        ROSE_ASSERT(false);
+    }
+  
+    SgUnparse_Info ninfo(info);
+    SgExpressionPtrList exprs = c->get_expressions();
+    for(SgExpressionPtrList::iterator it = exprs.begin( ); it != exprs.end( ); ++it)
+    {
+        // Check if this is the last argument (output a "," separator if not)
+        if( it != exprs.begin( ) )
+        {
+            curprint( "," );
+        }
+        
+        unparseExpression(*it, ninfo);
+    }
+    
+    curprint(string(")"));
+}
 
 // Entry point for unparsing OpenMP clause
 void UnparseLanguageIndependentConstructs::unparseOmpClause(SgOmpClause* clause, SgUnparse_Info& info)
@@ -3506,6 +3568,11 @@ void UnparseLanguageIndependentConstructs::unparseOmpClause(SgOmpClause* clause,
         unparseOmpVariablesClause(isSgOmpVariablesClause(clause), info);
         break;
       }     
+    case V_SgOmpDependClause:
+      {
+        unparseOmpExpressionsClause(isSgOmpExpressionsClause(clause), info);
+        break;
+      }
 
     default:
       {
@@ -3904,6 +3971,9 @@ UnparseLanguageIndependentConstructs::getPrecedence(SgExpression* expr) {
     //        function pointers initialisation).
           case V_SgFunctionRefExp:    return 0;
 
+    // Sara Royuela (06/07/2013): Support ot C++ expression extensions
+          case V_SgShapeExpression:     return 15;
+          case V_SgArraySectionExp:     return 16;      
 #if 0
        // Template
           case V_:              return 0;

@@ -16,6 +16,9 @@
 #include "PreprocessingInfo.hh"
 #include "StmtRewrite.hh"
 #include "OmpAttribute.h" //regenerate pragma from omp attribute
+
+#include "rose_config.h"
+
 // =====================================================================
 
 using namespace std;
@@ -45,9 +48,10 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
         const std::string& func_name_str, // the name for the outlined function, we generate the name of struct based on this.
         const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
         ASTtools::VarSymSet_t& symsUsingAddress, // variables whose addresses are stored into the struct 
-        SgScopeStatement* func_scope ) // the scope of the outlined function, could be different from s's global scope
+        SgScopeStatement* func_scope ) // the scope of the outlined function, could be different from s's global scope 
 {
     SgClassDeclaration* result = NULL;
+    
     // no need to generate the declaration if no variables are to be passed
     if( syms.empty( ) ) 
         return result;
@@ -69,6 +73,7 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
     ROSE_ASSERT( def != NULL ); 
     SgScopeStatement* def_scope = isSgScopeStatement( def );
     ROSE_ASSERT( def_scope != NULL ); 
+
     for( ASTtools::VarSymSet_t::const_iterator i = syms.begin( ); i != syms.end( ); ++i )
     { 
         const SgInitializedName* i_name = (*i)->get_declaration( );
@@ -117,6 +122,7 @@ SgClassDeclaration* Outliner::generateParameterStructureDeclaration(
         {   // First dimension is passed by pointer for all array symbols that are parameters
             member_type = buildPointerType( isSgArrayType( non_typef_type )->get_base_type( ) );
         }
+        
         SgVariableDeclaration *member_decl = buildVariableDeclaration( member_name, member_type, NULL, def_scope );
         appendStatement( member_decl, def_scope );
     }
@@ -290,7 +296,8 @@ Outliner::outlineBlock (SgBasicBlock* s, const string& func_name_str)
     calculateVariableUsingAddressOf (syms, readOnlyVars, pdSyms);
   }
 
-  SgFunctionDeclaration* func = generateFunction (s, func_name_str, syms, pdSyms, restoreVars, struct_decl, glob_scope);
+  std::set<SgVariableDeclaration *> unpacking_stmts;
+  SgFunctionDeclaration* func = generateFunction (s, func_name_str, syms, pdSyms, restoreVars, struct_decl, glob_scope, unpacking_stmts);
   ROSE_ASSERT (func != NULL);
   ROSE_ASSERT(glob_scope->lookup_function_symbol(func->get_name()));
 
@@ -527,7 +534,7 @@ Outliner::outlineBlock (SgBasicBlock* s, const string& func_name_str)
  *            __out_argv.c[__i0__] = c[__i0__];
  *        __out_argv.d_p = ((void *)(&d));                  -> shared dynamic array
  */
-static SgStatement* build_array_packing_statement( SgExpression * lhs, SgExpression * & rhs, SgStatement * target )
+SgStatement* Outliner::build_array_packing_statement( SgExpression * lhs, SgExpression * & rhs, SgStatement * target )
 {
     SgScopeStatement * scope = target->get_scope( );
     
@@ -581,16 +588,22 @@ static SgStatement* build_array_packing_statement( SgExpression * lhs, SgExpress
  *  __out_argv1__1527__.j = j;
  *  __out_argv1__1527__.sum_p = &sum; 
  *
+ * Nanos extra packing statements: wsd.lower, wsd.upper, wsd.step, wsd.chunk
  */
-std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::VarSymSet_t & syms, ASTtools::VarSymSet_t & pdsyms, SgClassDeclaration* struct_decl /* = NULL */)
+std::string Outliner::generatePackingStatements( SgStatement* target, 
+                                                 const ASTtools::VarSymSet_t & syms, const ASTtools::VarSymSet_t & pdsyms,
+                                                 SgClassDeclaration* struct_decl /* = NULL */ )
 {
 
   int var_count = syms.size();
   int counter=0;
   string wrapper_name= generateFuncArgName(target); //"__out_argv";
 
+  // GOMP and OMNI RTLs do not requiere of an structure when there is no parameter to be passed to the outlined function.
+  // On the contrary, NANOS methods always require an struct, so we build an structure with no member.
   if (var_count==0) 
     return wrapper_name;
+  
   SgScopeStatement* cur_scope = target->get_scope();
   ROSE_ASSERT( cur_scope != NULL);
 
@@ -630,19 +643,19 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
       // two kinds of field: original type v.s. pointer type to the original type
       //  __out_argv1__1527__.i = i;
       //  __out_argv1__1527__.sum_p = &sum;
-      // Sara Royuela, Dec 12, 2012: There is a third type
-      // When LHS is an array, we must copy each position.
+      // Sara Royuela, Dec 12, 2012: Third type when LHS is an array, we must copy each position.
       SgInitializedName* i_name = (*i)->get_declaration();
       SgVariableSymbol * i_symbol = const_cast<SgVariableSymbol *>(*i);
       //SgType* i_type = i_symbol->get_type();
        string member_name= i_name->get_name ().str ();
 //     cout<<"Debug: Outliner::generatePackingStatements() symbol to be packed:"<<member_name<<endl;  
-      rhs = buildVarRefExp(i_symbol); 
+      
+      rhs = buildVarRefExp(i_symbol);
       if (pdsyms.find(i_symbol) != pdsyms.end()) // pointer type
       {
-        member_name = member_name+"_p";
-        // member_type = buildPointerType(member_type);
-        rhs = buildAddressOfOp(rhs);
+          member_name = member_name+"_p";
+          // member_type = buildPointerType(member_type);
+          rhs = buildAddressOfOp(rhs); 
       }
       SgClassDefinition* class_def = isSgClassDefinition (isSgClassDeclaration(struct_decl->get_definingDeclaration())->get_definition()) ; 
       ROSE_ASSERT (class_def != NULL);
@@ -668,6 +681,7 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
     // Default case: array of pointers, e.g.,  *(__out_argv +0)=(void*)(&var1);
     {
       lhs = buildPntrArrRefExp(buildVarRefExp(wrapper_symbol),buildIntVal(counter));
+      counter++;
       SgVarRefExp* rhsvar = buildVarRefExp((*i)->get_declaration(),cur_scope);
       rhs = buildCastExp( buildAddressOfOp(rhsvar), buildPointerType(buildVoidType()), SgCastExp::e_C_style_cast);
       
@@ -675,8 +689,8 @@ std::string Outliner::generatePackingStatements(SgStatement* target, ASTtools::V
     }
     
     SageInterface::insertStatementBefore( target, assignment );
-    counter ++;
   }
+  
   return wrapper_name; 
 }
 

@@ -5,15 +5,22 @@
 
 // GOMP header
 #include "libgomp_g.h"
-// GOMP has higher precedence if both runtime libraries' path are specified
+// GOMP has higher precedence if other runtime libraries' path are specified
 #undef USE_ROSE_OMNI_OPENMP_SUPPORT
+#undef USE_ROSE_NANOS_OPENMP_LIBRARY
 
-#else
+#elif defined USE_ROSE_OMNI_OPENMP_SUPPORT
 // Omni header
 #include "libompc.h"
+#undef USE_ROSE_NANOS_OPENMP_LIBRARY
+
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+// NANOS header
+#include "libnanos.h"
 #endif
 
 // avoid include omp.h 
+// #include <omp.h>
 extern int omp_get_thread_num(void);
 extern int omp_get_num_threads(void);
 
@@ -130,6 +137,7 @@ void XOMP_init (int argc, char ** argv)
     }
   }
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
 #else   
   _ompc_init (argc, argv);
 #endif    
@@ -150,6 +158,7 @@ void XOMP_terminate (int exitcode)
     fclose(fp);
   }
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
 #else   
   _ompc_terminate (exitcode);
 #endif    
@@ -178,6 +187,9 @@ void run_me(void* data)
   func(((void**)data)[1], ((void**)data)[2]);
 }
 #endif
+
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
+
 #include "run_me_defs.inc"
 
 void xomp_parallel_start (void (*func) (void *), unsigned* ifClauseValue, unsigned* numThread, int * argcount, ...);
@@ -201,7 +213,6 @@ void xomp_parallel_start (void (*func) (void *), unsigned* ifClauseValue, unsign
   // simplest case where no shared variables to be passed.
   if (*argcount == 0)
   {
-
     XOMP_parallel_start (func, 0, *ifClauseValue, *numThread, NULL, 0);
     return;
   }
@@ -280,11 +291,37 @@ void XOMP_parallel_end (char* file_name, int line_no)
   }
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
   GOMP_parallel_end ();
-#else   
 #endif    
 }
 
+#else // USE_ROSE_NANOS_OPENMP_LIBRARY
 
+void XOMP_parallel_start_for_NANOS( void )
+{
+    NANOS_parallel_init( );
+}
+
+void XOMP_parallel_for_NANOS (void (*func) (void*), void* data, unsigned ifClauseValue, unsigned numThreadsSpecified,
+                              long data_size, long (*get_data_align) (void), void* (*get_empty_data)(void), void (*init_func) (void*, void*))
+{
+  unsigned numThreads = 0;
+  if (!ifClauseValue)
+    numThreads = 1;
+  else
+    numThreads = numThreadsSpecified;
+
+  NANOS_parallel(func, data, numThreads, data_size, get_data_align, get_empty_data, init_func);
+}
+
+void XOMP_parallel_end_for_NANOS( void )
+{
+    NANOS_parallel_end( );
+}
+
+#endif
+
+
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
 //---------------------------------------------
 //Glue from Fortran to XOMP
 int xomp_sections_init_next(int * section_count);
@@ -358,7 +395,21 @@ void XOMP_sections_end_nowait(void)
 #endif
 }
 
+#else
+
+void XOMP_sections_for_NANOS( void ( * func ) ( void * section_data, nanos_ws_desc_t * wsd ), void * data,
+                              long data_size, long ( * get_data_align )( void ), void * empty_data, void ( * init_func ) ( void *, void * ),
+                              int n_sections, bool wait )
+{
+  NANOS_sections( func, data, data_size, get_data_align, empty_data, init_func, n_sections, wait );
+}
+
+#endif
+
 //---------------------------------------------
+
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
+
 #include "run_me_task_defs.inc"
 // statically allocated pg_parameter
 #define MAX_XOMP_TASK_NUMBER 99999 // cannot be too large, otherwise exceed static allocation limit
@@ -521,11 +572,23 @@ void XOMP_task (void (*fn) (void *), void *data, void (*cpyfn) (void *, void *),
 //                      __GNUC_PATCHLEVEL__ >= 0)))
 
  GOMP_task (fn, data, cpyfn, arg_size, arg_align, if_clause, untied);
-//#endif
-
-#else
 #endif 
 }
+
+#else
+
+void XOMP_task_for_NANOS( void (*fn) (void *), void *data, long data_size, long (*get_data_align) (void), 
+                          bool if_clause, unsigned untied, void* empty_data, void (*init_func) (void*, void*),
+                          int num_deps, int * deps_direction, void ** deps_data, 
+                          int * deps_n_dims, nanos_region_dimension_t ** deps_dims, long int * deps_offset )
+{
+  NANOS_task( fn, data, data_size, get_data_align, empty_data, init_func,
+              if_clause, untied, 
+              num_deps, deps_direction, deps_data, deps_n_dims, deps_dims, deps_offset );
+}
+
+#endif
+
 void XOMP_taskwait (void)
 {
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
@@ -537,6 +600,8 @@ void XOMP_taskwait (void)
   GOMP_taskwait();
 //#endif
 
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+  NANOS_taskwait();
 #else
 #endif 
 }
@@ -549,6 +614,8 @@ void XOMP_taskwait (void)
 #define MIN_SIGNED_INT -2147483648l
 
 #define CHECK_SIGNED_INT_RANGE(x) assert((x>=MIN_SIGNED_INT) && (x<=MAX_SIGNED_INT))
+
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
 
 // -------default scheduling ----------------------
 //Accommodate Fortran issues: underscore, small case, pass-by-reference
@@ -1654,6 +1721,17 @@ void XOMP_loop_end_nowait (void)
 #endif    
 }
 
+#else
+
+void XOMP_loop_for_NANOS ( void (*func) (void * loop_data, nanos_ws_desc_t * wsd), void *data, long data_size, long (*get_data_align)(void), 
+                           void * empty_data, void (* init_func) (void *, void *), int policy,
+                           int lower_bound, int upper_bound, int step, int chunk, bool wait )
+{
+    NANOS_loop( func, data, data_size, get_data_align, empty_data, init_func, policy, 
+                lower_bound, upper_bound, step, chunk, wait );
+}
+#endif
+
 //---------
 void xomp_barrier(void);
 #pragma weak  xomp_barrier_=xomp_barrier
@@ -1665,6 +1743,8 @@ void XOMP_barrier (void)
 {
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
   GOMP_barrier();
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+  NANOS_barrier();
 #else   
   _ompc_barrier();
 #endif    
@@ -1676,6 +1756,7 @@ void XOMP_barrier (void)
   //   } 
 }
 
+
 // named and unnamed critical
 // GOMP have a dedicated function to support unnamed critical
 // We generate a default name for it and use the named critical support function instead to
@@ -1684,6 +1765,8 @@ void XOMP_critical_start (void** data)
 {
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
     GOMP_critical_name_start(data);
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+    NANOS_critical_start();
 #else   
     _ompc_enter_critical(data);
 #endif    
@@ -1693,6 +1776,8 @@ void XOMP_critical_end (void** data)
 {
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
     GOMP_critical_name_end(data);
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+    NANOS_critical_end();
 #else   
     _ompc_exit_critical(data);
 #endif    
@@ -1708,6 +1793,8 @@ extern bool XOMP_single(void)
 {
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
   return GOMP_single_start();
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+  return NANOS_single();
 #else   
   return _ompc_do_single();
 #endif    
@@ -1724,11 +1811,14 @@ extern bool XOMP_master(void)
 {
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
   return (omp_get_thread_num() ==0);
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+  return NANOS_master();
 #else   
   return _ompc_is_master ();
 #endif    
 }
 
+#ifndef USE_ROSE_NANOS_OPENMP_LIBRARY
 //---------
 void xomp_atomic_start(void);
 #pragma weak xomp_atomic_start_=xomp_atomic_start
@@ -1761,10 +1851,43 @@ void XOMP_atomic_end (void)
 #endif
 }
 
+#else
+
+void XOMP_atomic_for_NANOS(int op, int type, void * variable, void * operand)
+{
+  NANOS_atomic(op, type, variable, operand);
+}
+
+void XOMP_reduction_for_NANOS( int n_reductions, void ( ** all_threads_reduction )( void * out, void * in, int num_scalars ),
+                               void ( * func )( void * data, /*void** globals, */nanos_ws_desc_t * wsd ), void * data,
+                               void ( ** copy_back )( int team_size, void * original, void * privates ),
+                               void ( ** set_privates )( void * nanos_private, void ** global_data, int reduction_id, int thread ),
+                               void ** global_th_data, void ** global_data, long * global_data_size,
+                               nanos_ws_desc_t * wsd, const char * filename, int fileline )
+{
+    NANOS_reduction( n_reductions, all_threads_reduction,
+                     func, data, copy_back, set_privates,
+                     global_th_data, global_data, global_data_size, wsd, filename, fileline );
+}
+
+int XOMP_get_nanos_thread_num( void )
+{
+    return NANOS_get_thread_num( );
+}
+
+int XOMP_get_nanos_num_threads( void )
+{
+    return NANOS_get_num_threads( );
+}
+
+#endif
+
 void XOMP_flush_all ()
 {
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
   __sync_synchronize();
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+  NANOS_flush();
 #else   
   _ompc_flush(0,0);
 #endif
@@ -1774,6 +1897,9 @@ void XOMP_flush_one(char * startAddress, int nbyte)
 {
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
   __sync_synchronize();
+#elif defined USE_ROSE_NANOS_OPENMP_LIBRARY
+  printf("None selective flush supported with Nanos++ RTL. Performing global flush\n");
+  NANOS_flush();
 #else   
   _ompc_flush(startAddress,nbyte);
 #endif
@@ -1784,8 +1910,8 @@ void XOMP_ordered_start (void)
 #ifdef USE_ROSE_GOMP_OPENMP_LIBRARY  
    GOMP_ordered_start();
 #else   
-#endif
 
+#endif
 }
 void XOMP_ordered_end (void)
 {

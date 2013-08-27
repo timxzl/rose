@@ -141,6 +141,8 @@ Unparse_ExprStmt::unparseLanguageSpecificExpression(SgExpression* expr, SgUnpars
           case DESIGNATED_INITIALIZER:  { unparseDesignatedInitializer(expr, info); break; }
           case PSEUDO_DESTRUCTOR_REF:   { unparsePseudoDtorRef(expr, info); break; }
           case KERN_CALL:               { unparseCudaKernelCall(expr, info); break; }
+          case SHAPE_EXPRESSION:        { unparseShapeExpression(expr, info); break; }
+          case ARRAY_SECTION_EXP:       { unparseArraySectionExp(expr, info); break; }
 
           default:
              {
@@ -3613,4 +3615,35 @@ void Unparse_ExprStmt::unparseCudaKernelCall(SgExpression* expr, SgUnparse_Info&
           }
      }
      curprint ( ")");
+}
+
+void Unparse_ExprStmt::unparseShapeExpression(SgExpression* expr, SgUnparse_Info& info) 
+{
+    SgShapeExpression* shape_expr = isSgShapeExpression( expr );
+    ROSE_ASSERT( shape_expr );
+    
+    // Unparse the shape
+    SgExpressionPtrList shape_dims = isSgExprListExp( shape_expr->get_lhs_operand( ) )->get_expressions( );
+    for( SgExpressionPtrList::iterator it = shape_dims.begin( ); it != shape_dims.end( ); it++ )
+    {
+        curprint(string("["));
+        unparseExpression(*it, info);
+        curprint(string("]"));
+    }
+            
+    // Unparse the base
+    SgExpression* base = shape_expr->get_rhs_operand();
+    unparseExpression(base, info);
+}
+
+void Unparse_ExprStmt::unparseArraySectionExp(SgExpression* expr, SgUnparse_Info& info) 
+{
+    SgArraySectionExp* array_section = isSgArraySectionExp( expr );
+    ROSE_ASSERT( array_section );
+    
+    SgExpression* lb = array_section->get_lower_bound( );
+    SgExpression* length = array_section->get_length( );
+    unparseExpression(lb, info);
+    curprint(string(":"));
+    unparseExpression(length, info);
 }

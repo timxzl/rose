@@ -1,4 +1,4 @@
-#										-*- cmake -*-
+#                                       -*- cmake -*-
 set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Ddisc_union=union" )
 set( CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Ddisc_union=union" )
 
@@ -667,6 +667,7 @@ ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/astOutlining/Copy.cc
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/astOutlining/If.cc
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/astOutlining/Transform.cc
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/astOutlining/GenerateCall.cc
+${CMAKE_SOURCE_DIR}/src/midend/programTransformation/ompLowering/nanos_lowering.cpp
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/ompLowering/omp_lowering.cpp
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/astInlining/isPotentiallyModified.C
 ${CMAKE_SOURCE_DIR}/src/midend/programTransformation/astInlining/replaceExpressionWithStatement.C

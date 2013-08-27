@@ -307,6 +307,7 @@ class UnparseLanguageIndependentConstructs
           virtual void unparseOmpScheduleClause             (SgOmpClause* clause, SgUnparse_Info& info);
           virtual void unparseOmpVariablesClause            (SgOmpClause* clause, SgUnparse_Info& info);
           virtual void unparseOmpExpressionClause           (SgOmpClause* clause, SgUnparse_Info& info);
+          virtual void unparseOmpExpressionsClause          (SgOmpClause* clause, SgUnparse_Info& info);
           virtual void unparseOmpClause                     (SgOmpClause* clause, SgUnparse_Info& info);
 
           virtual void unparseOmpSimpleStatement               (SgStatement* stmt,     SgUnparse_Info& info);

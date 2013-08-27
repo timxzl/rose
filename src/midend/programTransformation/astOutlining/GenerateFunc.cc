@@ -9,6 +9,7 @@
  *  can be isolated into their own, dynamically shareable modules.
  */
 // tps (01/14/2010) : Switching from rose.h to sage3.
+#include "rose_config.h"
 #include "sage3basic.h"
 #include "sageBuilder.h"
 #include <iostream>
@@ -37,10 +38,9 @@ using namespace SageBuilder;
  */
 
 //! Creates a non-member function.
-static
 SgFunctionDeclaration *
-createFuncSkeleton (const string& name, SgType* ret_type,
-                    SgFunctionParameterList* params, SgScopeStatement* scope)
+Outliner::createFuncSkeleton (const string& name, SgType* ret_type,
+                              SgFunctionParameterList* params, SgScopeStatement* scope)
    {
      ROSE_ASSERT(scope != NULL);
      ROSE_ASSERT(isSgGlobal(scope)!=NULL);
@@ -453,6 +453,7 @@ createUnpackDecl (SgInitializedName* param, // the function parameter
                                                             : SgReferenceType::createType( orig_var_type );
         }
     }
+
     ROSE_ASSERT( local_type );
 
     SgAssignInitializer* local_val = NULL;
@@ -932,9 +933,8 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
         else
         {
           SgPointerDerefExp * deref_exp = SageBuilder::buildPointerDerefExp(buildVarRefExp(sym_new));
-          deref_exp->set_need_paren(true);
+          // deref_exp->set_need_paren(true);       // This is done again inside SageInterface::replaceExpression
           SageInterface::replaceExpression(isSgExpression(ref_orig),isSgExpression(deref_exp));
-
         }
       }
       else // no variable cloning is used
@@ -956,31 +956,8 @@ remapVarSyms (const VarSymRemap_t& vsym_remap,  // regular shared variables
 }
 
 
-/*!
- *  \brief Creates new function parameters for a set of variable symbols.
- *
- *  We have several options for the organization of function parameters:
- *
- *  1. default: each variable to be passed has a function parameter
- *           To support both C and C++ programs, this routine assumes parameters passed
- *           using pointers (rather than the C++ -specific reference types).  
- *  2, useParameterWrapper: use an array as the function parameter, each
- *              pointer stores the address of the variable to be passed
- *  3. useStructureWrapper: use a structure, each field stores a variable's
- *              value or address according to use-by-address or not semantics
- *
- *  It inserts "unpacking/unwrapping" and "repacking" statements at the 
- *  beginning and end of the function body, respectively, when necessary.
- *
- *  This routine records the mapping between the given variable symbols and the new
- *  symbols corresponding to the new parameters. 
- *
- *  Finally, it performs variable replacement in the end.
- *
- */
-static
-void
-variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to the outlined function: //regular (shared) parameters?
+std::set<SgVariableDeclaration *>
+Outliner::variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to the outlined function: //regular (shared) parameters?
               const ASTtools::VarSymSet_t& pdSyms, // those must use pointer dereference: use pass-by-reference
 //              const std::set<SgInitializedName*> & readOnlyVars, // optional analysis: those which can use pass-by-value, used for classic outlining without parameter wrapping, and also for variable clone to decide on if write-back is needed
 //              const std::set<SgInitializedName*> & liveOutVars, // optional analysis: used to control if a write-back is needed when variable cloning is used.
@@ -1017,6 +994,7 @@ variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to t
   // They include parameters for 
   // *  regular shared variables and also 
   // *  shared copies for firstprivate and reduction variables
+  std::set<SgVariableDeclaration *> unpacking_stmts;
   for (ASTtools::VarSymSet_t::const_reverse_iterator i = syms.rbegin ();
       i != syms.rend (); ++i)
   {
@@ -1110,6 +1088,7 @@ variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to t
       local_var_decl  = 
         createUnpackDecl (p_init_name, counter, isPointerDeref, i_name , struct_decl, body);
       ROSE_ASSERT (local_var_decl);
+      unpacking_stmts.insert( local_var_decl );
       prependStatement (local_var_decl,body);
       // regular and shared variables used the first local declaration
       recordSymRemap (*i, local_var_decl, args_scope, sym_remap);
@@ -1215,6 +1194,8 @@ variableHandling(const ASTtools::VarSymSet_t& syms, // all variables passed to t
 #endif
   // variable substitution 
   remapVarSyms (sym_remap, pdSyms, private_remap , func_body);
+  
+  return unpacking_stmts;
 }
 
 // =====================================================================
@@ -1230,7 +1211,8 @@ Outliner::generateFunction ( SgBasicBlock* s,  // block to be outlined
 //                          const std::set< SgInitializedName *>& liveOuts, // optional live out variables, used to optimize variable cloning
                             const std::set< SgInitializedName *>& restoreVars, // optional information about variables to be restored after variable clones finish computation
                             SgClassDeclaration* struct_decl,  // an optional wrapper structure for parameters
-                            SgScopeStatement* scope)
+                            SgScopeStatement* scope,
+                            std::set<SgVariableDeclaration *>& unpack_stmts )
 {
   ROSE_ASSERT (s&&scope);
   ROSE_ASSERT(isSgGlobal(scope));
@@ -1350,7 +1332,7 @@ Outliner::generateFunction ( SgBasicBlock* s,  // block to be outlined
   //   add repacking statements if necessary
   //   replace variables to access to parameters, directly or indirectly
   //variableHandling(syms, pdSyms, readOnlyVars, liveOuts, struct_decl, func);
-  variableHandling(syms, pdSyms, restoreVars, struct_decl, func);
+  unpack_stmts = Outliner::variableHandling(syms, pdSyms, restoreVars, struct_decl, func);
   ROSE_ASSERT (func != NULL);
   
 //     std::cout << func->get_type()->unparseToString() << std::endl;
@@ -1365,5 +1347,7 @@ Outliner::generateFunction ( SgBasicBlock* s,  // block to be outlined
   ROSE_ASSERT(scope->lookup_function_symbol(func->get_name()));
   return func;
 }
+
+
 
 // eof

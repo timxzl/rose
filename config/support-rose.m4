@@ -829,9 +829,14 @@ ROSE_SUPPORT_EDG_DEBUGGING
 # 
 ROSE_SUPPORT_OMNI_OPENMP
 
+
 # call supporting macro for GCC 4.4.x gomp OpenMP runtime library
 # AM_CONDITIONAL is already included into the macro
 ROSE_WITH_GOMP_OPENMP_LIBRARY
+
+# call supporting macro for NANOS OpenMP runtime library
+# AM_CONDITIONAL is already included into the macro
+ROSE_WITH_NANOS_OPENMP_LIBRARY
 
 # Call supporting macro for GCC OpenMP
 ROSE_SUPPORT_GCC_OMP
@@ -2247,6 +2252,7 @@ tests/CompileTests/UPC_tests/Makefile
 tests/CompileTests/OpenMP_tests/Makefile
 tests/CompileTests/OpenMP_tests/fortran/Makefile
 tests/CompileTests/OpenMP_tests/cvalidation/Makefile
+tests/CompileTests/OpenMP_tests/nanos/Makefile
 tests/CompileTests/copyAST_tests/Makefile
 tests/CompileTests/colorAST_tests/Makefile
 tests/CompileTests/mergeAST_tests/Makefile
@@ -2292,6 +2298,7 @@ tests/roseTests/binaryTests/Dwarf_tests/Makefile
 tests/roseTests/loopProcessingTests/Makefile
 tests/roseTests/ompLoweringTests/Makefile
 tests/roseTests/ompLoweringTests/fortran/Makefile
+tests/roseTests/ompLoweringTests/nanos/Makefile
 tests/roseTests/programAnalysisTests/Makefile
 tests/roseTests/programAnalysisTests/defUseAnalysisTests/Makefile
 tests/roseTests/programAnalysisTests/sideEffectAnalysisTests/Makefile

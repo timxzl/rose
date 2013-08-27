@@ -4539,7 +4539,22 @@ int SgProject::link ( const std::vector<std::string>& argv, std::string linkerNa
            linkingCommand.push_back(omni_lib_path+"/libgompc.a");
            linkingCommand.push_back("-lpthread");
   #else
-     printf("Warning: OpenMP lowering is requested but no target runtime library is specified!\n");
+    #ifdef USE_ROSE_NANOS_OPENMP_LIBRARY
+           string xomp_lib_path(ROSE_INSTALLATION_PATH);
+           ROSE_ASSERT (xomp_lib_path.size() != 0);
+           linkingCommand.push_back(xomp_lib_path+"/lib/libxomp.a");
+           linkingCommand.push_back("-lpthread");
+           
+           // FIXME We may want add this libraries statically
+           string nanos_lib_path(NANOS_OPENMP_LIB_PATH);
+           ROSE_ASSERT (nanos_lib_path.size() != 0);
+           linkingCommand.push_back("-L"+nanos_lib_path+"/performance");
+           linkingCommand.push_back("-lnanox-omp");
+           linkingCommand.push_back("-lnanox-c");
+           linkingCommand.push_back("-lnanox");
+    #else
+      printf("Warning: OpenMP lowering is requested but no target runtime library is specified!\n");
+    #endif
   #endif
 #endif
      }

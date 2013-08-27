@@ -23,6 +23,9 @@
 #include <string>
 #include <ASTtools.hh>
 #include <VarSym.hh>
+
+#include "rose_config.h"
+
 //! \name Forward declarations to relevant Sage classes.
 //@{
 class SgProject;
@@ -213,9 +216,49 @@ namespace Outliner
         const std::string& func_name_str, // the name for the outlined function, we generate the name of struct based on this.
         const ASTtools::VarSymSet_t& syms, // variables to be passed as parameters
         ASTtools::VarSymSet_t& pdSyms, // variables must use pointer types (pointer dereferencing: pdf). The rest variables use pass-by-value
-        SgScopeStatement* func_scope ); // the scope of the outlined function, could be in another file
+        SgScopeStatement* func_scope); // the scope of the outlined function, could be in another file
 
+    /*!\brief Create a non-member function
+     */
+    ROSE_DLL_API
+    SgFunctionDeclaration* createFuncSkeleton(
+        const std::string& name, // name of the function
+        SgType* ret_type, // return type
+        SgFunctionParameterList* params, // list of parameters
+        SgScopeStatement* scope); // scope where the function is inserted
 
+    /*!
+     *  \brief Creates new function parameters for a set of variable symbols.
+     *
+     *  We have several options for the organization of function parameters:
+     *
+     *  1. default: each variable to be passed has a function parameter
+     *           To support both C and C++ programs, this routine assumes parameters passed
+     *           using pointers (rather than the C++ -specific reference types).  
+     *  2, useParameterWrapper: use an array as the function parameter, each
+     *              pointer stores the address of the variable to be passed
+     *  3. useStructureWrapper: use a structure, each field stores a variable's
+     *              value or address according to use-by-address or not semantics
+     *
+     *  It inserts "unpacking/unwrapping" and "repacking" statements at the 
+     *  beginning and end of the function body, respectively, when necessary.
+     *
+     *  This routine records the mapping between the given variable symbols and the new
+     *  symbols corresponding to the new parameters. 
+     *
+     *  Finally, it performs variable replacement in the end.
+     *
+     */
+    ROSE_DLL_API 
+    std::set<SgVariableDeclaration *> variableHandling(
+        const ASTtools::VarSymSet_t& syms, // all variables passed to the outlined function: //regular (shared) parameters?
+        const ASTtools::VarSymSet_t& pdSyms, // those must use pointer dereference: use pass-by-reference
+        // const std::set<SgInitializedName*> & readOnlyVars, // optional analysis: those which can use pass-by-value, used for classic outlining without parameter wrapping, and also for variable clone to decide on if write-back is needed
+        // const std::set<SgInitializedName*> & liveOutVars, // optional analysis: used to control if a write-back is needed when variable cloning is used.
+        const std::set<SgInitializedName*> & restoreVars, // variables to be restored after variable cloning
+        SgClassDeclaration* struct_decl, // an optional struct wrapper for all variables
+        SgFunctionDeclaration* func); // the outlined function
+    
     /*!
      *  \brief Returns a new outlined function containing a deep-copy
      *  of s.
@@ -258,12 +301,19 @@ namespace Outliner
                       //const std::set< SgInitializedName *>& liveOuts, // optional live out variables to optimize away the copy-back statements in variable cloning
                       const std::set< SgInitializedName *>& restoreVars, // variables need to be restored after their clones finish computation
                       SgClassDeclaration* struct_decl, /*optional struct type to wrap parameters*/
-                      SgScopeStatement* scope);
+                      SgScopeStatement* scope,
+                      std::set<SgVariableDeclaration *>& unpack_stmts);   // Used only when Nanos OpenMP RTL
 
+    ROSE_DLL_API
+            SgStatement* build_array_packing_statement( SgExpression * lhs, SgExpression * & rhs, SgStatement * target );
+    
      //! Generate packing (wrapping) statements for the variables to be passed 
      //return the unique wrapper parameter for the outlined function
      //target is the outlining target
-    ROSE_DLL_API std::string generatePackingStatements(SgStatement* target, ASTtools::VarSymSet_t & syms,  ASTtools::VarSymSet_t & pdsyms, SgClassDeclaration* struct_decl = NULL);
+    ROSE_DLL_API
+    std::string generatePackingStatements( SgStatement * target, 
+                                           const ASTtools::VarSymSet_t & syms, const ASTtools::VarSymSet_t & pdsyms, 
+                                           SgClassDeclaration * struct_decl = NULL );
 
     /*!
      *  \brief Inserts an outlined-function declaration into global scope.

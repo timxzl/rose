@@ -3,6 +3,7 @@
 
 #include "sage3basic.h"
 
+#include "rose_config.h"
 #include "rose_paths.h"
 
 #include "astPostProcessing.h"
@@ -681,6 +682,39 @@ namespace OmpSupport
     ROSE_ASSERT(result != SgOmpClause::e_omp_reduction_unknown);
     return result;
   }
+  
+  static SgOmpClause::omp_depend_operator_enum toSgOmpDependOperator( omp_construct_enum at_op )
+  {
+      SgOmpClause::omp_depend_operator_enum result = SgOmpClause::e_omp_depend_unknown;
+      switch( at_op )
+      {
+          case e_depend_inout: 
+          {
+              result = SgOmpClause::e_omp_depend_inout;
+              break;
+          }
+          case e_depend_in: 
+          {
+              result = SgOmpClause::e_omp_depend_in;
+              break;
+          }
+          case e_depend_out: 
+          {
+              result = SgOmpClause::e_omp_depend_out;
+              break;
+          }
+          default:
+          {
+              printf( "error: unacceptable omp construct enum for depend operator conversion:%s\n", 
+                      OmpSupport::toString( at_op ).c_str( ) );
+              ROSE_ASSERT( false );
+              break;
+          }
+      }
+      ROSE_ASSERT( result != SgOmpClause::e_omp_depend_unknown );
+      return result;
+  }
+  
   //A helper function to set SgVarRefExpPtrList  from OmpAttribute's construct-varlist map
   static void setClauseVariableList(SgOmpVariablesClause* target, OmpAttribute* att, omp_construct_enum key)
   {
@@ -706,6 +740,21 @@ namespace OmpSupport
     }
   }
 
+  static void setClauseExpressionList(SgOmpExpressionsClause* target, OmpAttribute* att, omp_construct_enum key)
+  {
+      ROSE_ASSERT(target&&att);
+      std::vector<SgExpression*> exprlist = att->getExpressionList(key);
+      ROSE_ASSERT(exprlist.size()!=0);
+      std::vector<SgExpression*>::iterator iter;
+      for (iter = exprlist.begin(); iter!= exprlist.end(); iter ++)
+      {
+          SgExpressionPtrList current_exprs = target->get_expressions();
+          current_exprs.push_back(*iter);
+          target->set_expressions( current_exprs );
+          (*iter)->set_parent(target);
+      }
+  }
+  
   //! Try to build a reduction clause with a given operation type from OmpAttribute
   SgOmpReductionClause* buildOmpReductionClause(OmpAttribute* att, omp_construct_enum reduction_op)
   {
@@ -747,6 +796,23 @@ namespace OmpSupport
   }
 
 
+  SgOmpDependClause* buildOmpDependClause( OmpAttribute* att, omp_construct_enum depend_op )
+  {
+      ROSE_ASSERT( att !=NULL );
+      ROSE_ASSERT( att->isDependVariant( depend_op ) );
+      if( !att->hasDependVariant( depend_op ) )
+          return NULL;
+      SgOmpClause::omp_depend_operator_enum sg_op = toSgOmpDependOperator( depend_op ); 
+      SgOmpDependClause* result = new SgOmpDependClause( sg_op );
+      setOneSourcePositionForTransformation( result );
+      ROSE_ASSERT( result != NULL );
+      
+      // build variable list
+      setClauseExpressionList( result, att, depend_op );
+      
+      return result;
+  }
+  
   //Build one of the clauses with a variable list
   SgOmpVariablesClause * buildOmpVariableClause(OmpAttribute* att, omp_construct_enum clause_type)
   {
@@ -958,6 +1024,18 @@ namespace OmpSupport
           SgOmpClause* sgclause = buildOmpMapClause(att, rop);
           target->get_clauses().push_back(sgclause);
         }
+      }
+      else if (c_clause == e_depend)
+      {
+          std::vector<omp_construct_enum> rops  = att->getDependVariants();
+          ROSE_ASSERT(rops.size()!=0);
+          std::vector<omp_construct_enum>::iterator iter;
+          for (iter=rops.begin(); iter!=rops.end();iter++)
+          {
+              omp_construct_enum rop = *iter;
+              SgOmpClause* sgclause = buildOmpDependClause(att, rop);
+              target->get_clauses().push_back(sgclause);
+          }
       }
       else 
       {

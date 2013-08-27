@@ -2,6 +2,7 @@
 test fine grained locks instead of critical section
 by Chunhua Liao
 */
+#include <assert.h>
 #include <stdio.h>
 
 #ifdef _OPENMP
@@ -70,6 +71,7 @@ int main(void)
   for (i=0;i<LOCKNUM;i++)
     omp_destroy_lock(&(lck[i]));
 #endif
+
   printf("sum of a[] = %d\n",sum);
 }
 

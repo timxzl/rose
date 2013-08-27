@@ -371,6 +371,28 @@ namespace OmpSupport
       return expressions[targetConstruct];
     }
 
+  //! Expression List
+  void OmpAttribute::addExpressionToList(omp_construct_enum targetConstruct, SgExpression* expr )
+  {
+      expressions_list[targetConstruct].push_back( expr );
+      if( expr != NULL )
+          expr->set_parent( mNode ); // a little hack here, we not yet extend the SgPragmaDeclaration to have expression children.
+  }
+  
+  std::vector<SgExpression*> OmpAttribute::getExpressionList(omp_construct_enum targetConstruct)
+  {
+      if( targetConstruct==e_depend_in || targetConstruct==e_depend_out || targetConstruct==e_depend_inout )
+      {
+          return expressions_list[targetConstruct];
+      } 
+      else
+      {
+          cerr<<"Error: OmpAttribute::getExpressionList() only depend clause accepts a list of expressions"
+              <<toOpenMPString(targetConstruct)<<endl;
+          ROSE_ABORT();
+      }
+  }
+    
   // default () value
   void OmpAttribute::setDefaultValue(omp_construct_enum valuex)
   {
@@ -438,6 +460,27 @@ namespace OmpSupport
   }
 
 
+  void OmpAttribute::setDependVariant( omp_construct_enum operatorx )
+  {
+      assert( isDependVariant( operatorx ) );
+      std::vector<omp_construct_enum>::iterator hit = 
+              find( depend_variants.begin( ), depend_variants.end( ), operatorx ); 
+      if( hit == depend_variants.end( ) )   
+          depend_variants.push_back( operatorx );
+  }
+
+  std::vector<omp_construct_enum> OmpAttribute::getDependVariants()
+  {
+      return depend_variants;
+  }
+
+  bool OmpAttribute::hasDependVariant(omp_construct_enum operatorx)
+  {
+      return ( find( depend_variants.begin( ), depend_variants.end( ),operatorx ) 
+               != depend_variants.end( ) );
+  }
+  
+  
   //! Find the relevant clauses for a variable 
   std::vector<enum omp_construct_enum> 
     OmpAttribute::get_clauses(const std::string& variable)
@@ -546,6 +589,8 @@ namespace OmpSupport
 
       case e_map: result = "map"; break;
       case e_device: result = "device"; break;
+      
+      case e_depend: result = "depend"; break;
 
                      // values
       case e_default_none: result = "none"; break;
@@ -589,6 +634,10 @@ namespace OmpSupport
       case e_map_out: result = "out"; break;
       case e_map_inout: result = "inout"; break;
 
+      case e_depend_in: result = "in"; break;
+      case e_depend_out: result = "out"; break;
+      case e_depend_inout: result = "inout"; break;
+      
       case e_not_omp: result = "not_omp"; break;
     }
 
@@ -905,8 +954,12 @@ namespace OmpSupport
       case e_map:
       case e_device:
 
+     // task dependencies implementation
+      case e_depend:
+        
         result = true; 
         break;
+        
       default:
         result = false;
         break;
@@ -959,7 +1012,24 @@ namespace OmpSupport
     return result;
   }
 
+  bool  OmpAttribute::isDependVariant(omp_construct_enum omp_type)
+  {
+      bool result = false;
+      switch (omp_type)
+      {
+          case e_depend_in:
+          case e_depend_out:
+          case e_depend_inout:
+              result = true;
+              break;
+          default:
+              result = false;
+              break;
+      }
+      return result;
+  }
 
+  
   bool OmpAttribute::hasClause(omp_construct_enum omp_type)
   {
     bool result = false;
