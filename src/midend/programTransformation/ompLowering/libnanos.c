@@ -609,10 +609,10 @@ void NANOS_atomic ( int op, int type, void * variable, void * operand )
                      abort();
           }
           __sync_synchronize();
-      } while ( (sizeof_var == 4) ? !__sync_bool_compare_and_swap_4((double *) variable, 
+      } while ( (sizeof_var == 4) ? !__sync_bool_compare_and_swap_4((unsigned int *) variable, 
                                                                     *(unsigned int *) &oldval, 
                                                                     *(unsigned int *) &newval) :
-                                    (sizeof_var == 8) ? !__sync_bool_compare_and_swap_8((double *) variable,
+                                    (sizeof_var == 8) ? !__sync_bool_compare_and_swap_8((unsigned int *) variable,
                                                                                         *(unsigned long *) &oldval,
                                                                                         *(unsigned long *) &newval) :
                                                         0 );
