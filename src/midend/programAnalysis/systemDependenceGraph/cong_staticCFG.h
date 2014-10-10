@@ -22,12 +22,11 @@ namespace StaticCFG
 
 typedef boost::function<bool(const VirtualCFG::CFGNode&)> CFGNodeFilter;
 
+typedef VirtualCFG::FilteredCFGNode<CFGNodeFilter> StaticCFGNode;
+typedef VirtualCFG::FilteredCFGEdge<CFGNodeFilter> StaticCFGEdge;
 
-typedef VirtualCFG::FilteredCFGNode<CFGNodeFilter> CFGNode;
-typedef VirtualCFG::FilteredCFGEdge<CFGNodeFilter> CFGEdge;
-
-typedef boost::shared_ptr<CFGNode> CFGNodePtr;
-typedef boost::shared_ptr<CFGEdge> CFGEdgePtr;
+typedef boost::shared_ptr<StaticCFGNode> CFGNodePtr;
+typedef boost::shared_ptr<StaticCFGEdge> CFGEdgePtr;
 
 struct DefaultFilter
 {
@@ -68,7 +67,7 @@ CFGNodePtr, CFGEdgePtr>
         Vertex exit_;
 
         //! A map from a CFG node to the corresponding vertex
-        std::map<CFGNode, Vertex> nodesToVertices_;
+        std::map<StaticCFGNode, Vertex> nodesToVertices_;
 
         //! The dominator tree of this CFG.
         mutable VertexVertexMap dominatorTree_;
@@ -139,7 +138,7 @@ CFGNodePtr, CFGEdgePtr>
 
         //! Given a CFG node, returns the corresponding vertex in the graph.
         //! Returns Vertex::null_vertex() if the given node is not in the graph
-        Vertex getVertexForNode(const CFGNode& node) const;
+        Vertex getVertexForNode(const StaticCFGNode& node) const;
 
         //! Return if this CFG is reducible (if all loops are natural loops, the
         //! CFG is reducible).
@@ -158,18 +157,18 @@ CFGNodePtr, CFGEdgePtr>
     protected:
 
         //! A internal funtion which builds the actual CFG (boost::graph).
-        void buildCFG(const CFGNode& node,
-                std::map<CFGNode, Vertex>& nodesAdded,
-                std::set<CFGNode>& nodesProcessed);
+        void buildCFG(const StaticCFGNode& node,
+                std::map<StaticCFGNode, Vertex>& nodesAdded,
+                std::set<StaticCFGNode>& nodesProcessed);
 
         //! Find the entry and exit of this CFG and set the corresponding members.
         void setEntryAndExit();
 
-        CFGNodePtr newCFGNode(const CFGNode& node)
-        { return CFGNodePtr(new CFGNode(node)); }
+        CFGNodePtr newCFGNode(const StaticCFGNode& node)
+        { return CFGNodePtr(new StaticCFGNode(node)); }
 
-        CFGEdgePtr newCFGEdge(const CFGEdge& edge)
-        { return CFGEdgePtr(new CFGEdge(edge)); }
+        CFGEdgePtr newCFGEdge(const StaticCFGEdge& edge)
+        { return CFGEdgePtr(new StaticCFGEdge(edge)); }
 
         //! This function helps to write the DOT file for vertices.
         void writeGraphNode(std::ostream& out, const Vertex& node) const;
@@ -208,10 +207,10 @@ CFGNodePtr, CFGEdgePtr>
 
 
 //! This function helps to write the DOT file for vertices.
-void writeCFGNode(std::ostream& out, const CFGNode& cfgNode);
+void writeCFGNode(std::ostream& out, const StaticCFGNode& cfgNode);
 
 //! This function helps to write the DOT file for edges.
-void writeCFGEdge(std::ostream& out, const CFGEdge& e);
+void writeCFGEdge(std::ostream& out, const StaticCFGEdge& e);
 
 
 } // end of namespace StaticCFG

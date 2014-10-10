@@ -37,7 +37,7 @@ void ControlFlowGraph::build(SgFunctionDefinition* funcDef)
 
     // The following two variables are used to record the nodes traversed.
     nodesToVertices_.clear();
-    std::set<CFGNode> nodesProcessed;
+    std::set<StaticCFGNode> nodesProcessed;
 
     // Remove all nodes and edges first.
     clear();
@@ -83,9 +83,9 @@ void ControlFlowGraph::setEntryAndExit()
 }
 
 void ControlFlowGraph::buildCFG(
-        const CFGNode& node,
-        std::map<CFGNode, Vertex>& nodesAdded,
-        std::set<CFGNode>& nodesProcessed)
+        const StaticCFGNode& node,
+        std::map<StaticCFGNode, Vertex>& nodesAdded,
+        std::set<StaticCFGNode>& nodesProcessed)
 {
     ROSE_ASSERT(node.getNode());
 
@@ -93,12 +93,12 @@ void ControlFlowGraph::buildCFG(
         return;
     nodesProcessed.insert(node);
 
-    std::map<CFGNode, Vertex>::iterator iter;
+    std::map<StaticCFGNode, Vertex>::iterator iter;
     bool inserted;
     Vertex from, to;
 
     // Add the source node.
-    const CFGNode& src = node;
+    const StaticCFGNode& src = node;
     ROSE_ASSERT(src.getNode());
 
     boost::tie(iter, inserted) = nodesAdded.insert(std::make_pair(src, Vertex()));
@@ -114,14 +114,14 @@ void ControlFlowGraph::buildCFG(
         from = iter->second;
     }
 
-    CFGNode nodeCopy = node;
+    StaticCFGNode nodeCopy = node;
     nodeCopy.setFilter(filter_);
-    std::vector<CFGEdge> outEdges = nodeCopy.outEdges();
+    std::vector<StaticCFGEdge> outEdges = nodeCopy.outEdges();
 
-    foreach (const CFGEdge& cfgEdge, outEdges)
+    foreach (const StaticCFGEdge& cfgEdge, outEdges)
     {
         // For each out edge, add the target node.
-        CFGNode tar = cfgEdge.target();
+        StaticCFGNode tar = cfgEdge.target();
         ROSE_ASSERT(tar.getNode());
 
         boost::tie(iter, inserted) = nodesAdded.insert(std::make_pair(tar, Vertex()));
@@ -201,9 +201,9 @@ std::vector<CFGEdgePtr> ControlFlowGraph::getAllEdges() const
     return allEdges;
 }
 
-ControlFlowGraph::Vertex ControlFlowGraph::getVertexForNode(const CFGNode &node) const
+ControlFlowGraph::Vertex ControlFlowGraph::getVertexForNode(const StaticCFGNode &node) const
 {
-    std::map<CFGNode, Vertex>::const_iterator vertexIter = nodesToVertices_.find(node);
+    std::map<StaticCFGNode, Vertex>::const_iterator vertexIter = nodesToVertices_.find(node);
     if (vertexIter == nodesToVertices_.end())
         return GraphTraits::null_vertex();
     else
@@ -315,7 +315,7 @@ void ControlFlowGraph::writeGraphEdge(std::ostream& out, const Edge& edge) const
 
 
 //! This function helps to write the DOT file for vertices.
-void writeCFGNode(std::ostream& out, const CFGNode& cfgNode)
+void writeCFGNode(std::ostream& out, const StaticCFGNode& cfgNode)
 {
     SgNode* node = cfgNode.getNode();
     ROSE_ASSERT(node);
@@ -358,7 +358,7 @@ void writeCFGNode(std::ostream& out, const CFGNode& cfgNode)
 
 
 //! This function helps to write the DOT file for edges.
-void writeCFGEdge(std::ostream& out, const CFGEdge& e)
+void writeCFGEdge(std::ostream& out, const StaticCFGEdge& e)
 {
     out << "[label=\"" << escapeString(e.toString()) <<
         "\", style=\"" << "solid" << "\"]";
