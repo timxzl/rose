@@ -481,8 +481,8 @@ void gatherReferences( const Rose_STL_Container< SgNode* >& expr, Rose_STL_Conta
       {
           SgVarRefExp* ref_orig = isSgVarRefExp (*i);
           ROSE_ASSERT (ref_orig);
-          ASTtools::VarSymSet_t::const_iterator i = vars.find( ref_orig->get_symbol( ) );
-          if( i != vars.end( ) )
+          ASTtools::VarSymSet_t::const_iterator cit = vars.find( ref_orig->get_symbol( ) );
+          if( cit != vars.end( ) )
           {
               SgExpression * ptr_ref = buildPointerDerefExp( copyExpression(ref_orig) );
               ptr_ref->set_need_paren(true);
