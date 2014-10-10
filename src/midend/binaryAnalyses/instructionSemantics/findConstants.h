@@ -557,7 +557,7 @@ struct MemoryMergeConstraint: public Constraint {
 };
 
 struct RegisterSet {
-    struct {
+    struct __myregisters {
         static const size_t n_gprs = 8;             /**< Number of general-purpose registers in this state. */
         static const size_t n_segregs = 6;          /**< Number of segmentation registers in this state. */
         static const size_t n_flags = 32;           /**< Number of flag registers in this state. */
@@ -1004,7 +1004,7 @@ struct FindConstantsPolicy {
         /* If repeat is a constant then perform the write that number of times. */
         if (0==repeat->get().name) {
             for (size_t i=0; i<repeat->get().offset; i++) {
-                XVariablePtr<32> tmp_addr = add(addr, number<32>(i*nbits/8));
+                XVariablePtr<32> tmp_addr = add<32>(addr, number<32>(i*nbits/8));
                 cur_state.memoryWrites = memoryWriteHelper(cur_state.memoryWrites, tmp_addr, data);
             }
         } else {

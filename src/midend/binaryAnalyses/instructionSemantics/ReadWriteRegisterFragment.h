@@ -96,21 +96,21 @@ ValueType<Len> readRegister(const RegisterDescriptor &reg) {
                 case x86_regclass_flags:
                     if (reg.get_minor()!=0 || cur_state.registers.n_flags<16)
                         throw Exception("register not implemented in semantic policy");
-                    return unsignedExtend<16, Len>(concat(cur_state.registers.flag[0],
-                                                   concat(cur_state.registers.flag[1],
-                                                   concat(cur_state.registers.flag[2],
-                                                   concat(cur_state.registers.flag[3],
-                                                   concat(cur_state.registers.flag[4],
-                                                   concat(cur_state.registers.flag[5],
-                                                   concat(cur_state.registers.flag[6],
-                                                   concat(cur_state.registers.flag[7],
-                                                   concat(cur_state.registers.flag[8],
-                                                   concat(cur_state.registers.flag[9],
-                                                   concat(cur_state.registers.flag[10],
-                                                   concat(cur_state.registers.flag[11],
-                                                   concat(cur_state.registers.flag[12],
-                                                   concat(cur_state.registers.flag[13],
-                                                   concat(cur_state.registers.flag[14],
+                    return unsignedExtend<16, Len>(concat<1,15>(cur_state.registers.flag[0],
+                                                   concat<1,14>(cur_state.registers.flag[1],
+                                                   concat<1,13>(cur_state.registers.flag[2],
+                                                   concat<1,12>(cur_state.registers.flag[3],
+                                                   concat<1,11>(cur_state.registers.flag[4],
+                                                   concat<1,10>(cur_state.registers.flag[5],
+                                                   concat<1,9>(cur_state.registers.flag[6],
+                                                   concat<1,8>(cur_state.registers.flag[7],
+                                                   concat<1,7>(cur_state.registers.flag[8],
+                                                   concat<1,6>(cur_state.registers.flag[9],
+                                                   concat<1,5>(cur_state.registers.flag[10],
+                                                   concat<1,4>(cur_state.registers.flag[11],
+                                                   concat<1,3>(cur_state.registers.flag[12],
+                                                   concat<1,2>(cur_state.registers.flag[13],
+                                                   concat<1,1>(cur_state.registers.flag[14],
                                                           cur_state.registers.flag[15]))))))))))))))));
                 default:
                     throw Exception("word access not valid for this register type");
@@ -137,22 +137,22 @@ ValueType<Len> readRegister(const RegisterDescriptor &reg) {
                         throw Exception("register not implemented in semantic policy");
                     if (reg.get_nbits()!=32)
                         throw Exception("register is not 32 bits");
-                    return unsignedExtend<32, Len>(concat(readRegister<16>("flags"), // no-op sign extension
-                                                   concat(cur_state.registers.flag[16],
-                                                   concat(cur_state.registers.flag[17],
-                                                   concat(cur_state.registers.flag[18],
-                                                   concat(cur_state.registers.flag[19],
-                                                   concat(cur_state.registers.flag[20],
-                                                   concat(cur_state.registers.flag[21],
-                                                   concat(cur_state.registers.flag[22],
-                                                   concat(cur_state.registers.flag[23],
-                                                   concat(cur_state.registers.flag[24],
-                                                   concat(cur_state.registers.flag[25],
-                                                   concat(cur_state.registers.flag[26],
-                                                   concat(cur_state.registers.flag[27],
-                                                   concat(cur_state.registers.flag[28],
-                                                   concat(cur_state.registers.flag[29],
-                                                   concat(cur_state.registers.flag[30],
+                    return unsignedExtend<32, Len>(concat<16,16>(readRegister<16>("flags"), // no-op sign extension
+                                                   concat<1,15>(cur_state.registers.flag[16],
+                                                   concat<1,14>(cur_state.registers.flag[17],
+                                                   concat<1,13>(cur_state.registers.flag[18],
+                                                   concat<1,12>(cur_state.registers.flag[19],
+                                                   concat<1,11>(cur_state.registers.flag[20],
+                                                   concat<1,10>(cur_state.registers.flag[21],
+                                                   concat<1,9>(cur_state.registers.flag[22],
+                                                   concat<1,8>(cur_state.registers.flag[23],
+                                                   concat<1,7>(cur_state.registers.flag[24],
+                                                   concat<1,6>(cur_state.registers.flag[25],
+                                                   concat<1,5>(cur_state.registers.flag[26],
+                                                   concat<1,4>(cur_state.registers.flag[27],
+                                                   concat<1,3>(cur_state.registers.flag[28],
+                                                   concat<1,2>(cur_state.registers.flag[29],
+                                                   concat<1,1>(cur_state.registers.flag[30],
                                                           cur_state.registers.flag[31])))))))))))))))));
                 }
                 default:
@@ -189,13 +189,13 @@ void writeRegister(const RegisterDescriptor &reg, const ValueType<Len> &value) {
             switch (reg.get_offset()) {
                 case 0:
                     cur_state.registers.gpr[reg.get_minor()] =
-                        concat(signExtend<Len, 8>(value), extract<8, 32>(cur_state.registers.gpr[reg.get_minor()])); // no-op extend
+                        concat<8,24>(signExtend<Len, 8>(value), extract<8, 32, 32>(cur_state.registers.gpr[reg.get_minor()])); // no-op extend
                     break;
                 case 8:
                     cur_state.registers.gpr[reg.get_minor()] =
-                        concat(extract<0, 8>(cur_state.registers.gpr[reg.get_minor()]),
-                               concat(unsignedExtend<Len, 8>(value),
-                                      extract<16, 32>(cur_state.registers.gpr[reg.get_minor()])));
+                        concat<8,24>(extract<0, 8, 32>(cur_state.registers.gpr[reg.get_minor()]),
+                               concat<8,16>(unsignedExtend<Len, 8>(value),
+                                      extract<16, 32, 32>(cur_state.registers.gpr[reg.get_minor()])));
                     break;
                 default:
                     throw Exception("invalid byte access offset");
@@ -217,28 +217,28 @@ void writeRegister(const RegisterDescriptor &reg, const ValueType<Len> &value) {
                     if (reg.get_minor()>=cur_state.registers.n_gprs)
                         throw Exception("register not implemented in semantic policy");
                     cur_state.registers.gpr[reg.get_minor()] =
-                        concat(unsignedExtend<Len, 16>(value),
-                               extract<16, 32>(cur_state.registers.gpr[reg.get_minor()]));
+                        concat<16,16>(unsignedExtend<Len, 16>(value),
+                               extract<16, 32, 32>(cur_state.registers.gpr[reg.get_minor()]));
                     break;
                 case x86_regclass_flags:
                     if (reg.get_minor()!=0 || cur_state.registers.n_flags<16)
                         throw Exception("register not implemented in semantic policy");
-                    cur_state.registers.flag[0]  = extract<0,  1 >(value);
-                    cur_state.registers.flag[1]  = extract<1,  2 >(value);
-                    cur_state.registers.flag[2]  = extract<2,  3 >(value);
-                    cur_state.registers.flag[3]  = extract<3,  4 >(value);
-                    cur_state.registers.flag[4]  = extract<4,  5 >(value);
-                    cur_state.registers.flag[5]  = extract<5,  6 >(value);
-                    cur_state.registers.flag[6]  = extract<6,  7 >(value);
-                    cur_state.registers.flag[7]  = extract<7,  8 >(value);
-                    cur_state.registers.flag[8]  = extract<8,  9 >(value);
-                    cur_state.registers.flag[9]  = extract<9,  10>(value);
-                    cur_state.registers.flag[10] = extract<10, 11>(value);
-                    cur_state.registers.flag[11] = extract<11, 12>(value);
-                    cur_state.registers.flag[12] = extract<12, 13>(value);
-                    cur_state.registers.flag[13] = extract<13, 14>(value);
-                    cur_state.registers.flag[14] = extract<14, 15>(value);
-                    cur_state.registers.flag[15] = extract<15, 16>(value);
+                    cur_state.registers.flag[0]  = extract<0,  1, Len >(value);
+                    cur_state.registers.flag[1]  = extract<1,  2, Len >(value);
+                    cur_state.registers.flag[2]  = extract<2,  3, Len >(value);
+                    cur_state.registers.flag[3]  = extract<3,  4, Len >(value);
+                    cur_state.registers.flag[4]  = extract<4,  5, Len >(value);
+                    cur_state.registers.flag[5]  = extract<5,  6, Len >(value);
+                    cur_state.registers.flag[6]  = extract<6,  7, Len >(value);
+                    cur_state.registers.flag[7]  = extract<7,  8, Len >(value);
+                    cur_state.registers.flag[8]  = extract<8,  9, Len >(value);
+                    cur_state.registers.flag[9]  = extract<9,  10, Len>(value);
+                    cur_state.registers.flag[10] = extract<10, 11, Len>(value);
+                    cur_state.registers.flag[11] = extract<11, 12, Len>(value);
+                    cur_state.registers.flag[12] = extract<12, 13, Len>(value);
+                    cur_state.registers.flag[13] = extract<13, 14, Len>(value);
+                    cur_state.registers.flag[14] = extract<14, 15, Len>(value);
+                    cur_state.registers.flag[15] = extract<15, 16, Len>(value);
                     break;
                 default:
                     throw Exception("word access not valid for this register type");
@@ -265,22 +265,22 @@ void writeRegister(const RegisterDescriptor &reg, const ValueType<Len> &value) {
                     if (reg.get_nbits()!=32)
                         throw Exception("register is not 32 bits");
                     writeRegister<16>("flags", unsignedExtend<Len, 16>(value));
-                    cur_state.registers.flag[16] = extract<16, 17>(value);
-                    cur_state.registers.flag[17] = extract<17, 18>(value);
-                    cur_state.registers.flag[18] = extract<18, 19>(value);
-                    cur_state.registers.flag[19] = extract<19, 20>(value);
-                    cur_state.registers.flag[20] = extract<20, 21>(value);
-                    cur_state.registers.flag[21] = extract<21, 22>(value);
-                    cur_state.registers.flag[22] = extract<22, 23>(value);
-                    cur_state.registers.flag[23] = extract<23, 24>(value);
-                    cur_state.registers.flag[24] = extract<24, 25>(value);
-                    cur_state.registers.flag[25] = extract<25, 26>(value);
-                    cur_state.registers.flag[26] = extract<26, 27>(value);
-                    cur_state.registers.flag[27] = extract<27, 28>(value);
-                    cur_state.registers.flag[28] = extract<28, 29>(value);
-                    cur_state.registers.flag[29] = extract<29, 30>(value);
-                    cur_state.registers.flag[30] = extract<30, 31>(value);
-                    cur_state.registers.flag[31] = extract<31, 32>(value);
+                    cur_state.registers.flag[16] = extract<16, 17, Len>(value);
+                    cur_state.registers.flag[17] = extract<17, 18, Len>(value);
+                    cur_state.registers.flag[18] = extract<18, 19, Len>(value);
+                    cur_state.registers.flag[19] = extract<19, 20, Len>(value);
+                    cur_state.registers.flag[20] = extract<20, 21, Len>(value);
+                    cur_state.registers.flag[21] = extract<21, 22, Len>(value);
+                    cur_state.registers.flag[22] = extract<22, 23, Len>(value);
+                    cur_state.registers.flag[23] = extract<23, 24, Len>(value);
+                    cur_state.registers.flag[24] = extract<24, 25, Len>(value);
+                    cur_state.registers.flag[25] = extract<25, 26, Len>(value);
+                    cur_state.registers.flag[26] = extract<26, 27, Len>(value);
+                    cur_state.registers.flag[27] = extract<27, 28, Len>(value);
+                    cur_state.registers.flag[28] = extract<28, 29, Len>(value);
+                    cur_state.registers.flag[29] = extract<29, 30, Len>(value);
+                    cur_state.registers.flag[30] = extract<30, 31, Len>(value);
+                    cur_state.registers.flag[31] = extract<31, 32, Len>(value);
                     break;
                 default:
                     throw Exception("double word access not valid for this register type");
