@@ -110,18 +110,18 @@ namespace sg
   {
     typedef SageSequenceContainer Container;
 
-    Container& container;
+    Container* container;
 
     explicit
     SageInserter(Container& cont)
-    : container(cont)
+    : container(&cont)
     {}
 
     // \todo SageElem should be derived form the container type
     template <class SageElem>
     SageInserter& operator=(SageElem* elem)
     {
-      _append(container, elem);
+      _append(*container, elem);
       return *this;
     }
 
